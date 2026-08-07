@@ -53,6 +53,12 @@ async function responseError(response: Response): Promise<ApiError> {
   }
 }
 
+async function responseBody<T>(response: Response): Promise<T> {
+  if (response.status === 204) return undefined as T;
+  const body = await response.text();
+  return (body ? JSON.parse(body) : null) as T;
+}
+
 async function publicRequest<T>(
   path: string,
   options: RequestInit = {},
@@ -65,8 +71,7 @@ async function publicRequest<T>(
     },
   });
   if (!response.ok) throw await responseError(response);
-  if (response.status === 204) return undefined as T;
-  return response.json() as Promise<T>;
+  return responseBody<T>(response);
 }
 
 async function refreshSession(refreshToken: string): Promise<Session> {
@@ -109,8 +114,7 @@ async function request<T>(
     }
   }
   if (!response.ok) throw await responseError(response);
-  if (response.status === 204) return undefined as T;
-  return response.json() as Promise<T>;
+  return responseBody<T>(response);
 }
 
 export function login(input: { email: string; password: string }): Promise<Session> {
