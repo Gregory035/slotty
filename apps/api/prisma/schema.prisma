@@ -79,6 +79,7 @@ model Bot {
   updatedAt      DateTime  @updatedAt
 
   @@index([companyId, status])
+  @@unique([companyId])
 }
 
 model Employee {

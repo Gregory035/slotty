@@ -59,6 +59,21 @@ export function isoWeekday(value: string): number {
   return weekday === 0 ? 7 : weekday;
 }
 
+export function dateInTimeZone(value: Date, timeZone: string): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(value);
+  const values = Object.fromEntries(
+    parts
+      .filter(({ type }) => type !== 'literal')
+      .map(({ type, value: partValue }) => [type, partValue]),
+  );
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
 export function localDateTimeToUtc(
   date: string,
   time: string,
