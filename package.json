@@ -9,6 +9,7 @@
     "build": "npm run build --workspaces --if-present",
     "dev": "node scripts/dev.mjs",
     "lint": "npm run lint --workspaces --if-present",
+    "smoke:auth": "node scripts/smoke-auth.mjs",
     "test": "npm run test --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "db:generate": "prisma generate --schema=apps/api/prisma/schema.prisma",
