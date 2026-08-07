@@ -8,14 +8,13 @@ import {
   LogOut,
   Menu,
   Scissors,
-  Sparkles,
-  UserRound,
   UsersRound,
   X,
 } from 'lucide-react';
 import { logout } from '../api';
 import { useAppStore } from '../store';
 import type { Company, Section } from '../types';
+import { Brand } from './Brand';
 
 const navigation: Array<{ id: Section; label: string; icon: typeof LayoutDashboard }> = [
   { id: 'overview', label: 'Обзор', icon: LayoutDashboard },
@@ -54,19 +53,31 @@ export function AppShell({
   }
 
   const initials = `${session?.user.firstName?.[0] ?? ''}${session?.user.lastName?.[0] ?? ''}` || 'В';
+  const sectionTitle = navigation.find((item) => item.id === section)?.label ?? 'Обзор';
 
   return (
     <div className="app-layout">
       <aside className={`sidebar ${sidebarOpen ? 'sidebar-open' : ''}`}>
         <div className="sidebar-head">
-          <div className="brand-lockup brand-lockup-light">
-            <span className="brand-mark"><Sparkles size={19} /></span><span>Slotty</span>
-          </div>
+          <Brand />
           <button className="sidebar-close" onClick={closeSidebar} aria-label="Закрыть меню"><X size={20} /></button>
         </div>
 
+        <div className="sidebar-company">
+          <span className="company-symbol">{activeCompany.name.trim().charAt(0).toUpperCase()}</span>
+          <div><small>Рабочее пространство</small><strong>{activeCompany.name}</strong></div>
+          {companies.length > 1 && (
+            <>
+              <select aria-label="Выбрать компанию" value={activeCompany.id} onChange={(event) => setActiveCompanyId(event.target.value)}>
+                {companies.map((company) => <option key={company.id} value={company.id}>{company.name}</option>)}
+              </select>
+              <ChevronDown size={15} />
+            </>
+          )}
+        </div>
+
         <nav className="sidebar-nav" aria-label="Основная навигация">
-          <p>Рабочее пространство</p>
+          <p>Управление</p>
           {navigation.map((item) => {
             const Icon = item.icon;
             return (
@@ -98,20 +109,10 @@ export function AppShell({
         <header className="topbar">
           <div className="topbar-left">
             <button className="mobile-menu" onClick={toggleSidebar} aria-label="Открыть меню"><Menu size={20} /></button>
-            <div className="company-select-wrap">
-              <span className="company-symbol"><UserRound size={18} /></span>
-              <div><small>Компания</small><strong>{activeCompany.name}</strong></div>
-              {companies.length > 1 && (
-                <>
-                  <select aria-label="Выбрать компанию" value={activeCompany.id} onChange={(event) => setActiveCompanyId(event.target.value)}>
-                    {companies.map((company) => <option key={company.id} value={company.id}>{company.name}</option>)}
-                  </select>
-                  <ChevronDown size={16} />
-                </>
-              )}
-            </div>
+            <div className="mobile-brand"><Brand compact /></div>
+            <strong className="topbar-title">{sectionTitle}</strong>
           </div>
-          <div className="topbar-status"><span /><p><strong>Панель подключена</strong><small>{activeCompany.timezone}</small></p></div>
+          <div className="topbar-status"><span /><p><strong>{activeCompany.name}</strong><small>{activeCompany.timezone}</small></p></div>
         </header>
         <div className="page-container">{children}</div>
       </div>

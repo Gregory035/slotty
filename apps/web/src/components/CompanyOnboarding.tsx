@@ -1,9 +1,10 @@
 import { useState, type FormEvent } from 'react';
-import { ArrowRight, Building2, Check, Clock3, Sparkles } from 'lucide-react';
+import { ArrowRight, Building2, Check, Clock3 } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { createCompany } from '../api';
 import { useAppStore } from '../store';
 import { errorMessage } from '../utils';
+import { Brand } from './Brand';
 
 export function CompanyOnboarding() {
   const queryClient = useQueryClient();
@@ -31,9 +32,7 @@ export function CompanyOnboarding() {
 
   return (
     <main className="onboarding-layout">
-      <div className="onboarding-brand brand-lockup">
-        <span className="brand-mark"><Sparkles size={20} /></span><span>Slotty</span>
-      </div>
+      <div className="onboarding-brand"><Brand /></div>
       <section className="onboarding-card">
         <div className="onboarding-step"><span>1</span> из 3 · Основное</div>
         <span className="onboarding-icon"><Building2 size={28} /></span>
