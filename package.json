@@ -12,6 +12,7 @@
     "smoke:auth": "node scripts/smoke-auth.mjs",
     "smoke:catalog": "node scripts/smoke-catalog.mjs",
     "smoke:companies": "node scripts/smoke-companies.mjs",
+    "smoke:scheduling": "node scripts/smoke-scheduling.mjs",
     "test": "npm run test --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "db:generate": "prisma generate --schema=apps/api/prisma/schema.prisma",
