@@ -10,6 +10,6 @@ import { TokenService } from './token.service';
   imports: [UsersModule],
   controllers: [AuthController],
   providers: [AuthService, PasswordService, TokenService, AccessTokenGuard],
-  exports: [AccessTokenGuard],
+  exports: [AccessTokenGuard, TokenService, UsersModule],
 })
 export class AuthModule {}
