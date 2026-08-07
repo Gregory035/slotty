@@ -88,7 +88,7 @@ export function EmployeesView({ company }: { company: Company }) {
         <form className="form-stack modal-form" onSubmit={submit}>
           <div className="form-grid-2"><label>Имя<input name="firstName" required maxLength={50} placeholder="Елена" autoFocus /></label><label>Фамилия<input name="lastName" maxLength={50} placeholder="Соколова" /></label></div>
           <div className="form-grid-2"><label>Телефон<input name="phone" maxLength={32} placeholder="+7 999 123-45-67" /></label><label>Email<input name="email" type="email" maxLength={254} placeholder="elena@example.com" /></label></div>
-          <label>Цвет в календаре<input name="color" type="color" defaultValue="#3f7f68" /></label>
+          <label>Цвет в календаре<input name="color" type="color" defaultValue="#64748b" /></label>
           <fieldset className="service-checkboxes"><legend>Какие услуги выполняет</legend>{services.data?.length ? services.data.map((service) => <label key={service.id}><input type="checkbox" checked={selectedServices.includes(service.id)} onChange={(event) => setSelectedServices((current) => event.target.checked ? [...current, service.id] : current.filter((id) => id !== service.id))} /><span>{service.name}<small>{service.durationMinutes} мин</small></span></label>) : <p>Сначала добавьте услуги.</p>}</fieldset>
           <label>О сотруднике<textarea name="description" rows={2} maxLength={2000} placeholder="Опыт, специализация" /></label>
           {error && <p className="form-error">{error}</p>}

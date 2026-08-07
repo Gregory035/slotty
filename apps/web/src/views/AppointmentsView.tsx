@@ -59,7 +59,7 @@ function AppointmentItem({ appointment, company, busy, update }: { appointment: 
   return (
     <article className="appointment-list-row">
       <div className="appointment-date"><strong>{formatDateTime(appointment.startsAt, company.timezone).split(',').at(-1)}</strong><span>{appointment.service.durationMinutes} мин</span></div>
-      <span className="avatar" style={{ backgroundColor: '#e8eee9', color: '#245c49' }}>{appointment.customer.firstName[0]}{appointment.customer.lastName?.[0]}</span>
+      <span className="avatar">{appointment.customer.firstName[0]}{appointment.customer.lastName?.[0]}</span>
       <div className="appointment-person"><strong>{appointment.customer.firstName} {appointment.customer.lastName}</strong><span>{appointment.customer.username ? `@${appointment.customer.username}` : 'Клиент Telegram'}</span></div>
       <div className="appointment-service"><strong>{appointment.service.name}</strong><span>{appointment.employee.firstName} {appointment.employee.lastName}</span></div>
       <div className="appointment-price"><strong>{formatMoney(appointment.price, appointment.currency)}</strong><span className={`status-badge ${statusTone[appointment.status]}`}>{statusLabel[appointment.status]}</span></div>

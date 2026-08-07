@@ -46,10 +46,10 @@ export function OverviewView({ company }: { company: Company }) {
       />
 
       <section className="metrics-grid">
-        <Metric icon={CalendarCheck2} label="Записей сегодня" value={String(activeAppointments.length)} note={`${todayAppointments.length} всего`} tone="coral" />
-        <Metric icon={TrendingUp} label="Выручка сегодня" value={formatMoney(revenue, company.currency)} note="По активным записям" tone="green" />
-        <Metric icon={UsersRound} label="Сотрудников" value={String(activeEmployees.length)} note="Принимают клиентов" tone="blue" />
-        <Metric icon={Scissors} label="Активных услуг" value={String(activeServices.length)} note="Доступны в Telegram" tone="amber" />
+        <Metric icon={CalendarCheck2} label="Записей сегодня" value={String(activeAppointments.length)} note={`${todayAppointments.length} всего`} />
+        <Metric icon={TrendingUp} label="Выручка сегодня" value={formatMoney(revenue, company.currency)} note="По активным записям" />
+        <Metric icon={UsersRound} label="Сотрудников" value={String(activeEmployees.length)} note="Принимают клиентов" />
+        <Metric icon={Scissors} label="Активных услуг" value={String(activeServices.length)} note="Доступны в Telegram" />
       </section>
 
       <section className="overview-grid">
@@ -96,8 +96,8 @@ export function OverviewView({ company }: { company: Company }) {
   );
 }
 
-function Metric({ icon: Icon, label, value, note, tone }: { icon: typeof CalendarCheck2; label: string; value: string; note: string; tone: string }) {
-  return <article className="metric-card"><span className={`metric-icon metric-${tone}`}><Icon size={20} /></span><div><p>{label}</p><strong>{value}</strong><span>{note}</span></div></article>;
+function Metric({ icon: Icon, label, value, note }: { icon: typeof CalendarCheck2; label: string; value: string; note: string }) {
+  return <article className="metric-card"><span className="metric-icon"><Icon size={19} /></span><div><p>{label}</p><strong>{value}</strong><span>{note}</span></div></article>;
 }
 
 function localDateKey(value: string, timezone: string) {
@@ -107,6 +107,6 @@ function localDateKey(value: string, timezone: string) {
 }
 
 function employeeColor(id: string) {
-  const colors = ['#f26b4e', '#3f7f68', '#5a70c8', '#d49a35'];
+  const colors = ['#0f766e', '#2563eb', '#7c3aed', '#b45309'];
   return colors[id.charCodeAt(0) % colors.length];
 }
