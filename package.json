@@ -1,0 +1,36 @@
+{
+  "name": "telegram-business-saas",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "dev": "node scripts/dev.mjs",
+    "lint": "npm run lint --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "db:generate": "prisma generate --schema=apps/api/prisma/schema.prisma",
+    "db:migrate": "prisma migrate dev --schema=apps/api/prisma/schema.prisma",
+    "db:studio": "prisma studio --schema=apps/api/prisma/schema.prisma"
+  },
+  "devDependencies": {
+    "js-yaml": "5.2.3"
+  },
+  "engines": {
+    "node": ">=22.0.0",
+    "npm": ">=10.0.0"
+  },
+  "overrides": {
+    "@nestjs/swagger": {
+      "js-yaml": "5.2.3"
+    }
+  },
+  "allowScripts": {
+    "prisma@6.19.3": true,
+    "@prisma/client@6.19.3": true,
+    "@prisma/engines@6.19.3": true,
+    "esbuild@0.28.1": true
+  }
+}
