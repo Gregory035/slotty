@@ -1,15 +1,30 @@
 # Telegram Business SaaS
 
-SaaS-платформа для малого бизнеса: владелец настраивает компанию и собственного Telegram-бота, а клиенты записываются на услуги прямо в Telegram.
+[![CI](https://github.com/Gregory035/telegram-business-saas/actions/workflows/ci.yml/badge.svg)](https://github.com/Gregory035/telegram-business-saas/actions/workflows/ci.yml)
 
-## Структура
+SaaS-платформа для малого бизнеса: владелец управляет услугами, сотрудниками и расписанием, а клиенты записываются через фирменного Telegram-бота.
 
-- `apps/api` — NestJS API и Prisma;
-- `apps/web` — React/Vite панель владельца;
-- `docker-compose.yml` — PostgreSQL и Redis;
-- `.github/workflows/ci.yml` — проверка сборки и тестов.
+## Что реализовано
 
-Архитектура backend — modular monolith. Все tenant-данные привязаны к `companyId`.
+- регистрация и вход по JWT access/refresh tokens;
+- компании с ролями `OWNER`, `ADMIN` и `EMPLOYEE`;
+- изоляция данных компаний через `companyId` и guard-проверки;
+- управление услугами и сотрудниками;
+- рабочее расписание, исключения и расчет свободных слотов;
+- управление записями клиентов;
+- подключение Telegram-бота и сценарий бронирования;
+- Swagger, health endpoint, smoke-скрипты и GitHub Actions CI.
+
+## Архитектура и стек
+
+Монорепозиторий и modular monolith:
+
+- `apps/api` — NestJS, Prisma, PostgreSQL, Redis;
+- `apps/web` — React, Vite, TypeScript;
+- `docker-compose.yml` — локальные PostgreSQL и Redis;
+- `.github/workflows/ci.yml` — typecheck, тесты и сборка.
+
+В проекте используются RBAC, хеширование паролей, ротация refresh-токенов, AES-256-GCM для токенов ботов и транзакции для конкурентного бронирования.
 
 ## Локальный запуск
 
@@ -17,7 +32,7 @@ SaaS-платформа для малого бизнеса: владелец н�
 
 ```bash
 cp .env.example .env
-npm install
+npm ci
 docker compose up -d
 npm run db:generate
 npm run db:migrate
@@ -26,15 +41,20 @@ npm run dev
 
 После запуска:
 
-- Web: http://localhost:5173
-- API: http://localhost:3000/api
-- Swagger: http://localhost:3000/docs
-- Health: http://localhost:3000/api/health
+- Web: [http://localhost:5173](http://localhost:5173)
+- API: [http://localhost:3000/api](http://localhost:3000/api)
+- Swagger: [http://localhost:3000/docs](http://localhost:3000/docs)
+- Health: [http://localhost:3000/api/health](http://localhost:3000/api/health)
 
-## Ближайшие этапы
+## Проверки
 
-1. Регистрация, вход, access/refresh JWT.
-2. Создание компании и проверка ролей OWNER/ADMIN/EMPLOYEE.
-3. CRUD услуг и сотрудников.
-4. Расписание и расчет свободных слотов.
-5. Подключение Telegram-бота и сценарий записи.
+```bash
+npm run db:generate
+npm run typecheck
+npm test
+npm run build
+```
+
+## Статус
+
+Активно развиваемый pet-проект. Перед production-запуском потребуются дополнительное e2e-покрытие, наблюдаемость, усиление rate limiting и production-инфраструктура.
