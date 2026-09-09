@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { ArrowRight, Bot, CalendarCheck2, CheckCircle2 } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { login, register } from '../api';
 import { useAppStore } from '../store';
 import { errorMessage } from '../utils';
@@ -68,13 +68,39 @@ export function AuthScreen() {
           </button>
         </form>
 
-        <div className="auth-feature-list">
-          <span><CalendarCheck2 size={16} /> Единое расписание</span>
-          <span><Bot size={16} /> Запись через Telegram</span>
-          <span><CheckCircle2 size={16} /> 14 дней бесплатно</span>
-        </div>
         <p className="auth-legal">Продолжая, вы соглашаетесь с правилами сервиса и обработкой данных.</p>
       </section>
+
+      <aside className="auth-product-preview" aria-hidden="true">
+        <div className="auth-preview-copy">
+          <p className="eyebrow">Онлайн-запись без переписки</p>
+          <h2>Клиенты записываются сами — в Telegram.</h2>
+          <p>Slotty показывает только свободное время и сразу добавляет запись в расписание.</p>
+        </div>
+
+        <section className="auth-preview-calendar">
+          <header>
+            <div>
+              <span>Сегодня, 8 августа</span>
+              <strong>Записи</strong>
+            </div>
+            <i>3</i>
+          </header>
+          <div className="auth-preview-slot">
+            <time>10:00</time>
+            <article><b>Елена Соколова</b><small>Стрижка · подтверждено</small></article>
+          </div>
+          <div className="auth-preview-slot">
+            <time>13:30</time>
+            <article className="is-lime"><b>Новая запись</b><small>Укладка · Telegram</small></article>
+          </div>
+          <div className="auth-preview-slot">
+            <time>17:00</time>
+            <article><b>Марина Ковалёва</b><small>Окрашивание · подтверждено</small></article>
+          </div>
+        </section>
+
+      </aside>
     </main>
   );
 }

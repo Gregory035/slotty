@@ -119,7 +119,7 @@ try {
   const members = await request(`/companies/${companyId}/members`, {
     headers: bearer(owner.accessToken),
   });
-  if (members.response.status !== 200 || members.body.length !== 2) {
+  if (members.response.status !== 200 || members.body.items.length !== 2) {
     throw new Error('Company member list is incorrect');
   }
 

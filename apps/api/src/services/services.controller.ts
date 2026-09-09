@@ -19,9 +19,11 @@ import {
   ApiOkResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { CompanyRole } from '@prisma/client';
 import { AccessTokenGuard } from '../auth/guards/access-token.guard';
-import { CompanyRoles } from '../companies/decorators/company-roles.decorator';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { AuthenticatedUserDto } from '../auth/dto/auth-response.dto';
+import { CompanyPermission } from '../companies/company-permission';
+import { RequirePermissions } from '../companies/decorators/require-permissions.decorator';
 import { CompanyAccessGuard } from '../companies/guards/company-access.guard';
 import { CreateServiceDto } from './dto/create-service.dto';
 import { ServiceResponseDto } from './dto/service-response.dto';
@@ -36,16 +38,18 @@ export class ServicesController {
   constructor(private readonly services: ServicesService) {}
 
   @Post()
-  @CompanyRoles(CompanyRole.OWNER, CompanyRole.ADMIN)
+  @RequirePermissions(CompanyPermission.SERVICES_MANAGE)
   @ApiCreatedResponse({ type: ServiceResponseDto })
   create(
     @Param('companyId') companyId: string,
     @Body() input: CreateServiceDto,
+    @CurrentUser() user: AuthenticatedUserDto,
   ): Promise<ServiceResponseDto> {
-    return this.services.create(companyId, input);
+    return this.services.create(companyId, input, user.id);
   }
 
   @Get()
+  @RequirePermissions(CompanyPermission.SERVICES_READ)
   @ApiOkResponse({ type: ServiceResponseDto, isArray: true })
   findAll(
     @Param('companyId') companyId: string,
@@ -54,6 +58,7 @@ export class ServicesController {
   }
 
   @Get(':serviceId')
+  @RequirePermissions(CompanyPermission.SERVICES_READ)
   @ApiOkResponse({ type: ServiceResponseDto })
   @ApiNotFoundResponse({ description: 'Service not found in this company' })
   findOne(
@@ -64,24 +69,26 @@ export class ServicesController {
   }
 
   @Patch(':serviceId')
-  @CompanyRoles(CompanyRole.OWNER, CompanyRole.ADMIN)
+  @RequirePermissions(CompanyPermission.SERVICES_MANAGE)
   @ApiOkResponse({ type: ServiceResponseDto })
   update(
     @Param('companyId') companyId: string,
     @Param('serviceId', ParseUUIDPipe) serviceId: string,
     @Body() input: UpdateServiceDto,
+    @CurrentUser() user: AuthenticatedUserDto,
   ): Promise<ServiceResponseDto> {
-    return this.services.update(companyId, serviceId, input);
+    return this.services.update(companyId, serviceId, input, user.id);
   }
 
   @Delete(':serviceId')
-  @CompanyRoles(CompanyRole.OWNER, CompanyRole.ADMIN)
+  @RequirePermissions(CompanyPermission.SERVICES_MANAGE)
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiNoContentResponse()
   softDelete(
     @Param('companyId') companyId: string,
     @Param('serviceId', ParseUUIDPipe) serviceId: string,
+    @CurrentUser() user: AuthenticatedUserDto,
   ): Promise<void> {
-    return this.services.softDelete(companyId, serviceId);
+    return this.services.softDelete(companyId, serviceId, user.id);
   }
 }

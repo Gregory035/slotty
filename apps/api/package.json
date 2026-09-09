@@ -9,6 +9,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "tsc --noEmit -p tsconfig.json",
     "test": "jest --runInBand",
+    "test:coverage": "jest --runInBand --coverage",
+    "test:integration": "jest --config jest.integration.json --runInBand",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio"

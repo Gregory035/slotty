@@ -13,7 +13,6 @@ describe('API response parsing', () => {
     });
     writeSession({
       accessToken: 'access-token',
-      refreshToken: 'refresh-token',
       expiresIn: 900,
       user: {
         id: 'user-id',

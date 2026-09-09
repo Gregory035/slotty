@@ -36,8 +36,29 @@ export class CompanyResponseDto {
   @ApiPropertyOptional({ nullable: true })
   logoUrl: string | null;
 
+  @ApiProperty()
+  minBookingNoticeMinutes: number;
+
+  @ApiProperty()
+  maxBookingHorizonDays: number;
+
+  @ApiProperty()
+  slotStepMinutes: number;
+
+  @ApiProperty()
+  cancellationNoticeMinutes: number;
+
+  @ApiProperty()
+  allowAnyEmployee: boolean;
+
+  @ApiProperty()
+  rebookingDelayDays: number;
+
   @ApiProperty({ enum: CompanyRole })
   role: CompanyRole;
+
+  @ApiPropertyOptional({ format: 'uuid', nullable: true })
+  employeeId: string | null;
 
   @ApiPropertyOptional({ enum: SubscriptionPlan, nullable: true })
   subscriptionPlan: SubscriptionPlan | null;

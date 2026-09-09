@@ -1,18 +1,27 @@
 import type {
   Appointment,
   AppointmentStatus,
+  AuditLog,
   Company,
+  CompanyMember,
+  CursorPage,
+  Customer,
+  CustomerDetails,
+  Dashboard,
   Employee,
+  Entitlements,
+  Payment,
   ScheduleException,
   ScheduleExceptionType,
   ScheduleRule,
+  ReviewDashboard,
   Service,
   Session,
   TelegramBot,
 } from './types';
 
 const apiUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:3000/api';
-const sessionKey = 'telegram-business-session';
+let currentSession: Session | null = null;
 let refreshPromise: Promise<Session> | null = null;
 
 export class ApiError extends Error {
@@ -25,20 +34,11 @@ export class ApiError extends Error {
 }
 
 export function readSession(): Session | null {
-  if (typeof localStorage === 'undefined') return null;
-  try {
-    const value = localStorage.getItem(sessionKey);
-    return value ? (JSON.parse(value) as Session) : null;
-  } catch {
-    localStorage.removeItem(sessionKey);
-    return null;
-  }
+  return currentSession;
 }
 
 export function writeSession(session: Session | null): void {
-  if (typeof localStorage === 'undefined') return;
-  if (session) localStorage.setItem(sessionKey, JSON.stringify(session));
-  else localStorage.removeItem(sessionKey);
+  currentSession = session;
 }
 
 async function responseError(response: Response): Promise<ApiError> {
@@ -65,6 +65,7 @@ async function publicRequest<T>(
 ): Promise<T> {
   const response = await fetch(`${apiUrl}${path}`, {
     ...options,
+    credentials: 'include',
     headers: {
       ...(options.body ? { 'content-type': 'application/json' } : {}),
       ...options.headers,
@@ -74,11 +75,10 @@ async function publicRequest<T>(
   return responseBody<T>(response);
 }
 
-async function refreshSession(refreshToken: string): Promise<Session> {
+async function refreshSession(): Promise<Session> {
   if (!refreshPromise) {
     refreshPromise = publicRequest<Session>('/auth/refresh', {
       method: 'POST',
-      body: JSON.stringify({ refreshToken }),
     }).finally(() => {
       refreshPromise = null;
     });
@@ -97,6 +97,7 @@ async function request<T>(
   if (!session) throw new ApiError('Войдите в аккаунт', 401);
   const response = await fetch(`${apiUrl}${path}`, {
     ...options,
+    credentials: 'include',
     headers: {
       ...(options.body ? { 'content-type': 'application/json' } : {}),
       authorization: `Bearer ${session.accessToken}`,
@@ -105,7 +106,7 @@ async function request<T>(
   });
   if (response.status === 401 && !retried) {
     try {
-      await refreshSession(session.refreshToken);
+      await refreshSession();
       return request<T>(path, options, true);
     } catch {
       writeSession(null);
@@ -136,15 +137,18 @@ export function register(input: {
   });
 }
 
-export async function logout(): Promise<void> {
-  const session = readSession();
+export async function restoreSession(): Promise<Session | null> {
   try {
-    if (session) {
-      await publicRequest('/auth/logout', {
-        method: 'POST',
-        body: JSON.stringify({ refreshToken: session.refreshToken }),
-      });
-    }
+    return await refreshSession();
+  } catch {
+    writeSession(null);
+    return null;
+  }
+}
+
+export async function logout(): Promise<void> {
+  try {
+    await publicRequest('/auth/logout', { method: 'POST' });
   } finally {
     writeSession(null);
   }
@@ -171,6 +175,8 @@ export const createService = (
     name: string;
     durationMinutes: number;
     price: number;
+    depositPercent?: number;
+    depositFixedAmount?: number;
     category?: string;
     description?: string;
   },
@@ -269,15 +275,55 @@ export const deleteScheduleException = (
 
 export const getAppointments = (
   companyId: string,
-  filters: { from?: string; to?: string; status?: AppointmentStatus } = {},
+  filters: {
+    from?: string;
+    to?: string;
+    status?: AppointmentStatus;
+    employeeId?: string;
+    serviceId?: string;
+    customerId?: string;
+    source?: 'TELEGRAM' | 'DASHBOARD';
+    search?: string;
+    order?: 'asc' | 'desc';
+    cursor?: string;
+    limit?: number;
+  } = {},
 ) => {
   const params = new URLSearchParams();
-  if (filters.from) params.set('from', filters.from);
-  if (filters.to) params.set('to', filters.to);
-  if (filters.status) params.set('status', filters.status);
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value !== undefined && value !== '') params.set(key, String(value));
+  });
   const query = params.size ? `?${params}` : '';
-  return request<Appointment[]>(`/companies/${companyId}/appointments${query}`);
+  return request<CursorPage<Appointment>>(`/companies/${companyId}/appointments${query}`);
 };
+
+export const createAppointment = (
+  companyId: string,
+  input: {
+    customerId?: string;
+    customer?: { firstName: string; lastName?: string; phone?: string };
+    employeeId: string;
+    serviceId: string;
+    startsAt: string;
+    notes?: string;
+  },
+  idempotencyKey: string,
+) =>
+  request<Appointment>(`/companies/${companyId}/appointments`, {
+    method: 'POST',
+    headers: { 'idempotency-key': idempotencyKey },
+    body: JSON.stringify(input),
+  });
+
+export const rescheduleAppointment = (
+  companyId: string,
+  appointmentId: string,
+  input: { startsAt: string; employeeId?: string; serviceId?: string; notes?: string },
+) =>
+  request<Appointment>(
+    `/companies/${companyId}/appointments/${appointmentId}/reschedule`,
+    { method: 'PATCH', body: JSON.stringify(input) },
+  );
 
 export const updateAppointmentStatus = (
   companyId: string,
@@ -291,6 +337,16 @@ export const updateAppointmentStatus = (
       method: 'PATCH',
       body: JSON.stringify({ status, cancellationReason }),
     },
+  );
+
+export const updateDepositStatus = (
+  companyId: string,
+  appointmentId: string,
+  status: 'PAID' | 'WAIVED',
+) =>
+  request<Appointment>(
+    `/companies/${companyId}/appointments/${appointmentId}/deposit`,
+    { method: 'PATCH', body: JSON.stringify({ status }) },
   );
 
 export const getBot = (companyId: string) =>
@@ -311,3 +367,107 @@ export const disableBot = (companyId: string, botId: string) =>
   request<TelegramBot>(`/companies/${companyId}/bots/${botId}/disable`, {
     method: 'POST',
   });
+
+export const getDashboard = (companyId: string, from?: string, to?: string) => {
+  const params = new URLSearchParams();
+  if (from) params.set('from', from);
+  if (to) params.set('to', to);
+  return request<Dashboard>(
+    `/companies/${companyId}/dashboard${params.size ? `?${params}` : ''}`,
+  );
+};
+
+export const getCustomers = (companyId: string, search = '', cursor?: string) => {
+  const params = new URLSearchParams({ limit: '25' });
+  if (search) params.set('search', search);
+  if (cursor) params.set('cursor', cursor);
+  return request<CursorPage<Customer>>(`/companies/${companyId}/customers?${params}`);
+};
+
+export const getCustomer = (companyId: string, customerId: string) =>
+  request<CustomerDetails>(`/companies/${companyId}/customers/${customerId}`);
+
+export const getReviews = (companyId: string) =>
+  request<ReviewDashboard>(`/companies/${companyId}/reviews`);
+
+export const updateCustomer = (
+  companyId: string,
+  customerId: string,
+  input: { firstName?: string; lastName?: string | null; phone?: string | null; notes?: string | null },
+) => request<Customer>(`/companies/${companyId}/customers/${customerId}`, {
+  method: 'PATCH', body: JSON.stringify(input),
+});
+
+export const setCustomerBlacklist = (companyId: string, customerId: string, blacklisted: boolean) =>
+  request<Customer>(`/companies/${companyId}/customers/${customerId}/blacklist`, {
+    method: 'POST', body: JSON.stringify({ blacklisted }),
+  });
+
+export const anonymizeCustomer = (companyId: string, customerId: string) =>
+  request<void>(`/companies/${companyId}/customers/${customerId}/personal-data`, { method: 'DELETE' });
+
+export const getAvailability = (
+  companyId: string,
+  input: { employeeId: string; serviceId: string; date: string },
+) => {
+  const params = new URLSearchParams(input);
+  return request<{
+    date: string;
+    timezone: string;
+    durationMinutes: number;
+    slots: Array<{ startsAt: string; endsAt: string }>;
+  }>(`/companies/${companyId}/availability?${params}`);
+};
+
+export const getMembers = (companyId: string, cursor?: string) => {
+  const params = new URLSearchParams({ limit: '50' });
+  if (cursor) params.set('cursor', cursor);
+  return request<CursorPage<CompanyMember>>(`/companies/${companyId}/members?${params}`);
+};
+
+export const addMember = (
+  companyId: string,
+  input: { email: string; role: Company['role']; employeeId?: string | null },
+) => request<CompanyMember>(`/companies/${companyId}/members`, { method: 'POST', body: JSON.stringify(input) });
+
+export const updateMember = (
+  companyId: string,
+  memberId: string,
+  input: { role?: Company['role']; employeeId?: string | null },
+) => request<CompanyMember>(`/companies/${companyId}/members/${memberId}`, { method: 'PATCH', body: JSON.stringify(input) });
+
+export const deleteMember = (companyId: string, memberId: string) =>
+  request<void>(`/companies/${companyId}/members/${memberId}`, { method: 'DELETE' });
+
+export const updateCompany = (
+  companyId: string,
+  input: Partial<Pick<Company,
+    | 'name' | 'description' | 'phone' | 'email' | 'address' | 'timezone'
+    | 'currency' | 'language' | 'minBookingNoticeMinutes' | 'maxBookingHorizonDays'
+    | 'slotStepMinutes' | 'cancellationNoticeMinutes' | 'allowAnyEmployee' | 'rebookingDelayDays'>>,
+) => request<Company>(`/companies/${companyId}`, { method: 'PATCH', body: JSON.stringify(input) });
+
+export const getEntitlements = (companyId: string) =>
+  request<Entitlements>(`/companies/${companyId}/billing`);
+
+export const getPayments = (companyId: string, cursor?: string) => {
+  const params = new URLSearchParams({ limit: '25' });
+  if (cursor) params.set('cursor', cursor);
+  return request<CursorPage<Payment>>(`/companies/${companyId}/billing/payments?${params}`);
+};
+
+export const createCheckout = (companyId: string, plan: 'STARTER' | 'PRO') =>
+  request<{ confirmationUrl: string }>(`/companies/${companyId}/billing/checkout`, {
+    method: 'POST',
+    headers: { 'idempotency-key': crypto.randomUUID() },
+    body: JSON.stringify({ plan }),
+  });
+
+export const syncPayment = (companyId: string, paymentId: string) =>
+  request<Payment | null>(`/companies/${companyId}/billing/payments/${paymentId}/sync`, { method: 'POST' });
+
+export const getAuditLogs = (companyId: string, cursor?: string) => {
+  const params = new URLSearchParams({ limit: '25' });
+  if (cursor) params.set('cursor', cursor);
+  return request<CursorPage<AuditLog>>(`/companies/${companyId}/audit-logs?${params}`);
+};

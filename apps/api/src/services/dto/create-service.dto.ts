@@ -56,4 +56,20 @@ export class CreateServiceDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @ApiPropertyOptional({ description: 'Процент предоплаты от стоимости услуги', minimum: 0, maximum: 100, default: 0 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(100)
+  depositPercent?: number;
+
+  @ApiPropertyOptional({ description: 'Фиксированная предоплата. Если указана, имеет приоритет над процентом.', minimum: 0 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(999_999_999)
+  depositFixedAmount?: number;
 }

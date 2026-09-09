@@ -28,6 +28,12 @@ export class ServiceResponseDto {
   @ApiProperty()
   isActive: boolean;
 
+  @ApiProperty({ minimum: 0, maximum: 100 })
+  depositPercent: number;
+
+  @ApiPropertyOptional({ nullable: true, example: '500.00' })
+  depositFixedAmount: string | null;
+
   @ApiProperty()
   createdAt: Date;
 

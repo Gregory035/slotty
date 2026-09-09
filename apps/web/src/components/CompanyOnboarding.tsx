@@ -34,7 +34,7 @@ export function CompanyOnboarding() {
     <main className="onboarding-layout">
       <div className="onboarding-brand"><Brand /></div>
       <section className="onboarding-card">
-        <div className="onboarding-step"><span>1</span> из 3 · Основное</div>
+        <div className="onboarding-step"><span>1</span> · Основное</div>
         <span className="onboarding-icon"><Building2 size={28} /></span>
         <h1>Расскажите о вашем бизнесе</h1>
         <p>Эти данные нужны, чтобы правильно показывать время и цены клиентам.</p>
@@ -60,9 +60,9 @@ export function CompanyOnboarding() {
           {error && <p className="form-error">{error}</p>}
           <button className="primary-button" disabled={mutation.isPending}>Продолжить <ArrowRight size={17} /></button>
         </form>
-        <div className="onboarding-note"><Clock3 size={17} /><span>Пробный период включится автоматически на 14 дней.</span></div>
+        <div className="onboarding-note"><Clock3 size={17} /><span>После создания Slotty проведёт вас по услугам, команде, расписанию, Telegram и тестовой записи.</span></div>
       </section>
-      <div className="onboarding-progress"><span className="active"><Check size={13} /></span><i /><span>2</span><i /><span>3</span></div>
+      <div className="onboarding-progress" aria-label="Дальнейшая настройка после создания"><span className="active"><Check size={13} /></span><i /><span>2</span><i /><span>3</span><i /><span>4</span><i /><span>5</span></div>
     </main>
   );
 }

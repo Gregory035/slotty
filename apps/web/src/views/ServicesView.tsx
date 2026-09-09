@@ -34,6 +34,8 @@ export function ServicesView({ company }: { company: Company }) {
       category: String(form.get('category') || '') || undefined,
       durationMinutes: Number(form.get('durationMinutes')),
       price: Number(form.get('price')),
+      depositPercent: Number(form.get('depositPercent') || 0),
+      depositFixedAmount: form.get('depositFixedAmount') ? Number(form.get('depositFixedAmount')) : undefined,
       description: String(form.get('description') || '') || undefined,
     });
   }
@@ -48,10 +50,10 @@ export function ServicesView({ company }: { company: Company }) {
           {services.data?.map((service) => (
             <article className="service-card" key={service.id}>
               <div className="service-card-top"><span className="service-icon"><Scissors size={21} /></span><span className={`status-dot-label ${service.isActive ? 'active' : ''}`}><i />{service.isActive ? 'Активна' : 'Скрыта'}</span></div>
-              <p className="service-category">{service.category || 'Без категории'}</p>
+              {service.category && <p className="service-category">{service.category}</p>}
               <h2>{service.name}</h2>
-              <p className="service-description">{service.description || 'Описание пока не добавлено.'}</p>
-              <div className="service-meta"><span><Clock3 size={16} />{service.durationMinutes} минут</span><strong>{formatMoney(service.price, company.currency)}</strong></div>
+              {service.description && <p className="service-description">{service.description}</p>}
+              <div className="service-meta"><span><Clock3 size={16} />{service.durationMinutes} минут{service.depositFixedAmount ? ` · предоплата ${formatMoney(service.depositFixedAmount, company.currency)}` : service.depositPercent > 0 ? ` · предоплата ${service.depositPercent}%` : ''}</span><strong>{formatMoney(service.price, company.currency)}</strong></div>
               <div className="card-actions"><button className="danger-text-button" disabled={deleteMutation.isPending} onClick={() => { if (window.confirm(`Скрыть услугу «${service.name}»?`)) deleteMutation.mutate(service.id); }}><Trash2 size={15} /> Скрыть</button></div>
             </article>
           ))}
@@ -62,7 +64,7 @@ export function ServicesView({ company }: { company: Company }) {
         <form className="form-stack modal-form" onSubmit={submit}>
           <label>Название<input name="name" required maxLength={120} placeholder="Женская стрижка" autoFocus /></label>
           <div className="form-grid-2"><label>Категория<input name="category" maxLength={100} placeholder="Стрижки" /></label><label>Длительность, мин<input name="durationMinutes" type="number" min={5} max={1440} step={5} defaultValue={60} required /></label></div>
-          <label>Цена, {company.currency}<input name="price" type="number" min={0} step="0.01" placeholder="2500" required /></label>
+          <div className="form-grid-2"><label>Цена, {company.currency}<input name="price" type="number" min={0} step="0.01" placeholder="2500" required /></label><label>Предоплата, %<input name="depositPercent" type="number" min={0} max={100} step={1} defaultValue={0} /></label><label>Или фиксированная предоплата, {company.currency}<input name="depositFixedAmount" type="number" min={0} step="0.01" placeholder="500" /></label></div>
           <label>Описание<textarea name="description" rows={3} maxLength={2000} placeholder="Что входит в услугу" /></label>
           {error && <p className="form-error">{error}</p>}
           <div className="modal-actions"><button type="button" className="secondary-button" onClick={() => setModalOpen(false)}>Отмена</button><button className="primary-button" disabled={createMutation.isPending}>{createMutation.isPending ? 'Сохраняем…' : 'Добавить услугу'}</button></div>

@@ -5,7 +5,12 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { BotStatus } from '@prisma/client';
+import {
+  AppointmentStatus,
+  BotStatus,
+  Prisma,
+  TelegramUpdateStatus,
+} from '@prisma/client';
 import { InlineKeyboard } from 'grammy';
 import type { Update, User } from 'grammy/types';
 import { timingSafeEqual } from 'node:crypto';
@@ -15,17 +20,21 @@ import { SchedulingService } from '../scheduling/scheduling.service';
 import {
   addDays,
   dateInTimeZone,
+  isoWeekday,
+  localDateTimeToUtc,
   parseDateOnly,
   parseTimeToMinutes,
 } from '../scheduling/time-zone.util';
 import { decodeUuid, encodeUuid } from './callback-data.util';
 import { TelegramApiService } from './telegram-api.service';
+import { WaitlistService } from '../waitlist/waitlist.service';
 import { TokenEncryptionService } from './token-encryption.service';
 
 interface UpdateContext {
   chatId: number;
   user: User;
   callbackData?: string;
+  messageId?: number;
 }
 
 @Injectable()
@@ -34,6 +43,7 @@ export class TelegramBookingService {
     private readonly prisma: PrismaService,
     private readonly scheduling: SchedulingService,
     private readonly appointments: AppointmentsService,
+    private readonly waitlist: WaitlistService,
     private readonly encryption: TokenEncryptionService,
     private readonly telegramApi: TelegramApiService,
   ) {}
@@ -49,24 +59,74 @@ export class TelegramBookingService {
     });
     if (!bot) throw new NotFoundException('Telegram bot not found');
     if (bot.status !== BotStatus.ACTIVE) return;
+    try {
+      await this.prisma.telegramUpdate.create({
+        data: {
+          companyId: bot.companyId,
+          botId: bot.id,
+          updateId: BigInt(update.update_id),
+          payload: JSON.parse(JSON.stringify(update)) as Prisma.InputJsonValue,
+        },
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        return;
+      }
+      throw error;
+    }
+  }
+
+  async processQueuedUpdate(id: string): Promise<void> {
+    const queued = await this.prisma.telegramUpdate.findUnique({
+      where: { id },
+      include: { bot: true },
+    });
+    if (!queued || queued.status !== TelegramUpdateStatus.PROCESSING) return;
+    if (queued.bot.status !== BotStatus.ACTIVE) return;
+    const update = queued.payload as unknown as Update;
+    const bot = queued.bot;
     const token = this.encryption.decrypt(bot.tokenEncrypted);
     const context = this.extractContext(update);
     if (!context) return;
 
     if (update.callback_query) {
-      await this.telegramApi.answerCallbackQuery(
-        token,
-        update.callback_query.id,
-      );
+      try {
+        await this.telegramApi.answerCallbackQuery(
+          token,
+          update.callback_query.id,
+        );
+      } catch {
+        // Telegram rejects acknowledgements for callbacks older than a few
+        // seconds. The booking action itself can still be handled safely.
+      }
     }
 
     try {
+      if (!update.callback_query && update.message && 'text' in update.message) {
+        const text = update.message.text?.trim();
+        if (text && !text.startsWith('/') && await this.savePendingReviewComment(
+          bot.companyId,
+          token,
+          context,
+          text,
+        )) return;
+      }
       await this.routeCallback(
         bot.companyId,
         token,
         context,
       );
     } catch (error) {
+      if (
+        !(error instanceof ConflictException) &&
+        !(error instanceof BadRequestException) &&
+        !(error instanceof NotFoundException)
+      ) {
+        throw error;
+      }
       const message =
         error instanceof ConflictException
           ? 'Это время уже заняли. Пожалуйста, выберите другое.'
@@ -75,7 +135,7 @@ export class TelegramBookingService {
         token,
         context.chatId,
         message,
-        new InlineKeyboard().text('Записаться', 'h'),
+        new InlineKeyboard().text('Главное меню', 'h'),
       );
     }
   }
@@ -87,10 +147,91 @@ export class TelegramBookingService {
   ): Promise<void> {
     const data = context.callbackData;
     if (!data || data === 'h') {
+      await this.showMainMenu(companyId, token, context.chatId);
+      return;
+    }
+    if (data === 'b') {
       await this.showServices(companyId, token, context.chatId);
       return;
     }
+    if (data === 'm') {
+      await this.showAppointments(companyId, token, context, 'upcoming');
+      return;
+    }
+    if (data === 'mu' || data === 'ma') {
+      await this.showAppointments(companyId, token, context, data === 'mu' ? 'upcoming' : 'archive');
+      return;
+    }
+    if (data === 'c') {
+      await this.showCompanyContacts(companyId, token, context.chatId);
+      return;
+    }
     const parts = data.split(':');
+    if (parts[0] === 'a' && parts.length === 2) {
+      await this.showAppointmentDetails(companyId, token, context, decodeUuid(parts[1]!));
+      return;
+    }
+    if ((parts[0] === 'p' || parts[0] === 'pc') && parts.length === 2) {
+      await this.repeatAppointment(companyId, token, context, decodeUuid(parts[1]!), parts[0] === 'pc');
+      return;
+    }
+    if (parts[0] === 'cf' && parts.length === 2) {
+      await this.confirmVisit(companyId, token, context, decodeUuid(parts[1]!));
+      return;
+    }
+    if (parts[0] === 'vs' && parts.length === 2) {
+      await this.skipReviewComment(companyId, token, context, decodeUuid(parts[1]!));
+      return;
+    }
+    if (parts[0] === 'x' && parts.length === 2) {
+      await this.cancelCustomerAppointment(
+        companyId,
+        token,
+        context,
+        decodeUuid(parts[1]!),
+      );
+      return;
+    }
+    if (parts[0] === 'v' && parts.length === 3) {
+      await this.submitReview(
+        companyId,
+        token,
+        context,
+        decodeUuid(parts[1]!),
+        Number(parts[2]),
+      );
+      return;
+    }
+    if (parts[0] === 'r' && parts.length === 2) {
+      await this.showRescheduleDates(
+        companyId,
+        token,
+        context,
+        decodeUuid(parts[1]!),
+      );
+      return;
+    }
+    if (parts[0] === 'rd' && parts.length === 3) {
+      await this.showRescheduleSlots(
+        companyId,
+        token,
+        context,
+        decodeUuid(parts[1]!),
+        this.callbackDate(parts[2]!),
+      );
+      return;
+    }
+    if (parts[0] === 'rt' && parts.length === 4) {
+      await this.rescheduleCustomerAppointment(
+        companyId,
+        token,
+        context,
+        decodeUuid(parts[1]!),
+        this.callbackDate(parts[2]!),
+        this.callbackTime(parts[3]!),
+      );
+      return;
+    }
     if (parts[0] === 's' && parts.length === 2) {
       await this.showEmployees(
         companyId,
@@ -121,6 +262,16 @@ export class TelegramBookingService {
       );
       return;
     }
+    if (parts[0] === 'w' && parts.length === 4) {
+      await this.waitlist.joinFromTelegram(companyId, {
+        telegramId: context.user.id,
+        username: context.user.username,
+        firstName: context.user.first_name,
+        lastName: context.user.last_name,
+      }, decodeUuid(parts[1]!), decodeUuid(parts[2]!), this.callbackDate(parts[3]!));
+      await this.telegramApi.sendMessage(token, context.chatId, 'Добавили в лист ожидания. Напишем, если на этот день появится свободное окно.');
+      return;
+    }
     if (parts[0] === 't' && parts.length === 5) {
       await this.createBooking(
         companyId,
@@ -134,6 +285,29 @@ export class TelegramBookingService {
       return;
     }
     throw new BadRequestException('Unknown Telegram callback');
+  }
+
+  private async showMainMenu(
+    companyId: string,
+    token: string,
+    chatId: number,
+  ): Promise<void> {
+    const company = await this.prisma.company.findFirst({
+      where: { id: companyId, deletedAt: null },
+      select: { name: true },
+    });
+    if (!company) throw new NotFoundException('Company not found');
+    await this.telegramApi.sendMessage(
+      token,
+      chatId,
+      `${company.name}: чем помочь?`,
+      new InlineKeyboard()
+        .text('Записаться', 'b')
+        .row()
+        .text('Мои записи', 'm')
+        .row()
+        .text('Контакты', 'c'),
+    );
   }
 
   private async showServices(
@@ -176,6 +350,329 @@ export class TelegramBookingService {
     );
   }
 
+  private async showAppointments(
+    companyId: string,
+    token: string,
+    context: UpdateContext,
+    scope: 'upcoming' | 'archive',
+  ): Promise<void> {
+    const now = new Date();
+    const appointments = await this.prisma.appointment.findMany({
+      where: {
+        companyId,
+        customer: { telegramId: BigInt(context.user.id) },
+        ...(scope === 'upcoming'
+          ? { startsAt: { gte: now }, status: { in: [AppointmentStatus.PENDING, AppointmentStatus.CONFIRMED] } }
+          : { OR: [
+              { startsAt: { lt: now } },
+              { status: { in: [AppointmentStatus.COMPLETED, AppointmentStatus.NO_SHOW, AppointmentStatus.CANCELLED_BY_COMPANY, AppointmentStatus.CANCELLED_BY_CUSTOMER] } },
+            ] }),
+      },
+      include: { company: true, employee: true, service: true, review: true },
+      orderBy: [{ startsAt: scope === 'upcoming' ? 'asc' : 'desc' }, { id: 'asc' }],
+      take: 10,
+    });
+    if (!appointments.length) {
+      await this.telegramApi.sendMessage(
+        token,
+        context.chatId,
+        scope === 'upcoming' ? 'У вас нет предстоящих записей.' : 'Архив записей пока пуст.',
+        new InlineKeyboard()
+          .text(scope === 'upcoming' ? 'Архив' : 'Предстоящие', scope === 'upcoming' ? 'ma' : 'mu')
+          .row().text('Записаться', 'b').row().text('Главное меню', 'h'),
+      );
+      return;
+    }
+    const keyboard = new InlineKeyboard();
+    for (const appointment of appointments) {
+      const date = new Intl.DateTimeFormat('ru-RU', {
+        timeZone: appointment.company.timezone,
+        day: 'numeric',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit',
+      }).format(appointment.startsAt);
+      const code = encodeUuid(appointment.id);
+      keyboard.text(`${date} · ${appointment.service.name}`, `a:${code}`).row();
+    }
+    keyboard
+      .text('Предстоящие', 'mu')
+      .text('Архив', 'ma')
+      .row()
+      .text('Главное меню', 'h');
+    await this.telegramApi.sendMessage(
+      token,
+      context.chatId,
+      `${scope === 'upcoming' ? 'Предстоящие записи' : 'Архив'}\n\n${appointments
+        .map((appointment, index) => {
+          const date = new Intl.DateTimeFormat('ru-RU', {
+            timeZone: appointment.company.timezone,
+            dateStyle: 'long',
+            timeStyle: 'short',
+          }).format(appointment.startsAt);
+          return `${index + 1}. ${appointment.service.name} — ${date}\n${this.appointmentStatusLabel(appointment.status)}${appointment.review ? ` · ${appointment.review.rating} ★` : ''}`;
+        })
+        .join('\n\n')}`,
+      keyboard,
+    );
+  }
+
+  private async showAppointmentDetails(
+    companyId: string,
+    token: string,
+    context: UpdateContext,
+    appointmentId: string,
+  ): Promise<void> {
+    const appointment = await this.prisma.appointment.findFirst({
+      where: { id: appointmentId, companyId, customer: { telegramId: BigInt(context.user.id) } },
+      include: { company: true, employee: true, service: true, review: true },
+    });
+    if (!appointment) throw new NotFoundException('Appointment not found');
+    const date = new Intl.DateTimeFormat('ru-RU', {
+      timeZone: appointment.company.timezone,
+      dateStyle: 'long',
+      timeStyle: 'short',
+    }).format(appointment.startsAt);
+    const employee = [appointment.employee.firstName, appointment.employee.lastName].filter(Boolean).join(' ');
+    const upcoming = appointment.startsAt >= new Date() && ([AppointmentStatus.PENDING, AppointmentStatus.CONFIRMED] as AppointmentStatus[]).includes(appointment.status);
+    const code = encodeUuid(appointment.id);
+    const keyboard = new InlineKeyboard();
+    if (upcoming) {
+      keyboard.text('Перенести', `r:${code}`).text('Отменить', `x:${code}`).row();
+    }
+    keyboard.text('Повторить запись', `p:${code}`).row();
+    keyboard.text(upcoming ? 'К предстоящим' : 'К архиву', upcoming ? 'mu' : 'ma');
+    await this.telegramApi.sendMessage(token, context.chatId, [
+      appointment.service.name,
+      `Дата и время: ${date}`,
+      `Специалист: ${employee}`,
+      `Длительность: ${appointment.durationMinutesSnapshot} мин`,
+      `Стоимость: ${appointment.priceSnapshot.toFixed(2)} ${appointment.company.currency.trim()}`,
+      `Статус: ${this.appointmentStatusLabel(appointment.status)}`,
+      appointment.customerConfirmedAt ? 'Визит подтверждён клиентом ✅' : null,
+      appointment.review ? `Оценка: ${appointment.review.rating} ★${appointment.review.comment ? `\n${appointment.review.comment}` : ''}` : null,
+      appointment.company.address ? `Адрес: ${appointment.company.address}` : null,
+      appointment.company.phone ? `Телефон: ${appointment.company.phone}` : null,
+    ].filter((line): line is string => Boolean(line)).join('\n'), keyboard);
+  }
+
+  private async repeatAppointment(
+    companyId: string,
+    token: string,
+    context: UpdateContext,
+    appointmentId: string,
+    confirmedChanges: boolean,
+  ): Promise<void> {
+    const appointment = await this.prisma.appointment.findFirst({
+      where: { id: appointmentId, companyId, customer: { telegramId: BigInt(context.user.id) } },
+      include: { service: true, employee: true, company: true },
+    });
+    if (!appointment) throw new NotFoundException('Appointment not found');
+    const assignment = await this.prisma.employeeService.findFirst({
+      where: {
+        companyId,
+        employeeId: appointment.employeeId,
+        serviceId: appointment.serviceId,
+        employee: { isActive: true, deletedAt: null },
+        service: { isActive: true, deletedAt: null },
+      },
+      include: { service: true },
+    });
+    if (!assignment) {
+      await this.telegramApi.sendMessage(token, context.chatId, 'Эта услуга или специалист больше недоступны.', new InlineKeyboard().text('Выбрать услугу', 'b'));
+      return;
+    }
+    const currentPrice = assignment.price ?? assignment.service.price;
+    const currentDuration = assignment.durationMinutes ?? assignment.service.durationMinutes;
+    const changed = !currentPrice.equals(appointment.priceSnapshot) || currentDuration !== appointment.durationMinutesSnapshot;
+    if (changed && !confirmedChanges) {
+      const code = encodeUuid(appointment.id);
+      await this.telegramApi.sendMessage(token, context.chatId, [
+        'Параметры услуги изменились.',
+        `Было: ${appointment.priceSnapshot.toFixed(2)} ${appointment.company.currency.trim()}, ${appointment.durationMinutesSnapshot} мин`,
+        `Сейчас: ${currentPrice.toFixed(2)} ${appointment.company.currency.trim()}, ${currentDuration} мин`,
+      ].join('\n'), new InlineKeyboard().text('Продолжить', `pc:${code}`).row().text('К записи', `a:${code}`));
+      return;
+    }
+    await this.showDates(companyId, token, context.chatId, appointment.serviceId, appointment.employeeId);
+  }
+
+  private async confirmVisit(
+    companyId: string,
+    token: string,
+    context: UpdateContext,
+    appointmentId: string,
+  ): Promise<void> {
+    const appointment = await this.requireCustomerAppointment(companyId, appointmentId, context.user.id);
+    await this.prisma.appointment.update({
+      where: { id_companyId: { id: appointment.id, companyId } },
+      data: { customerConfirmedAt: new Date() },
+    });
+    if (context.messageId) await this.telegramApi.clearInlineKeyboard(token, context.chatId, context.messageId).catch(() => undefined);
+    await this.telegramApi.sendMessage(token, context.chatId, 'Визит подтверждён ✅', new InlineKeyboard().text('Мои записи', 'm'));
+  }
+
+  private async showCompanyContacts(
+    companyId: string,
+    token: string,
+    chatId: number,
+  ): Promise<void> {
+    const company = await this.prisma.company.findFirst({
+      where: { id: companyId, deletedAt: null },
+      select: { name: true, phone: true, email: true, address: true },
+    });
+    if (!company) throw new NotFoundException('Company not found');
+    await this.telegramApi.sendMessage(
+      token,
+      chatId,
+      [
+        company.name,
+        company.phone ? `Телефон: ${company.phone}` : null,
+        company.email ? `Email: ${company.email}` : null,
+        company.address ? `Адрес: ${company.address}` : null,
+      ].filter((line): line is string => Boolean(line)).join('\n'),
+      new InlineKeyboard().text('Главное меню', 'h'),
+    );
+  }
+
+  private async cancelCustomerAppointment(
+    companyId: string,
+    token: string,
+    context: UpdateContext,
+    appointmentId: string,
+  ): Promise<void> {
+    const appointment = await this.requireCustomerAppointment(companyId, appointmentId, context.user.id);
+    const cutoff = appointment.startsAt.getTime() - appointment.company.cancellationNoticeMinutes * 60_000;
+    if (Date.now() > cutoff) {
+      await this.telegramApi.sendMessage(
+        token,
+        context.chatId,
+        'Онлайн-отмена уже недоступна. Свяжитесь с компанией.',
+        new InlineKeyboard().text('Контакты', 'c').row().text('Мои записи', 'm'),
+      );
+      return;
+    }
+    await this.appointments.updateStatus(
+      companyId,
+      appointmentId,
+      { status: AppointmentStatus.CANCELLED_BY_CUSTOMER },
+    );
+    await this.telegramApi.sendMessage(
+      token,
+      context.chatId,
+      'Запись отменена.',
+      new InlineKeyboard().text('Мои записи', 'm').row().text('Главное меню', 'h'),
+    );
+  }
+
+  private async showRescheduleDates(
+    companyId: string,
+    token: string,
+    context: UpdateContext,
+    appointmentId: string,
+  ): Promise<void> {
+    const appointment = await this.requireCustomerAppointment(companyId, appointmentId, context.user.id);
+    const today = dateInTimeZone(new Date(), appointment.company.timezone);
+    const lastOffset = Math.min(
+      14 - isoWeekday(today),
+      appointment.company.maxBookingHorizonDays,
+    );
+    const dates = (
+      await Promise.all(
+        Array.from({ length: lastOffset + 1 }, async (_, offset) => {
+          const date = addDays(today, offset);
+          const availability = await this.scheduling.getAvailability(
+            companyId,
+            { employeeId: appointment.employeeId, serviceId: appointment.serviceId, date },
+            appointment.id,
+          );
+          return availability.slots.length ? date : null;
+        }),
+      )
+    ).filter((date): date is string => Boolean(date));
+    const code = encodeUuid(appointment.id);
+    const keyboard = new InlineKeyboard();
+    for (const date of dates) {
+      const label = new Intl.DateTimeFormat('ru-RU', {
+        timeZone: 'UTC', weekday: 'short', day: 'numeric', month: 'short',
+      }).format(new Date(`${date}T12:00:00Z`));
+      keyboard.text(label, `rd:${code}:${date.replaceAll('-', '')}`).row();
+    }
+    keyboard.text('Мои записи', 'm');
+    await this.telegramApi.sendMessage(
+      token,
+      context.chatId,
+      dates.length ? 'Выберите новую дату:' : 'Свободных дат пока нет.',
+      keyboard,
+    );
+  }
+
+  private async showRescheduleSlots(
+    companyId: string,
+    token: string,
+    context: UpdateContext,
+    appointmentId: string,
+    date: string,
+  ): Promise<void> {
+    const appointment = await this.requireCustomerAppointment(companyId, appointmentId, context.user.id);
+    const availability = await this.scheduling.getAvailability(
+      companyId,
+      { employeeId: appointment.employeeId, serviceId: appointment.serviceId, date },
+      appointment.id,
+    );
+    const code = encodeUuid(appointment.id);
+    const dateCode = date.replaceAll('-', '');
+    const keyboard = new InlineKeyboard();
+    for (const slot of availability.slots.slice(0, 32)) {
+      const time = new Intl.DateTimeFormat('ru-RU', {
+        timeZone: appointment.company.timezone,
+        hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+      }).format(new Date(slot.startsAt));
+      keyboard.text(time, `rt:${code}:${dateCode}:${time.replace(':', '')}`).row();
+    }
+    keyboard.text('Назад', `r:${code}`);
+    await this.telegramApi.sendMessage(
+      token,
+      context.chatId,
+      availability.slots.length ? 'Выберите новое время:' : 'На эту дату времени нет.',
+      keyboard,
+    );
+  }
+
+  private async rescheduleCustomerAppointment(
+    companyId: string,
+    token: string,
+    context: UpdateContext,
+    appointmentId: string,
+    date: string,
+    time: string,
+  ): Promise<void> {
+    const appointment = await this.requireCustomerAppointment(companyId, appointmentId, context.user.id);
+    const startsAt = localDateTimeToUtc(date, time, appointment.company.timezone);
+    await this.appointments.reschedule(companyId, appointmentId, { startsAt: startsAt.toISOString() });
+    await this.telegramApi.sendMessage(
+      token,
+      context.chatId,
+      'Запись перенесена ✅',
+      new InlineKeyboard().text('Мои записи', 'm').row().text('Главное меню', 'h'),
+    );
+  }
+
+  private async requireCustomerAppointment(companyId: string, appointmentId: string, telegramId: number) {
+    const appointment = await this.prisma.appointment.findFirst({
+      where: {
+        id: appointmentId,
+        companyId,
+        customer: { telegramId: BigInt(telegramId) },
+        startsAt: { gte: new Date() },
+        status: { in: [AppointmentStatus.PENDING, AppointmentStatus.CONFIRMED] },
+      },
+      include: { company: true },
+    });
+    if (!appointment) throw new NotFoundException('Appointment not found');
+    return appointment;
+  }
+
   private async showEmployees(
     companyId: string,
     token: string,
@@ -202,7 +699,7 @@ export class TelegramBookingService {
         token,
         chatId,
         'Для этой услуги пока нет доступных специалистов.',
-        new InlineKeyboard().text('К услугам', 'h'),
+        new InlineKeyboard().text('К услугам', 'b'),
       );
       return;
     }
@@ -216,7 +713,7 @@ export class TelegramBookingService {
         .text(name, `e:${serviceCode}:${encodeUuid(employee.id)}`)
         .row();
     }
-    keyboard.text('Назад', 'h');
+    keyboard.text('Назад', 'b');
     await this.telegramApi.sendMessage(
       token,
       chatId,
@@ -235,15 +732,48 @@ export class TelegramBookingService {
     await this.requireAssignment(companyId, employeeId, serviceId);
     const company = await this.prisma.company.findUnique({
       where: { id: companyId },
-      select: { timezone: true },
+      select: { timezone: true, maxBookingHorizonDays: true },
     });
     if (!company) throw new NotFoundException('Company not found');
     const today = dateInTimeZone(new Date(), company.timezone);
+    const lastDateOffset = Math.min(
+      14 - isoWeekday(today),
+      company.maxBookingHorizonDays,
+    );
+    const availableDates = (
+      await Promise.all(
+        Array.from({ length: lastDateOffset + 1 }, async (_, offset) => {
+          const date = addDays(today, offset);
+          const availability = await this.scheduling.getAvailability(
+            companyId,
+            {
+              employeeId,
+              serviceId,
+              date,
+            },
+          );
+          return availability.slots.length > 0 ? date : null;
+        }),
+      )
+    ).filter((date): date is string => date !== null);
+
+    if (availableDates.length === 0) {
+      await this.telegramApi.sendMessage(
+        token,
+        chatId,
+        'До конца следующей недели свободного времени нет.',
+        new InlineKeyboard().text(
+          'Выбрать другого специалиста',
+          `s:${encodeUuid(serviceId)}`,
+        ),
+      );
+      return;
+    }
+
     const serviceCode = encodeUuid(serviceId);
     const employeeCode = encodeUuid(employeeId);
     const keyboard = new InlineKeyboard();
-    for (let offset = 0; offset < 7; offset += 1) {
-      const date = addDays(today, offset);
+    for (const date of availableDates) {
       const label = new Intl.DateTimeFormat('ru-RU', {
         timeZone: 'UTC',
         weekday: 'short',
@@ -257,7 +787,7 @@ export class TelegramBookingService {
         )
         .row();
     }
-    keyboard.text('К услугам', 'h');
+    keyboard.text('К услугам', 'b');
     await this.telegramApi.sendMessage(
       token,
       chatId,
@@ -279,17 +809,16 @@ export class TelegramBookingService {
       employeeId,
       serviceId,
       date,
-      stepMinutes: 15,
     });
     if (availability.slots.length === 0) {
       await this.telegramApi.sendMessage(
         token,
         chatId,
         'На эту дату свободного времени нет.',
-        new InlineKeyboard().text(
-          'Выбрать другую дату',
-          `e:${encodeUuid(serviceId)}:${encodeUuid(employeeId)}`,
-        ),
+        new InlineKeyboard()
+          .text('В лист ожидания', `w:${encodeUuid(serviceId)}:${encodeUuid(employeeId)}:${date.replaceAll('-', '')}`)
+          .row()
+          .text('Выбрать другую дату', `e:${encodeUuid(serviceId)}:${encodeUuid(employeeId)}`),
       );
       return;
     }
@@ -346,6 +875,11 @@ export class TelegramBookingService {
       date,
       time,
     );
+    if (context.messageId) {
+      await this.telegramApi
+        .clearInlineKeyboard(token, context.chatId, context.messageId)
+        .catch(() => undefined);
+    }
     const localDateTime = new Intl.DateTimeFormat('ru-RU', {
       timeZone: booking.timezone,
       dateStyle: 'long',
@@ -360,9 +894,127 @@ export class TelegramBookingService {
         `Специалист: ${booking.employeeName}`,
         `Дата и время: ${localDateTime}`,
         `Стоимость: ${booking.price} ${booking.currency}`,
-      ].join('\n'),
-      new InlineKeyboard().text('Записаться ещё', 'h'),
+        booking.depositStatus === 'PENDING'
+          ? `Предоплата: ${booking.depositAmount} ${booking.currency}`
+          : null,
+      ].filter((line): line is string => Boolean(line)).join('\n'),
+      new InlineKeyboard().text('Записаться ещё', 'b').row().text('Мои записи', 'm'),
     );
+  }
+
+  private async submitReview(
+    companyId: string,
+    token: string,
+    context: UpdateContext,
+    appointmentId: string,
+    rating: number,
+  ): Promise<void> {
+    if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+      throw new BadRequestException('Invalid review rating');
+    }
+    const appointment = await this.prisma.appointment.findFirst({
+      where: {
+        id: appointmentId,
+        companyId,
+        status: AppointmentStatus.COMPLETED,
+        customer: { telegramId: BigInt(context.user.id) },
+      },
+      select: { id: true, customerId: true, review: { select: { id: true } } },
+    });
+    if (!appointment) throw new NotFoundException('Appointment not found');
+    if (appointment.review) {
+      await this.telegramApi.sendMessage(token, context.chatId, 'Спасибо — отзыв уже сохранён.');
+      return;
+    }
+    let reviewId: string;
+    try {
+      const review = await this.prisma.review.create({
+        data: {
+          companyId,
+          customerId: appointment.customerId,
+          appointmentId,
+          rating,
+          commentRequestedAt: new Date(),
+        },
+        select: { id: true },
+      });
+      reviewId = review.id;
+    } catch (error) {
+      if (
+        !(error instanceof Prisma.PrismaClientKnownRequestError) ||
+        error.code !== 'P2002'
+      ) {
+        throw error;
+      }
+      const review = await this.prisma.review.findUnique({
+        where: { appointmentId },
+        select: { id: true },
+      });
+      if (!review) throw error;
+      reviewId = review.id;
+    }
+    if (context.messageId) {
+      await this.telegramApi
+        .clearInlineKeyboard(token, context.chatId, context.messageId)
+        .catch(() => undefined);
+    }
+    await this.telegramApi.sendMessage(
+      token,
+      context.chatId,
+      `Спасибо за оценку ${rating} из 5! Напишите короткий комментарий одним сообщением.`,
+      new InlineKeyboard().text('Без комментария', `vs:${encodeUuid(reviewId)}`),
+    );
+  }
+
+  private async savePendingReviewComment(
+    companyId: string,
+    token: string,
+    context: UpdateContext,
+    comment: string,
+  ): Promise<boolean> {
+    const review = await this.prisma.review.findFirst({
+      where: {
+        companyId,
+        customer: { telegramId: BigInt(context.user.id) },
+        commentRequestedAt: { gte: new Date(Date.now() - 2 * 60 * 60 * 1000) },
+      },
+      orderBy: { commentRequestedAt: 'desc' },
+      select: { id: true },
+    });
+    if (!review) return false;
+    await this.prisma.review.update({
+      where: { id_companyId: { id: review.id, companyId } },
+      data: { comment: comment.slice(0, 1000), commentRequestedAt: null },
+    });
+    await this.telegramApi.sendMessage(token, context.chatId, 'Спасибо! Отзыв сохранён.', new InlineKeyboard().text('Главное меню', 'h'));
+    return true;
+  }
+
+  private async skipReviewComment(
+    companyId: string,
+    token: string,
+    context: UpdateContext,
+    reviewId: string,
+  ): Promise<void> {
+    const result = await this.prisma.review.updateMany({
+      where: { id: reviewId, companyId, customer: { telegramId: BigInt(context.user.id) } },
+      data: { commentRequestedAt: null },
+    });
+    if (!result.count) throw new NotFoundException('Review not found');
+    if (context.messageId) await this.telegramApi.clearInlineKeyboard(token, context.chatId, context.messageId).catch(() => undefined);
+    await this.telegramApi.sendMessage(token, context.chatId, 'Спасибо! Оценка сохранена.', new InlineKeyboard().text('Главное меню', 'h'));
+  }
+
+  private appointmentStatusLabel(status: AppointmentStatus): string {
+    const labels: Record<AppointmentStatus, string> = {
+      PENDING: 'Ожидает подтверждения',
+      CONFIRMED: 'Подтверждена',
+      COMPLETED: 'Завершена',
+      CANCELLED_BY_CUSTOMER: 'Отменена вами',
+      CANCELLED_BY_COMPANY: 'Отменена компанией',
+      NO_SHOW: 'Клиент не пришёл',
+    };
+    return labels[status];
   }
 
   private async requireAssignment(
@@ -387,11 +1039,15 @@ export class TelegramBookingService {
     parseDateOnly(date);
     const company = await this.prisma.company.findUnique({
       where: { id: companyId },
-      select: { timezone: true },
+      select: { timezone: true, maxBookingHorizonDays: true },
     });
     if (!company) throw new NotFoundException('Company not found');
     const today = dateInTimeZone(new Date(), company.timezone);
-    if (date < today || date > addDays(today, 30)) {
+    const lastDate = addDays(
+      today,
+      Math.min(14 - isoWeekday(today), company.maxBookingHorizonDays),
+    );
+    if (date < today || date > lastDate) {
       throw new BadRequestException('Booking date is outside allowed range');
     }
     return company;
@@ -421,6 +1077,7 @@ export class TelegramBookingService {
         chatId: update.callback_query.message.chat.id,
         user: update.callback_query.from,
         callbackData: update.callback_query.data,
+        messageId: update.callback_query.message.message_id,
       };
     }
     if (update.message) {

@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { Prisma, User } from '@prisma/client';
 import { createHash } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../database/prisma.service';
 import { UsersService } from '../users/users.service';
 import { AuthResponseDto, AuthenticatedUserDto } from './dto/auth-response.dto';
@@ -17,6 +18,11 @@ const REFRESH_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const DUMMY_PASSWORD_HASH =
   'scrypt$AAAAAAAAAAAAAAAAAAAAAA$HfrUe6rycPIFqZxD1xFJMVljivEdVIZMerV_HA9C872vjdI7RLkcNW0_KQMjnXWGBrn700GxeayOUzv7lOsLPw';
 
+export interface IssuedSession {
+  response: AuthResponseDto;
+  refreshToken: string;
+}
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -26,7 +32,7 @@ export class AuthService {
     private readonly tokens: TokenService,
   ) {}
 
-  async register(input: RegisterDto): Promise<AuthResponseDto> {
+  async register(input: RegisterDto): Promise<IssuedSession> {
     const email = this.normalizeEmail(input.email);
     const existingUser = await this.users.findByEmail(email);
 
@@ -53,10 +59,12 @@ export class AuthService {
       throw error;
     }
 
-    return this.issueSession(user);
+    const session = await this.issueSession(user);
+    await this.auditUserCompanies(user.id, 'auth.register');
+    return session;
   }
 
-  async login(input: LoginDto): Promise<AuthResponseDto> {
+  async login(input: LoginDto): Promise<IssuedSession> {
     const user = await this.users.findByEmail(this.normalizeEmail(input.email));
     const passwordIsValid = await this.passwords.verify(
       input.password,
@@ -67,10 +75,12 @@ export class AuthService {
       throw new UnauthorizedException('Invalid email or password');
     }
 
-    return this.issueSession(user);
+    const session = await this.issueSession(user);
+    await this.auditUserCompanies(user.id, 'auth.login');
+    return session;
   }
 
-  async refresh(refreshToken: string): Promise<AuthResponseDto> {
+  async refresh(refreshToken: string): Promise<IssuedSession> {
     if (!this.tokens.verifyRefreshToken(refreshToken)) {
       throw new UnauthorizedException('Refresh token is invalid');
     }
@@ -81,36 +91,46 @@ export class AuthService {
       include: { user: true },
     });
 
-    if (
-      !storedToken ||
-      storedToken.revokedAt ||
-      storedToken.expiresAt <= new Date()
-    ) {
+    if (!storedToken || storedToken.expiresAt <= new Date()) {
       throw new UnauthorizedException('Refresh token is invalid or expired');
+    }
+    if (storedToken.revokedAt) {
+      const detectedAt = new Date();
+      await this.prisma.refreshToken.updateMany({
+        where: { familyId: storedToken.familyId },
+        data: { revokedAt: detectedAt, reuseDetectedAt: detectedAt },
+      });
+      throw new UnauthorizedException('Refresh token reuse detected');
     }
 
     const nextRefreshToken = this.tokens.createRefreshToken();
     const nextTokenHash = this.hashRefreshToken(nextRefreshToken);
     const nextExpiresAt = new Date(Date.now() + REFRESH_TOKEN_TTL_MS);
 
-    await this.prisma.$transaction(async (transaction) => {
+    const rotated = await this.prisma.$transaction(async (transaction) => {
       const revoked = await transaction.refreshToken.updateMany({
         where: { id: storedToken.id, revokedAt: null },
-        data: { revokedAt: new Date() },
+        data: { revokedAt: new Date(), rotatedAt: new Date() },
       });
-
-      if (revoked.count !== 1) {
-        throw new UnauthorizedException('Refresh token has already been used');
-      }
-
+      if (revoked.count !== 1) return false;
       await transaction.refreshToken.create({
         data: {
           userId: storedToken.userId,
           tokenHash: nextTokenHash,
+          familyId: storedToken.familyId,
           expiresAt: nextExpiresAt,
         },
       });
+      return true;
     });
+    if (!rotated) {
+      const detectedAt = new Date();
+      await this.prisma.refreshToken.updateMany({
+        where: { familyId: storedToken.familyId },
+        data: { revokedAt: detectedAt, reuseDetectedAt: detectedAt },
+      });
+      throw new UnauthorizedException('Refresh token reuse detected');
+    }
 
     return this.buildResponse(storedToken.user, nextRefreshToken);
   }
@@ -120,6 +140,10 @@ export class AuthService {
       return;
     }
 
+    const stored = await this.prisma.refreshToken.findUnique({
+      where: { tokenHash: this.hashRefreshToken(refreshToken) },
+      select: { userId: true },
+    });
     await this.prisma.refreshToken.updateMany({
       where: {
         tokenHash: this.hashRefreshToken(refreshToken),
@@ -127,15 +151,25 @@ export class AuthService {
       },
       data: { revokedAt: new Date() },
     });
+    if (stored) await this.auditUserCompanies(stored.userId, 'auth.logout');
   }
 
-  private async issueSession(user: User): Promise<AuthResponseDto> {
+  async logoutAll(userId: string): Promise<void> {
+    await this.prisma.refreshToken.updateMany({
+      where: { userId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+    await this.auditUserCompanies(userId, 'auth.logout_all');
+  }
+
+  private async issueSession(user: User): Promise<IssuedSession> {
     const refreshToken = this.tokens.createRefreshToken();
 
     await this.prisma.refreshToken.create({
       data: {
         userId: user.id,
         tokenHash: this.hashRefreshToken(refreshToken),
+        familyId: randomUUID(),
         expiresAt: new Date(Date.now() + REFRESH_TOKEN_TTL_MS),
       },
     });
@@ -143,12 +177,14 @@ export class AuthService {
     return this.buildResponse(user, refreshToken);
   }
 
-  private buildResponse(user: User, refreshToken: string): AuthResponseDto {
+  private buildResponse(user: User, refreshToken: string): IssuedSession {
     return {
-      accessToken: this.tokens.signAccessToken(user),
       refreshToken,
-      expiresIn: ACCESS_TOKEN_TTL_SECONDS,
-      user: this.toAuthenticatedUser(user),
+      response: {
+        accessToken: this.tokens.signAccessToken(user),
+        expiresIn: ACCESS_TOKEN_TTL_SECONDS,
+        user: this.toAuthenticatedUser(user),
+      },
     };
   }
 
@@ -168,5 +204,21 @@ export class AuthService {
 
   private hashRefreshToken(refreshToken: string): string {
     return createHash('sha256').update(refreshToken).digest('hex');
+  }
+
+  private async auditUserCompanies(userId: string, action: string): Promise<void> {
+    const memberships = await this.prisma.companyMember.findMany({
+      where: { userId },
+      select: { companyId: true },
+    });
+    if (!memberships.length) return;
+    await this.prisma.auditLog.createMany({
+      data: memberships.map(({ companyId }) => ({
+        companyId,
+        actorId: userId,
+        action,
+        entityType: 'Session',
+      })),
+    });
   }
 }

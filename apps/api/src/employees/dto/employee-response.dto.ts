@@ -12,6 +12,12 @@ export class EmployeeServiceSummaryDto {
 
   @ApiProperty({ example: '2500.00' })
   price: string;
+
+  @ApiProperty()
+  bufferBeforeMinutes: number;
+
+  @ApiProperty()
+  bufferAfterMinutes: number;
 }
 
 export class EmployeeResponseDto {

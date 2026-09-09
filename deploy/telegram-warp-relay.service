@@ -1,0 +1,15 @@
+[Unit]
+Description=Slotty Telegram API relay through Cloudflare WARP
+After=network-online.target docker.service warp-svc.service
+Wants=network-online.target
+Requires=warp-svc.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /usr/local/libexec/slotty-telegram-warp-relay.py
+Restart=always
+RestartSec=3
+User=root
+
+[Install]
+WantedBy=multi-user.target

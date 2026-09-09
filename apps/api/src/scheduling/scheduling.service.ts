@@ -23,6 +23,7 @@ import {
 } from './dto/schedule-exception.dto';
 import {
   addDays,
+  dateInTimeZone,
   dateOnlyToUtc,
   formatDateOnly,
   isoWeekday,
@@ -50,13 +51,14 @@ export class SchedulingService {
     companyId: string,
     employeeId: string,
     input: ReplaceScheduleDto,
+    actorId?: string,
   ): Promise<ScheduleRuleResponseDto[]> {
     await this.requireEmployee(companyId, employeeId);
     this.assertNonOverlappingRules(input.rules);
 
-    await this.prisma.$transaction([
-      this.prisma.scheduleRule.deleteMany({ where: { companyId, employeeId } }),
-      this.prisma.scheduleRule.createMany({
+    await this.prisma.$transaction(async (tx) => {
+      await tx.scheduleRule.deleteMany({ where: { companyId, employeeId } });
+      await tx.scheduleRule.createMany({
         data: input.rules.map((rule) => ({
           companyId,
           employeeId,
@@ -65,8 +67,12 @@ export class SchedulingService {
           endTime: rule.endTime,
           isWorking: true,
         })),
-      }),
-    ]);
+      });
+      if (actorId) await tx.auditLog.create({ data: {
+        companyId, actorId, action: 'schedule.replaced', entityType: 'Employee', entityId: employeeId,
+        metadata: { intervals: input.rules.length },
+      } });
+    });
 
     return this.findSchedule(companyId, employeeId);
   }
@@ -87,6 +93,7 @@ export class SchedulingService {
     companyId: string,
     employeeId: string,
     input: CreateScheduleExceptionDto,
+    actorId?: string,
   ): Promise<ScheduleExceptionResponseDto> {
     await this.requireEmployee(companyId, employeeId);
     const normalized = this.normalizeException(input);
@@ -96,15 +103,22 @@ export class SchedulingService {
       normalized,
     );
 
-    const exception = await this.prisma.scheduleException.create({
-      data: {
-        companyId,
-        employeeId,
-        date: dateOnlyToUtc(normalized.date),
-        type: normalized.type,
-        startTime: normalized.startTime ?? null,
-        endTime: normalized.endTime ?? null,
-      },
+    const exception = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.scheduleException.create({
+        data: {
+          companyId,
+          employeeId,
+          date: dateOnlyToUtc(normalized.date),
+          type: normalized.type,
+          startTime: normalized.startTime ?? null,
+          endTime: normalized.endTime ?? null,
+        },
+      });
+      if (actorId) await tx.auditLog.create({ data: {
+        companyId, actorId, action: 'schedule.exception_created', entityType: 'ScheduleException', entityId: created.id,
+        metadata: { employeeId, type: normalized.type, date: normalized.date },
+      } });
+      return created;
     });
     return this.toExceptionResponse(exception);
   }
@@ -144,6 +158,7 @@ export class SchedulingService {
     employeeId: string,
     exceptionId: string,
     input: UpdateScheduleExceptionDto,
+    actorId?: string,
   ): Promise<ScheduleExceptionResponseDto> {
     const current = await this.requireException(
       companyId,
@@ -175,14 +190,21 @@ export class SchedulingService {
       exceptionId,
     );
 
-    const exception = await this.prisma.scheduleException.update({
-      where: { id: exceptionId },
-      data: {
-        date: dateOnlyToUtc(normalized.date),
-        type: normalized.type,
-        startTime: normalized.startTime ?? null,
-        endTime: normalized.endTime ?? null,
-      },
+    const exception = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.scheduleException.update({
+        where: { id_companyId: { id: exceptionId, companyId } },
+        data: {
+          date: dateOnlyToUtc(normalized.date),
+          type: normalized.type,
+          startTime: normalized.startTime ?? null,
+          endTime: normalized.endTime ?? null,
+        },
+      });
+      if (actorId) await tx.auditLog.create({ data: {
+        companyId, actorId, action: 'schedule.exception_updated', entityType: 'ScheduleException', entityId: exceptionId,
+        metadata: { employeeId, fields: Object.keys(input) },
+      } });
+      return updated;
     });
     return this.toExceptionResponse(exception);
   }
@@ -191,9 +213,17 @@ export class SchedulingService {
     companyId: string,
     employeeId: string,
     exceptionId: string,
+    actorId?: string,
   ): Promise<void> {
-    const result = await this.prisma.scheduleException.deleteMany({
-      where: { id: exceptionId, companyId, employeeId },
+    const result = await this.prisma.$transaction(async (tx) => {
+      const changed = await tx.scheduleException.deleteMany({
+        where: { id: exceptionId, companyId, employeeId },
+      });
+      if (changed.count === 1 && actorId) await tx.auditLog.create({ data: {
+        companyId, actorId, action: 'schedule.exception_deleted', entityType: 'ScheduleException', entityId: exceptionId,
+        metadata: { employeeId },
+      } });
+      return changed;
     });
     if (result.count !== 1) {
       throw new NotFoundException('Schedule exception not found');
@@ -203,12 +233,18 @@ export class SchedulingService {
   async getAvailability(
     companyId: string,
     query: AvailabilityQueryDto,
+    excludeAppointmentId?: string,
   ): Promise<AvailabilityResponseDto> {
     parseDateOnly(query.date);
     const [company, employee, service] = await Promise.all([
       this.prisma.company.findFirst({
         where: { id: companyId, deletedAt: null },
-        select: { timezone: true },
+        select: {
+          timezone: true,
+          minBookingNoticeMinutes: true,
+          maxBookingHorizonDays: true,
+          slotStepMinutes: true,
+        },
       }),
       this.prisma.employee.findFirst({
         where: {
@@ -239,10 +275,20 @@ export class SchedulingService {
         employeeId: query.employeeId,
         serviceId: query.serviceId,
       },
-      select: { employeeId: true },
+      select: {
+        employeeId: true,
+        durationMinutes: true,
+        bufferBeforeMinutes: true,
+        bufferAfterMinutes: true,
+      },
     });
     if (!assignment) {
       throw new BadRequestException('Service is not assigned to employee');
+    }
+
+    const today = dateInTimeZone(new Date(), company.timezone);
+    if (query.date < today || query.date > addDays(today, company.maxBookingHorizonDays)) {
+      throw new BadRequestException('Booking date is outside allowed range');
     }
 
     const weekday = isoWeekday(query.date);
@@ -271,6 +317,7 @@ export class SchedulingService {
         where: {
           companyId,
           employeeId: query.employeeId,
+          ...(excludeAppointmentId ? { id: { not: excludeAppointmentId } } : {}),
           startsAt: { lt: dayEnd },
           endsAt: { gt: dayStart },
           status: {
@@ -280,14 +327,33 @@ export class SchedulingService {
             ],
           },
         },
-        select: { startsAt: true, endsAt: true },
+        select: { startsAt: true, endsAt: true, serviceId: true },
       }),
     ]);
 
+    const existingAssignments = await this.prisma.employeeService.findMany({
+      where: {
+        companyId,
+        employeeId: query.employeeId,
+        serviceId: { in: [...new Set(appointments.map((item) => item.serviceId))] },
+      },
+      select: {
+        serviceId: true,
+        bufferBeforeMinutes: true,
+        bufferAfterMinutes: true,
+      },
+    });
+    const existingBuffers = new Map(
+      existingAssignments.map((item) => [item.serviceId, item]),
+    );
+
     const intervals = this.availabilityIntervals(rules, exceptions);
-    const durationMs = service.durationMinutes * 60_000;
-    const stepMs = (query.stepMinutes ?? 15) * 60_000;
-    const now = Date.now();
+    const durationMinutes = assignment.durationMinutes ?? service.durationMinutes;
+    const durationMs = durationMinutes * 60_000;
+    const bufferBeforeMs = assignment.bufferBeforeMinutes * 60_000;
+    const bufferAfterMs = assignment.bufferAfterMinutes * 60_000;
+    const stepMs = (query.stepMinutes ?? company.slotStepMinutes) * 60_000;
+    const earliestStart = Date.now() + company.minBookingNoticeMinutes * 60_000;
     const slots = new Map<string, { startsAt: string; endsAt: string }>();
 
     for (const interval of intervals) {
@@ -304,16 +370,24 @@ export class SchedulingService {
 
       for (
         let startsAt = intervalStart;
-        startsAt + durationMs <= intervalEnd;
+        startsAt + durationMs + bufferAfterMs <= intervalEnd;
         startsAt += stepMs
       ) {
         const endsAt = startsAt + durationMs;
-        const overlaps = appointments.some(
-          (appointment) =>
-            startsAt < appointment.endsAt.getTime() &&
-            endsAt > appointment.startsAt.getTime(),
-        );
-        if (startsAt >= now && !overlaps) {
+        const requestedBusyStart = startsAt - bufferBeforeMs;
+        const requestedBusyEnd = endsAt + bufferAfterMs;
+        if (requestedBusyStart < intervalStart) continue;
+        const overlaps = appointments.some((appointment) => {
+          const buffers = existingBuffers.get(appointment.serviceId);
+          const occupiedStart =
+            appointment.startsAt.getTime() -
+            (buffers?.bufferBeforeMinutes ?? 0) * 60_000;
+          const occupiedEnd =
+            appointment.endsAt.getTime() +
+            (buffers?.bufferAfterMinutes ?? 0) * 60_000;
+          return requestedBusyStart < occupiedEnd && requestedBusyEnd > occupiedStart;
+        });
+        if (startsAt >= earliestStart && !overlaps) {
           const startIso = new Date(startsAt).toISOString();
           slots.set(startIso, {
             startsAt: startIso,
@@ -328,7 +402,7 @@ export class SchedulingService {
       timezone: company.timezone,
       employeeId: query.employeeId,
       serviceId: query.serviceId,
-      durationMinutes: service.durationMinutes,
+      durationMinutes,
       slots: [...slots.values()].sort((a, b) =>
         a.startsAt.localeCompare(b.startsAt),
       ),

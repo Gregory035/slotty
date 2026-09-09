@@ -2,6 +2,7 @@ import { ExecutionContext, ForbiddenException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { CompanyRole } from '@prisma/client';
 import { CompaniesService } from '../companies.service';
+import { CompanyPermission } from '../company-permission';
 import { CompanyAccessGuard } from './company-access.guard';
 
 describe('CompanyAccessGuard', () => {
@@ -44,9 +45,10 @@ describe('CompanyAccessGuard', () => {
       companyId: request.params.companyId,
       userId: request.user.id,
       role: CompanyRole.OWNER,
+      employeeId: null,
       company: { deletedAt: null },
     });
-    getAllAndOverride.mockReturnValue([CompanyRole.OWNER]);
+    getAllAndOverride.mockReturnValue([CompanyPermission.COMPANY_UPDATE]);
 
     await expect(guard.canActivate(context)).resolves.toBe(true);
     expect(request).toHaveProperty(
@@ -68,10 +70,28 @@ describe('CompanyAccessGuard', () => {
       companyId: second.request.params.companyId,
       userId: second.request.user.id,
       role: CompanyRole.EMPLOYEE,
+      employeeId: null,
       company: { deletedAt: null },
     });
-    getAllAndOverride.mockReturnValueOnce([CompanyRole.OWNER]);
+    getAllAndOverride.mockReturnValueOnce([CompanyPermission.COMPANY_UPDATE]);
     await expect(guard.canActivate(second.context)).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+  });
+
+  it('fails closed when a permission decorator is missing', async () => {
+    const { context, request } = createContext();
+    findMembership.mockResolvedValue({
+      id: 'd832873d-8b9e-4559-94ca-d98416f49dc2',
+      companyId: request.params.companyId,
+      userId: request.user.id,
+      role: CompanyRole.OWNER,
+      employeeId: null,
+      company: { deletedAt: null },
+    });
+    getAllAndOverride.mockReturnValue(undefined);
+
+    await expect(guard.canActivate(context)).rejects.toBeInstanceOf(
       ForbiddenException,
     );
   });

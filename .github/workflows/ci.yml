@@ -5,20 +5,113 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   quality:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: telegram_business
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d telegram_business"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+      redis:
+        image: redis:7.4-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
     env:
-      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/telegram_business
+      NODE_ENV: test
+      API_PORT: 3000
+      WEB_URL: http://localhost:5173
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/telegram_business?schema=public
+      REDIS_URL: redis://localhost:6379
+      RATE_LIMIT_REGISTER_MAX: 100
+      JWT_ACCESS_SECRET: ci-access-secret-at-least-32-characters
+      JWT_REFRESH_SECRET: ci-refresh-secret-at-least-32-characters
+      BOT_TOKEN_ENCRYPTION_KEY: ci-encryption-key-at-least-32-characters
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: 22
           cache: npm
       - run: npm ci
       - run: npm run db:generate
+      - run: npm run lint
       - run: npm run typecheck
-      - run: npm run test
+      - name: Unit tests and coverage
+        run: |
+          mkdir -p test-results
+          npm run test:coverage -- --json --outputFile=../../test-results/api-unit.json
+      - run: npx prisma migrate deploy --schema=apps/api/prisma/schema.prisma
+      - name: Integration tests
+        run: npm run test:integration -- --json --outputFile=../../test-results/api-integration.json
       - run: npm run build
+      - name: API smoke and E2E
+        run: |
+          npm run start -w @telegram-business/api > /tmp/telegram-business-api.log 2>&1 &
+          for attempt in {1..30}; do
+            curl -fsS http://localhost:3000/api/health/ready && break
+            sleep 1
+          done
+          curl -fsS http://localhost:3000/api/health/ready
+          npm run smoke:e2e
+      - run: npm audit --audit-level=high
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: coverage-and-api-log
+          path: |
+            apps/api/coverage
+            test-results
+            /tmp/telegram-business-api.log
+          if-no-files-found: warn
+
+  containers:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
+      - run: docker build --target runtime -t telegram-business-api:${{ github.sha }} -f apps/api/Dockerfile .
+      - run: docker build --target runtime -t telegram-business-web:${{ github.sha }} -f apps/web/Dockerfile .
+      - uses: aquasecurity/trivy-action@915b19bbe73b92a6cf82a1bc12b087c9a19a5fe2
+        with:
+          image-ref: telegram-business-api:${{ github.sha }}
+          format: sarif
+          output: trivy-api.sarif
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+      - uses: aquasecurity/trivy-action@915b19bbe73b92a6cf82a1bc12b087c9a19a5fe2
+        with:
+          image-ref: telegram-business-web:${{ github.sha }}
+          format: sarif
+          output: trivy-web.sarif
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: image-scan-reports
+          path: trivy-*.sarif

@@ -12,6 +12,15 @@ import { EmployeesModule } from './employees/employees.module';
 import { SchedulingModule } from './scheduling/scheduling.module';
 import { AppointmentsModule } from './appointments/appointments.module';
 import { TelegramModule } from './telegram/telegram.module';
+import { RateLimitModule } from './rate-limit/rate-limit.module';
+import { CustomersModule } from './customers/customers.module';
+import { DashboardModule } from './dashboard/dashboard.module';
+import { NotificationsModule } from './notifications/notifications.module';
+import { AuditModule } from './audit/audit.module';
+import { BillingModule } from './billing/billing.module';
+import { ObservabilityModule } from './observability/observability.module';
+import { ReviewsModule } from './reviews/reviews.module';
+import { WaitlistModule } from './waitlist/waitlist.module';
 
 @Module({
   imports: [
@@ -21,6 +30,9 @@ import { TelegramModule } from './telegram/telegram.module';
       validate: validateEnvironment,
     }),
     DatabaseModule,
+    ObservabilityModule,
+    RateLimitModule,
+    BillingModule,
     HealthModule,
     UsersModule,
     AuthModule,
@@ -30,6 +42,12 @@ import { TelegramModule } from './telegram/telegram.module';
     EmployeesModule,
     SchedulingModule,
     AppointmentsModule,
+    CustomersModule,
+    ReviewsModule,
+    WaitlistModule,
+    DashboardModule,
+    NotificationsModule,
+    AuditModule,
     TelegramModule,
   ],
 })

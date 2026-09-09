@@ -6,7 +6,13 @@ export class CompanyMemberResponseDto {
   id: string;
 
   @ApiProperty({ format: 'uuid' })
+  companyId: string;
+
+  @ApiProperty({ format: 'uuid' })
   userId: string;
+
+  @ApiPropertyOptional({ format: 'uuid', nullable: true })
+  employeeId: string | null;
 
   @ApiProperty({ enum: CompanyRole })
   role: CompanyRole;

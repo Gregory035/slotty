@@ -45,6 +45,7 @@ describe('BotsService', () => {
       config,
       encryption as any,
       telegramApi as any,
+      { assertCanConnectBot: jest.fn().mockResolvedValue(undefined) } as any,
     );
 
     const result = await service.connect(companyId, {

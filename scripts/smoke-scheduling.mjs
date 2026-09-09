@@ -10,7 +10,21 @@ const apiUrl = process.env.API_URL ?? 'http://localhost:3000/api';
 const unique = Date.now();
 const ownerEmail = `schedule-owner-${unique}@example.com`;
 const companyIds = [];
-const targetDate = '2030-01-07';
+
+function nextMonday() {
+  const date = new Date();
+  const shortWeekday = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Europe/Moscow',
+    weekday: 'short',
+  }).format(date);
+  const weekday = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].indexOf(shortWeekday) + 1;
+  date.setUTCDate(date.getUTCDate() + (weekday === 1 ? 7 : 8 - weekday));
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Moscow', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(date);
+}
+
+const targetDate = nextMonday();
 
 async function request(path, options) {
   const response = await fetch(`${apiUrl}${path}`, {
@@ -173,6 +187,7 @@ try {
       status: AppointmentStatus.CONFIRMED,
       source: AppointmentSource.DASHBOARD,
       priceSnapshot: new Prisma.Decimal(3000),
+      durationMinutesSnapshot: 60,
     },
   });
 

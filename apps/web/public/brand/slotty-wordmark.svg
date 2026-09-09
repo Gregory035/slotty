@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 144 28">
+  <path fill="#11110F" d="M7 0h14a7 7 0 0 1 7 7v14a7 7 0 0 1-7 7H7a7 7 0 0 1-7-7V7a7 7 0 0 1 7-7Zm2 6v16m12-16v16m-11-12h8v8h-8Zm2.5 2.5h3v3h-3Z"/>
+  <text x="38" y="22" fill="#11110F" font-family="Arial, sans-serif" font-size="25" font-weight="700">Slotty</text>
+</svg>

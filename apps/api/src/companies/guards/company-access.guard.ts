@@ -6,12 +6,13 @@ import {
   Injectable,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { CompanyRole } from '@prisma/client';
 import { isUUID } from 'class-validator';
 import { AuthenticatedUserDto } from '../../auth/dto/auth-response.dto';
 import { CompanyMembershipContext } from '../company-access.types';
 import { CompaniesService } from '../companies.service';
-import { COMPANY_ROLES_KEY } from '../decorators/company-roles.decorator';
+import { roleHasPermissions } from '../company-permission';
+import { COMPANY_PERMISSIONS_KEY } from '../decorators/require-permissions.decorator';
+import type { CompanyPermission } from '../company-permission';
 
 interface CompanyRequest {
   params: { companyId?: string };
@@ -43,14 +44,17 @@ export class CompanyAccessGuard implements CanActivate {
       throw new ForbiddenException('Company access denied');
     }
 
-    const allowedRoles =
-      this.reflector.getAllAndOverride<CompanyRole[]>(COMPANY_ROLES_KEY, [
+    const requiredPermissions =
+      this.reflector.getAllAndOverride<CompanyPermission[]>(COMPANY_PERMISSIONS_KEY, [
         context.getHandler(),
         context.getClass(),
-      ]) ?? Object.values(CompanyRole);
+      ]);
 
-    if (!allowedRoles.includes(membership.role)) {
-      throw new ForbiddenException('Insufficient company role');
+    if (!requiredPermissions?.length) {
+      throw new ForbiddenException('Company permission is not declared');
+    }
+    if (!roleHasPermissions(membership.role, requiredPermissions)) {
+      throw new ForbiddenException('Insufficient company permission');
     }
 
     request.companyMembership = {
@@ -58,6 +62,7 @@ export class CompanyAccessGuard implements CanActivate {
       companyId: membership.companyId,
       userId: membership.userId,
       role: membership.role,
+      employeeId: membership.employeeId,
     };
 
     return true;

@@ -15,6 +15,7 @@ import { BotResponseDto } from './dto/bot-response.dto';
 import { ConnectBotDto } from './dto/connect-bot.dto';
 import { TelegramApiService } from './telegram-api.service';
 import { TokenEncryptionService } from './token-encryption.service';
+import { EntitlementsService } from '../billing/entitlements.service';
 
 @Injectable()
 export class BotsService {
@@ -25,6 +26,7 @@ export class BotsService {
     private readonly config: ConfigService,
     private readonly encryption: TokenEncryptionService,
     private readonly telegramApi: TelegramApiService,
+    private readonly entitlements: EntitlementsService,
   ) {
     this.publicUrl = this.config.get<string>('API_PUBLIC_URL');
   }
@@ -32,7 +34,10 @@ export class BotsService {
   async connect(
     companyId: string,
     input: ConnectBotDto,
+    actorId?: string,
   ): Promise<BotResponseDto> {
+    const existing = await this.prisma.bot.findUnique({ where: { companyId } });
+    if (!existing) await this.entitlements.assertCanConnectBot(companyId);
     const token = input.token.trim();
     let botInfo;
     try {
@@ -59,7 +64,6 @@ export class BotsService {
         'This Telegram bot is already connected to another company',
       );
     }
-    const existing = await this.prisma.bot.findUnique({ where: { companyId } });
     const webhookSecret = randomBytes(32).toString('base64url');
     let status: BotStatus = BotStatus.DISABLED;
     let errorMessage: string | null = 'API_PUBLIC_URL is not configured';
@@ -83,7 +87,7 @@ export class BotsService {
     try {
       saved = existing
         ? await this.prisma.bot.update({
-            where: { id: existing.id },
+            where: { id_companyId: { id: existing.id, companyId } },
             data: {
               telegramBotId: BigInt(botInfo.id),
               username: botInfo.username,
@@ -126,6 +130,19 @@ export class BotsService {
       }
     }
 
+    if (actorId) {
+      await this.prisma.auditLog.create({
+        data: {
+          companyId,
+          actorId,
+          action: existing ? 'bot.reconnected' : 'bot.connected',
+          entityType: 'Bot',
+          entityId: saved.id,
+          metadata: { status: saved.status, username: saved.username },
+        },
+      });
+    }
+
     if (status === BotStatus.ERROR) {
       throw new BadGatewayException('Telegram webhook configuration failed');
     }
@@ -137,7 +154,7 @@ export class BotsService {
     return bot ? this.toResponse(bot) : null;
   }
 
-  async activate(companyId: string, botId: string): Promise<BotResponseDto> {
+  async activate(companyId: string, botId: string, actorId?: string): Promise<BotResponseDto> {
     if (!this.publicUrl) {
       throw new ServiceUnavailableException('API_PUBLIC_URL is not configured');
     }
@@ -148,22 +165,27 @@ export class BotsService {
         this.webhookUrl(bot.webhookSecret),
         bot.webhookSecret,
       );
-      return this.toResponse(
-        await this.prisma.bot.update({
-          where: { id: bot.id },
+      const updated = await this.prisma.$transaction(async (tx) => {
+        const changed = await tx.bot.update({
+          where: { id_companyId: { id: bot.id, companyId } },
           data: { status: BotStatus.ACTIVE, errorMessage: null },
-        }),
-      );
+        });
+        if (actorId) await tx.auditLog.create({ data: {
+          companyId, actorId, action: 'bot.activated', entityType: 'Bot', entityId: bot.id,
+        } });
+        return changed;
+      });
+      return this.toResponse(updated);
     } catch (error) {
       await this.prisma.bot.update({
-        where: { id: bot.id },
+        where: { id_companyId: { id: bot.id, companyId } },
         data: { status: BotStatus.ERROR, errorMessage: this.safeError(error) },
       });
       throw new BadGatewayException('Telegram webhook configuration failed');
     }
   }
 
-  async disable(companyId: string, botId: string): Promise<BotResponseDto> {
+  async disable(companyId: string, botId: string, actorId?: string): Promise<BotResponseDto> {
     const bot = await this.requireBot(companyId, botId);
     let errorMessage: string | null = null;
     try {
@@ -173,12 +195,18 @@ export class BotsService {
     } catch (error) {
       errorMessage = this.safeError(error);
     }
-    return this.toResponse(
-      await this.prisma.bot.update({
-        where: { id: bot.id },
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const changed = await tx.bot.update({
+        where: { id_companyId: { id: bot.id, companyId } },
         data: { status: BotStatus.DISABLED, errorMessage },
-      }),
-    );
+      });
+      if (actorId) await tx.auditLog.create({ data: {
+        companyId, actorId, action: 'bot.disabled', entityType: 'Bot', entityId: bot.id,
+        metadata: { webhookRemovalFailed: Boolean(errorMessage) },
+      } });
+      return changed;
+    });
+    return this.toResponse(updated);
   }
 
   private async requireBot(companyId: string, botId: string): Promise<Bot> {

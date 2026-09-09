@@ -1,12 +1,12 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { AppointmentSource, AppointmentStatus } from '@prisma/client';
+import { AppointmentSource, AppointmentStatus, DepositStatus } from '@prisma/client';
 
 export class AppointmentCustomerDto {
   @ApiProperty({ format: 'uuid' })
   id: string;
 
-  @ApiProperty()
-  telegramId: string;
+  @ApiPropertyOptional({ nullable: true })
+  telegramId: string | null;
 
   @ApiProperty()
   firstName: string;
@@ -43,6 +43,17 @@ export class AppointmentServiceDto {
   durationMinutes: number;
 }
 
+export class AppointmentReviewDto {
+  @ApiProperty({ minimum: 1, maximum: 5 })
+  rating: number;
+
+  @ApiPropertyOptional({ nullable: true })
+  comment: string | null;
+
+  @ApiProperty()
+  createdAt: Date;
+}
+
 export class AppointmentResponseDto {
   @ApiProperty({ format: 'uuid' })
   id: string;
@@ -65,6 +76,12 @@ export class AppointmentResponseDto {
   @ApiProperty({ example: '3000.00' })
   price: string;
 
+  @ApiProperty({ example: '600.00' })
+  depositAmount: string;
+
+  @ApiProperty({ enum: DepositStatus })
+  depositStatus: DepositStatus;
+
   @ApiPropertyOptional({ nullable: true })
   notes: string | null;
 
@@ -79,6 +96,9 @@ export class AppointmentResponseDto {
 
   @ApiProperty({ type: AppointmentServiceDto })
   service: AppointmentServiceDto;
+
+  @ApiPropertyOptional({ type: AppointmentReviewDto, nullable: true })
+  review: AppointmentReviewDto | null;
 
   @ApiProperty()
   timezone: string;

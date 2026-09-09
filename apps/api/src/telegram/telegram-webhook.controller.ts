@@ -10,6 +10,7 @@ import {
 import { ApiExcludeController } from '@nestjs/swagger';
 import type { Update } from 'grammy/types';
 import { TelegramBookingService } from './telegram-booking.service';
+import { RateLimits } from '../rate-limit/rate-limit.decorator';
 
 @ApiExcludeController()
 @Controller('telegram/webhooks')
@@ -17,6 +18,11 @@ export class TelegramWebhookController {
   constructor(private readonly booking: TelegramBookingService) {}
 
   @Post(':secret')
+  @RateLimits({
+    name: 'telegram-webhook', identity: 'bot_ip',
+    limitEnv: 'RATE_LIMIT_WEBHOOK_MAX', windowEnv: 'RATE_LIMIT_WEBHOOK_WINDOW_SECONDS',
+    defaultLimit: 120, defaultWindowSeconds: 60,
+  })
   @HttpCode(HttpStatus.OK)
   handle(
     @Param('secret') secret: string,

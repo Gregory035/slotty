@@ -51,8 +51,17 @@ export class CompaniesService {
           trialEndsAt: new Date(Date.now() + TRIAL_LENGTH_MS),
         },
       });
+      await transaction.auditLog.create({
+        data: {
+          companyId: company.id,
+          actorId: userId,
+          action: 'company.created',
+          entityType: 'Company',
+          entityId: company.id,
+        },
+      });
 
-      return this.toResponse(company, CompanyRole.OWNER, subscription);
+      return this.toResponse(company, CompanyRole.OWNER, subscription, null);
     });
   }
 
@@ -69,14 +78,15 @@ export class CompaniesService {
       orderBy: { createdAt: 'asc' },
     });
 
-    return memberships.map(({ company, role }) =>
-      this.toResponse(company, role, company.subscriptions[0] ?? null),
+    return memberships.map(({ company, role, employeeId }) =>
+      this.toResponse(company, role, company.subscriptions[0] ?? null, employeeId),
     );
   }
 
   async findById(
     companyId: string,
     role: CompanyRole,
+    employeeId: string | null = null,
   ): Promise<CompanyResponseDto> {
     const company = await this.prisma.company.findFirst({
       where: { id: companyId, deletedAt: null },
@@ -89,21 +99,23 @@ export class CompaniesService {
       throw new NotFoundException('Company not found');
     }
 
-    return this.toResponse(company, role, company.subscriptions[0] ?? null);
+    return this.toResponse(company, role, company.subscriptions[0] ?? null, employeeId);
   }
 
   async update(
     companyId: string,
     role: CompanyRole,
     input: UpdateCompanyDto,
+    actorId?: string,
   ): Promise<CompanyResponseDto> {
     if (input.timezone) {
       this.assertTimezone(input.timezone);
     }
 
-    const company = await this.prisma.company.update({
-      where: { id: companyId },
-      data: {
+    const company = await this.prisma.$transaction(async (tx) => {
+      const changed = await tx.company.update({
+        where: { id: companyId },
+        data: {
         ...(input.name !== undefined
           ? { name: this.requireTrimmedName(input.name) }
           : {}),
@@ -122,10 +134,30 @@ export class CompaniesService {
         ...(input.timezone !== undefined ? { timezone: input.timezone } : {}),
         ...(input.currency !== undefined ? { currency: input.currency } : {}),
         ...(input.language !== undefined ? { language: input.language } : {}),
-      },
-      include: {
-        subscriptions: { orderBy: { createdAt: 'desc' }, take: 1 },
-      },
+          ...(input.minBookingNoticeMinutes !== undefined ? { minBookingNoticeMinutes: input.minBookingNoticeMinutes } : {}),
+          ...(input.maxBookingHorizonDays !== undefined ? { maxBookingHorizonDays: input.maxBookingHorizonDays } : {}),
+          ...(input.slotStepMinutes !== undefined ? { slotStepMinutes: input.slotStepMinutes } : {}),
+          ...(input.cancellationNoticeMinutes !== undefined ? { cancellationNoticeMinutes: input.cancellationNoticeMinutes } : {}),
+          ...(input.allowAnyEmployee !== undefined ? { allowAnyEmployee: input.allowAnyEmployee } : {}),
+          ...(input.rebookingDelayDays !== undefined ? { rebookingDelayDays: input.rebookingDelayDays } : {}),
+        },
+        include: {
+          subscriptions: { orderBy: { createdAt: 'desc' }, take: 1 },
+        },
+      });
+      if (actorId) {
+        await tx.auditLog.create({
+          data: {
+            companyId,
+            actorId,
+            action: 'company.updated',
+            entityType: 'Company',
+            entityId: companyId,
+            metadata: { fields: Object.keys(input) },
+          },
+        });
+      }
+      return changed;
     });
 
     return this.toResponse(company, role, company.subscriptions[0] ?? null);
@@ -136,6 +168,32 @@ export class CompaniesService {
       where: { userId_companyId: { userId, companyId } },
       include: { company: { select: { deletedAt: true } } },
     });
+  }
+
+  async softDelete(companyId: string, actorId: string): Promise<void> {
+    const deletedAt = new Date();
+    const changed = await this.prisma.$transaction(async (tx) => {
+      const result = await tx.company.updateMany({
+        where: { id: companyId, deletedAt: null },
+        data: { deletedAt },
+      });
+      if (result.count !== 1) return false;
+      await tx.bot.updateMany({
+        where: { companyId },
+        data: { status: 'DISABLED' },
+      });
+      await tx.auditLog.create({
+        data: {
+          companyId,
+          actorId,
+          action: 'company.deleted',
+          entityType: 'Company',
+          entityId: companyId,
+        },
+      });
+      return true;
+    });
+    if (!changed) throw new NotFoundException('Company not found');
   }
 
   private toResponse(
@@ -150,6 +208,12 @@ export class CompaniesService {
       currency: string;
       language: string;
       logoUrl: string | null;
+      minBookingNoticeMinutes: number;
+      maxBookingHorizonDays: number;
+      slotStepMinutes: number;
+      cancellationNoticeMinutes: number;
+      allowAnyEmployee: boolean;
+      rebookingDelayDays: number;
       createdAt: Date;
       updatedAt: Date;
     },
@@ -159,6 +223,7 @@ export class CompaniesService {
       status: SubscriptionStatus;
       trialEndsAt: Date | null;
     } | null,
+    employeeId: string | null = null,
   ): CompanyResponseDto {
     return {
       id: company.id,
@@ -171,9 +236,16 @@ export class CompaniesService {
       currency: company.currency,
       language: company.language,
       logoUrl: company.logoUrl,
+      minBookingNoticeMinutes: company.minBookingNoticeMinutes,
+      maxBookingHorizonDays: company.maxBookingHorizonDays,
+      slotStepMinutes: company.slotStepMinutes,
+      cancellationNoticeMinutes: company.cancellationNoticeMinutes,
+      allowAnyEmployee: company.allowAnyEmployee,
+      rebookingDelayDays: company.rebookingDelayDays,
       createdAt: company.createdAt,
       updatedAt: company.updatedAt,
       role,
+      employeeId,
       subscriptionPlan: subscription?.plan ?? null,
       subscriptionStatus: subscription?.status ?? null,
       trialEndsAt: subscription?.trialEndsAt ?? null,
