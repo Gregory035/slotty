@@ -11,6 +11,9 @@ coverage/
 *.log
 *.tsbuildinfo
 apps/web/public/sitemap.xml
+apps/web/.seo-ssr/
+.playwright-cli/
+output/
 .DS_Store
 .idea/
 .vscode/

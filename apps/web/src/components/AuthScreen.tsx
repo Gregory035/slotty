@@ -1,13 +1,16 @@
 import { useState, type FormEvent } from 'react';
 import { ArrowRight } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
+import { trackEvent } from '../analytics';
 import { login, register } from '../api';
 import { useAppStore } from '../store';
 import { errorMessage } from '../utils';
 import { Brand } from './Brand';
 
 export function AuthScreen() {
+  const [searchParams] = useSearchParams();
   const setSession = useAppStore((state) => state.setSession);
-  const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [mode, setMode] = useState<'login' | 'register'>(() => searchParams.get('mode') === 'register' ? 'register' : 'login');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -28,6 +31,7 @@ export function AuthScreen() {
             firstName: String(form.get('firstName')),
             lastName: String(form.get('lastName') || '') || undefined,
           });
+      if (mode === 'register') trackEvent('registration_success');
       setSession(session);
     } catch (caught) {
       setError(errorMessage(caught));
@@ -49,7 +53,7 @@ export function AuthScreen() {
 
         <div className="auth-tabs" role="tablist">
           <button className={mode === 'login' ? 'active' : ''} onClick={() => { setMode('login'); setError(null); }}>Вход</button>
-          <button className={mode === 'register' ? 'active' : ''} onClick={() => { setMode('register'); setError(null); }}>Регистрация</button>
+          <button className={mode === 'register' ? 'active' : ''} onClick={() => { setMode('register'); setError(null); trackEvent('registration_start'); }}>Регистрация</button>
         </div>
 
         <form className="form-stack" onSubmit={submit}>

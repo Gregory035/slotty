@@ -86,7 +86,15 @@ Webhook использует secret path и проверяет `X-Telegram-Bot-A
 
 ## SEO и аналитика
 
-Перед production-сборкой укажите домен в `WEB_URL`, `SITE_URL` и `VITE_SITE_URL`. При необходимости добавьте `VITE_GA_MEASUREMENT_ID` и `VITE_YM_COUNTER_ID`; приложение не отправляет в счётчики данные клиентов или записи. После публикации добавьте домен в Google Search Console и Яндекс Вебмастер, подтвердите права и отправьте `/sitemap.xml`.
+`WEB_URL` — единый production-origin. В production задайте `SEO_INDEXING_ENABLED=true`: сборка потребует HTTPS-origin без пути, localhost и example-доменов. Для локальных, preview и staging-сборок используйте `SEO_INDEXING_ENABLED=false`; они получают `noindex` и не создают sitemap.
+
+```bash
+SEO_INDEXING_ENABLED=true \
+WEB_URL=https://your-domain.ru \
+npm run build -w @telegram-business/web
+```
+
+При необходимости задайте `VITE_GA_MEASUREMENT_ID` и `VITE_YM_COUNTER_ID`. Счётчики запускаются только после согласия, учитывают Do Not Track и не получают страницы кабинета. Аудит, карта контента и действия после релиза: [SEO-аудит](docs/seo-audit.md), [SEO-чек-лист](docs/seo-checklist.md), [контент-план](docs/seo-content-plan.md).
 
 ## Production deployment
 

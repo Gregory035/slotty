@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { hasAnalyticsConfiguration, initializeAnalytics, setAnalyticsConsent, trackPageView } from '../analytics';
 
 export function AnalyticsConsent() {
-  const [visible, setVisible] = useState(() => hasAnalyticsConfiguration && localStorage.getItem('slotty-analytics-consent') === null);
+  const [visible, setVisible] = useState(false);
+  useEffect(() => setVisible(hasAnalyticsConfiguration && localStorage.getItem('slotty-analytics-consent') === null), []);
   if (!visible) return null;
 
   function decide(value: 'granted' | 'denied') {

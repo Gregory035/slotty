@@ -12,6 +12,7 @@ const gaId = (import.meta.env.VITE_GA_MEASUREMENT_ID ?? '').trim();
 const ymId = Number.parseInt((import.meta.env.VITE_YM_COUNTER_ID ?? '').trim(), 10);
 const consentKey = 'slotty-analytics-consent';
 let initialized = false;
+let lastPageView: string | null = null;
 
 export const hasAnalyticsConfiguration = Boolean(/^G-[A-Z0-9]+$/i.test(gaId) || Number.isInteger(ymId));
 
@@ -55,6 +56,8 @@ export function trackPageView(pathname: string) {
   if (analyticsConsent() !== 'granted' || navigator.doNotTrack === '1') return;
   initializeAnalytics();
   const pagePath = pathname.split('?')[0] || '/';
+  if (pagePath === lastPageView) return;
+  lastPageView = pagePath;
   if (/^G-[A-Z0-9]+$/i.test(gaId)) window.gtag?.('event', 'page_view', { page_path: pagePath });
   if (Number.isInteger(ymId)) window.ym?.(ymId, 'hit', pagePath);
 }

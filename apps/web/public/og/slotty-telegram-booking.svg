@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <rect width="1200" height="630" fill="#0C0D0B"/>
+  <rect x="68" y="68" width="64" height="64" rx="12" fill="#F1F3EA"/>
+  <path d="M87 83v34M114 83v34" fill="none" stroke="#171815" stroke-width="7"/>
+  <path d="M93 91h16v17H93z" fill="#171815"/><path d="M99 97h5v5h-5z" fill="#F1F3EA"/>
+  <text x="153" y="116" fill="#F1F3EA" font-family="Arial, sans-serif" font-size="42" font-weight="700">Slotty</text>
+  <text x="68" y="276" fill="#C7FF31" font-family="Arial, sans-serif" font-size="24" font-weight="700" letter-spacing="2">ЗАПИСЬ ЧЕРЕЗ TELEGRAM</text>
+  <text x="68" y="365" fill="#F1F3EA" font-family="Arial, sans-serif" font-size="68" font-weight="700">Без переписки</text>
+  <text x="68" y="445" fill="#F1F3EA" font-family="Arial, sans-serif" font-size="68" font-weight="700">и ручного согласования</text>
+  <rect x="68" y="520" width="420" height="4" fill="#C7FF31"/>
+  <text x="68" y="568" fill="#B1B4A8" font-family="Arial, sans-serif" font-size="28">Свободные слоты синхронизированы с расписанием</text>
+</svg>
