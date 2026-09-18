@@ -1,10 +1,12 @@
 type AnalyticsEventParams = Record<string, string | number | boolean>;
+type YandexCommand = [counterId: number, action: string, ...args: unknown[]];
+type YandexTag = ((...args: YandexCommand) => void) & { a?: YandexCommand[]; l?: number };
 
 declare global {
   interface Window {
     dataLayer?: unknown[][];
     gtag?: (...args: unknown[]) => void;
-    ym?: (counterId: number, action: string, ...args: unknown[]) => void;
+    ym?: YandexTag;
   }
 }
 
@@ -46,8 +48,12 @@ export function initializeAnalytics() {
   }
 
   if (Number.isInteger(ymId)) {
+    if (!window.ym) {
+      const queue: YandexTag = (...args) => { (queue.a ??= []).push(args); };
+      queue.l = Date.now();
+      window.ym = queue;
+    }
     appendScript('https://mc.yandex.ru/metrika/tag.js');
-    window.ym = window.ym ?? (() => undefined);
     // SPA сама отправляет просмотры через trackPageView. Без defer Метрика
     // дополнительно засчитает автоматический первый просмотр при инициализации.
     window.ym(ymId, 'init', { clickmap: true, trackLinks: true, accurateTrackBounce: true, webvisor: false, defer: true });

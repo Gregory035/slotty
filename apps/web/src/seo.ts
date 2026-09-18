@@ -8,7 +8,7 @@ export interface SeoPageDefinition {
 export const seoPages: readonly SeoPageDefinition[] = [
   { path: '/', title: 'Slotty — сервис онлайн-записи клиентов через Telegram', description: 'Slotty помогает бизнесу услуг принимать онлайн-записи через Telegram, управлять расписанием, сотрудниками и клиентами в одной системе.', ogImage: '/og/slotty-online-booking.png' },
   { path: '/online-zapis', title: 'Онлайн-запись клиентов для бизнеса — Slotty', description: 'Система онлайн-записи Slotty: услуги, сотрудники, свободные слоты, напоминания, лист ожидания, отзывы и аналитика для бизнеса услуг.', ogImage: '/og/slotty-online-booking.png' },
-  { path: '/zapis-cherez-telegram', title: 'Запись клиентов через Telegram — Slotty', description: 'Подключите Telegram-бота к Slotty: клиент выберет услугу и свободное время, сможет подтвердить, перенести или отменить визит без переписки.', ogImage: '/og/slotty-telegram-booking.png' },
+  { path: '/zapis-cherez-telegram', title: 'Онлайн-запись клиентов через Телеграм — Slotty', description: 'Онлайн-запись через Telegram-бота Slotty: выбор услуги, специалиста и свободного времени, перенос и отмена визита. Расписание и клиенты в одной панели.', ogImage: '/og/slotty-telegram-booking.png' },
 ] as const;
 
 export function normalizePath(pathname: string): string {

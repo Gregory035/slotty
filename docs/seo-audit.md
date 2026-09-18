@@ -90,6 +90,10 @@ Lighthouse mobile для локальной production-сборки в одно�
 
 ## Проверка production
 
+### Повторная проверка аналитики — 18 сентября 2026
+
+Обнаружена ошибка P1 в `analytics.ts`: временная функция `ym` ничего не делала, поэтому вызовы `init`, `hit` и целей до загрузки асинхронной библиотеки терялись. Наличие ID в опубликованном JS не являлось подтверждением получения данных Метрикой. Локально добавлена очередь `ym.a` и время `ym.l` по официальной схеме Яндекса. Добавлены тесты очереди, единственной инициализации, согласия и Do Not Track. Исправление требует публикации и проверки получения посещения в Метрике; до этой проверки сбор данных не считать подтверждённым.
+
 18 сентября 2026 года production проверен на `https://slotty23.ru`: HTTP перенаправляется на HTTPS, главная отвечает `200`, API health-check отвечает `ok`, а `www.slotty23.ru` возвращает постоянный `301` на основной домен. Caddy выпустил валидные сертификаты для обоих адресов. Старый nip.io-адрес временно остаётся обслуживаемым для плавного перехода.
 
 Методика сверена с официальными материалами [Google о sitemap](https://developers.google.com/search/docs/crawling-indexing/sitemaps/build-sitemap), [Google о robots.txt](https://developers.google.com/search/docs/crawling-indexing/robots/intro), [Google о structured data](https://developers.google.com/search/docs/appearance/structured-data/intro-structured-data), [web.dev о Web Vitals](https://web.dev/articles/vitals) и [Яндекса о Sitemap](https://yandex.ru/support/webmaster/ru/controlling-robot/sitemap).
