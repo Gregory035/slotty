@@ -82,6 +82,7 @@ a { color:inherit; }
 .breadcrumbs a:hover { color:var(--text); }
 .marketing-section { padding:80px 0; border-top:1px solid var(--line); }
 .marketing-section>h2 { max-width:720px; }
+.marketing-section-copy,.marketing-flow-copy { max-width:720px; margin:18px 0 0; color:var(--muted); font-size:15px; line-height:1.7; }
 .capability-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:1px; margin-top:44px; border:1px solid var(--line); background:var(--line); }
 .capability-grid article { min-height:210px; padding:28px; background:var(--surface); }
 .capability-grid svg { color:var(--accent-ink); }
