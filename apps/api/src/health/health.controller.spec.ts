@@ -10,7 +10,7 @@ describe('HealthController', () => {
     expect(controller.getHealth()).toEqual(
       expect.objectContaining({
         status: 'ok',
-        service: 'telegram-business-api',
+        service: 'slotty-api',
       }),
     );
   });

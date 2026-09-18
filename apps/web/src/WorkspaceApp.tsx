@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
-import { Navigate, Route, Routes, useNavigate, useParams } from 'react-router-dom';
+import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import { getCompanies, getEntitlements, restoreSession } from './api';
 import { AppShell } from './components/AppShell';
 import { AuthScreen } from './components/AuthScreen';
@@ -73,18 +73,16 @@ function WorkspaceRouter() {
     if (!activeCompanyId || !companies.data.some((item) => item.id === activeCompanyId)) setActiveCompanyId(companies.data[0]!.id);
   }, [activeCompanyId, companies.data, setActiveCompanyId]);
 
-  return <WorkspaceGate restoringSession={restoringSession} session={session} companies={companies.data} companiesLoading={companies.isLoading} companiesError={Boolean(companies.error)} activeCompanyId={activeCompanyId} />;
+  return <WorkspaceGate restoringSession={restoringSession} session={session} companies={companies.data} companiesLoading={companies.isLoading} companiesError={Boolean(companies.error)} />;
 }
 
-function WorkspaceGate({ restoringSession, session, companies, companiesLoading, companiesError, activeCompanyId }: { restoringSession: boolean; session: ReturnType<typeof useAppStore.getState>['session']; companies: Company[] | undefined; companiesLoading: boolean; companiesError: boolean; activeCompanyId: string | null }) {
+function WorkspaceGate({ restoringSession, session, companies, companiesLoading, companiesError }: { restoringSession: boolean; session: ReturnType<typeof useAppStore.getState>['session']; companies: Company[] | undefined; companiesLoading: boolean; companiesError: boolean }) {
   if (restoringSession) return <div className="fullscreen-state"><LoadingBlock label="Открываем Slotty" /></div>;
   if (!session) return <AuthScreen />;
   if (companiesLoading) return <div className="fullscreen-state"><LoadingBlock label="Открываем рабочее пространство" /></div>;
   if (companiesError) return <div className="fullscreen-state"><ErrorBlock message="Не удалось загрузить компании. Убедитесь, что API запущен." /></div>;
   if (!companies?.length) return <CompanyOnboarding />;
-  const fallbackCompany = companies.find((item) => item.id === activeCompanyId) ?? companies[0]!;
-  const fallbackSection = fallbackCompany.role === 'EMPLOYEE' ? 'calendar' : 'dashboard';
-  return <Routes><Route path="/companies/:companyId/:section" element={<CompanyWorkspace companies={companies} />} /><Route path="*" element={<Navigate replace to={`/companies/${fallbackCompany.id}/${fallbackSection}`} />} /></Routes>;
+  return <CompanyWorkspace companies={companies} />;
 }
 
 function CompanyWorkspace({ companies }: { companies: Company[] }) {

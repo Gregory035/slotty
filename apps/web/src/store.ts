@@ -2,8 +2,10 @@ import { create } from 'zustand';
 import { readSession, writeSession } from './api';
 import type { Session } from './types';
 
-const companyKey = 'telegram-business-company';
-const sidebarCollapsedKey = 'telegram-business-sidebar-collapsed';
+const companyKey = 'slotty-company';
+const sidebarCollapsedKey = 'slotty-sidebar-collapsed';
+const legacyCompanyKey = 'telegram-business-company';
+const legacySidebarCollapsedKey = 'telegram-business-sidebar-collapsed';
 const themeKey = 'slotty-theme';
 
 export type ThemeMode = 'light' | 'dark' | 'system';
@@ -25,12 +27,12 @@ interface AppState {
 function initialCompany(): string | null {
   return typeof localStorage === 'undefined'
     ? null
-    : localStorage.getItem(companyKey);
+    : localStorage.getItem(companyKey) ?? localStorage.getItem(legacyCompanyKey);
 }
 
 function initialSidebarCollapsed(): boolean {
   return typeof localStorage !== 'undefined'
-    ? localStorage.getItem(sidebarCollapsedKey) === 'true'
+    ? (localStorage.getItem(sidebarCollapsedKey) ?? localStorage.getItem(legacySidebarCollapsedKey)) === 'true'
     : false;
 }
 

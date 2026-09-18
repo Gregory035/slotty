@@ -1,6 +1,6 @@
 # SEO-аудит Slotty
 
-Дата проверки: 15 сентября 2026 года. Публичный origin этой итерации: `https://212.74.224.226.nip.io`.
+Дата проверки: 18 сентября 2026 года. Публичный origin этой итерации: `https://slotty23.ru`.
 
 ## Политика маршрутов
 
@@ -88,8 +88,8 @@ Lighthouse mobile для локальной production-сборки в одно�
 | Локальные WOFF2 и code split улучшают LCP | PageSpeed/CrUX после появления трафика | P1 |
 | nip.io снижает доверие и брендовый CTR | Сравнить после перехода на постоянный домен | P2 |
 
-## Ограничения проверки production
+## Проверка production
 
-Во время аудита `https://212.74.224.226.nip.io` не отвечал: TLS-соединение не устанавливалось, HTTP возвращал пустой ответ. Production не публиковался в рамках этой работы. Повторная проверка нужна после восстановления сервера и отдельной команды на deployment.
+18 сентября 2026 года production проверен на `https://slotty23.ru`: HTTP перенаправляется на HTTPS, главная отвечает `200`, API health-check отвечает `ok`, а `www.slotty23.ru` возвращает постоянный `301` на основной домен. Caddy выпустил валидные сертификаты для обоих адресов. Старый nip.io-адрес временно остаётся обслуживаемым для плавного перехода.
 
 Методика сверена с официальными материалами [Google о sitemap](https://developers.google.com/search/docs/crawling-indexing/sitemaps/build-sitemap), [Google о robots.txt](https://developers.google.com/search/docs/crawling-indexing/robots/intro), [Google о structured data](https://developers.google.com/search/docs/appearance/structured-data/intro-structured-data), [web.dev о Web Vitals](https://web.dev/articles/vitals) и [Яндекса о Sitemap](https://yandex.ru/support/webmaster/ru/controlling-robot/sitemap).

@@ -28,7 +28,7 @@ export class HealthController {
   getLive(): HealthResponse {
     return {
       status: 'ok',
-      service: 'telegram-business-api',
+      service: 'slotty-api',
       timestamp: new Date().toISOString(),
     };
   }

@@ -1,4 +1,8 @@
-{$PUBLIC_HOST} {
+www.{$PUBLIC_HOST} {
+  redir https://{$PUBLIC_HOST}{uri} permanent
+}
+
+{$PUBLIC_HOST}, 31.77.11.72.nip.io {
   encode zstd gzip
   reverse_proxy web:8080
 }

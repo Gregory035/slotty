@@ -18,7 +18,7 @@ ENV VITE_GA_MEASUREMENT_ID=$VITE_GA_MEASUREMENT_ID
 ENV VITE_YM_COUNTER_ID=$VITE_YM_COUNTER_ID
 ENV SEO_INDEXING_ENABLED=$SEO_INDEXING_ENABLED
 ENV VITE_SEO_INDEXING_ENABLED=$SEO_INDEXING_ENABLED
-RUN npm run build -w @telegram-business/web
+RUN npm run build -w @slotty/web
 
 FROM nginxinc/nginx-unprivileged:1.27-alpine AS runtime
 COPY apps/web/nginx.conf /etc/nginx/conf.d/default.conf

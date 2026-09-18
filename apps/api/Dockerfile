@@ -9,7 +9,7 @@ RUN npm ci
 FROM dependencies AS build
 COPY tsconfig.base.json ./
 COPY apps/api ./apps/api
-RUN npm run db:generate && npm run build -w @telegram-business/api
+RUN npm run db:generate && npm run build -w @slotty/api
 
 FROM dependencies AS release
 COPY apps/api/prisma ./apps/api/prisma

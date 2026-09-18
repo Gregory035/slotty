@@ -1,5 +1,5 @@
 {
-  "name": "@telegram-business/api",
+  "name": "@slotty/api",
   "version": "0.1.0",
   "private": true,
   "scripts": {

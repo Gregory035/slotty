@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 
 const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-const workspaces = ['@telegram-business/api', '@telegram-business/web'];
+const workspaces = ['@slotty/api', '@slotty/web'];
 
 const children = workspaces.map((workspace) =>
   spawn(npmCommand, ['run', 'dev', '-w', workspace], {

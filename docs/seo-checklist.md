@@ -2,8 +2,8 @@
 
 ## 1. Домен и deployment
 
-- Выбрать постоянный HTTPS-домен. Пока используется `https://212.74.224.226.nip.io` без `www` и завершающего `/`, кроме корня.
-- В production environment GitHub задать `WEB_URL` ровно как origin, без пути и завершающего слеша.
+- Основной домен: `https://slotty23.ru` без `www` и завершающего `/`, кроме корня.
+- На сервере в `/opt/slotty/.env` задать `WEB_URL`, `API_PUBLIC_URL` и `PUBLIC_HOST` для `slotty23.ru`, затем пересобрать web и Caddy.
 - Задать `SEO_INDEXING_ENABLED=true` только для production. Для preview/staging оставить `false`.
 - Убедиться, что DNS указывает на сервер, Caddy выдаёт валидный сертификат и перенаправляет HTTP на HTTPS.
 - При смене домена обновить `WEB_URL`, пересобрать frontend и настроить 301 со старого origin на соответствующие новые URL.
@@ -33,6 +33,8 @@ curl https://DOMAIN/sitemap.xml
 
 ## 3. Google Search Console
 
+Панель: [Google Search Console](https://search.google.com/search-console/).
+
 - Создать Domain property и подтвердить владение через DNS.
 - Отправить `https://DOMAIN/sitemap.xml`.
 - Через URL Inspection проверить `/`, `/online-zapis`, `/zapis-cherez-telegram`.
@@ -44,6 +46,8 @@ curl https://DOMAIN/sitemap.xml
 
 ## 4. Яндекс Вебмастер
 
+Панель: [Яндекс Вебмастер](https://webmaster.yandex.ru/).
+
 - Добавить HTTPS-сайт и подтвердить права.
 - Добавить `https://DOMAIN/sitemap.xml` в «Индексирование → Файлы Sitemap».
 - Проверить три публичных URL через «Проверка URL» и мониторинг важных страниц.
@@ -53,6 +57,8 @@ curl https://DOMAIN/sitemap.xml
 Документация: [Sitemap в Яндекс Вебмастере](https://yandex.ru/support/webmaster/ru/controlling-robot/sitemap).
 
 ## 5. Метрика и GA4
+
+Панели: [Яндекс Метрика](https://metrika.yandex.ru/) и [Google Analytics](https://analytics.google.com/).
 
 - Задать существующие `VITE_YM_COUNTER_ID` и `VITE_GA_MEASUREMENT_ID`; не создавать фиктивные ID.
 - Проверить, что до согласия и при включённом Do Not Track запросов к счётчикам нет.

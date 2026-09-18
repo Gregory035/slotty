@@ -1,4 +1,4 @@
-# Slotty — Telegram Business SaaS
+# Slotty
 
 [![CI](https://github.com/Gregory035/telegram-business-saas/actions/workflows/ci.yml/badge.svg)](https://github.com/Gregory035/telegram-business-saas/actions/workflows/ci.yml)
 
@@ -91,7 +91,7 @@ Webhook использует secret path и проверяет `X-Telegram-Bot-A
 ```bash
 SEO_INDEXING_ENABLED=true \
 WEB_URL=https://your-domain.ru \
-npm run build -w @telegram-business/web
+npm run build -w @slotty/web
 ```
 
 При необходимости задайте `VITE_GA_MEASUREMENT_ID` и `VITE_YM_COUNTER_ID`. Счётчики запускаются только после согласия, учитывают Do Not Track и не получают страницы кабинета. Аудит, карта контента и действия после релиза: [SEO-аудит](docs/seo-audit.md), [SEO-чек-лист](docs/seo-checklist.md), [контент-план](docs/seo-content-plan.md).

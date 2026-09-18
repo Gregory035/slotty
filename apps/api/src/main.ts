@@ -40,7 +40,7 @@ async function bootstrap(): Promise<void> {
     config.get<string>('NODE_ENV') !== 'production';
   if (swaggerEnabled) {
     const swaggerConfig = new DocumentBuilder()
-      .setTitle('Telegram Business SaaS API')
+      .setTitle('Slotty API')
       .setDescription('API панели владельца и Telegram-ботов')
       .setVersion('0.1.0')
       .addBearerAuth()

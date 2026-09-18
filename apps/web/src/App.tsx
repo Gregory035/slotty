@@ -23,8 +23,8 @@ export function App() {
       <Route path="/" element={<LandingPage />} />
       <Route path="/online-zapis" element={<OnlineBookingPage />} />
       <Route path="/zapis-cherez-telegram" element={<TelegramBookingPage />} />
-      <Route path="/app" element={<WorkspaceFallback><WorkspaceApp /></WorkspaceFallback>} />
-      <Route path="/companies/:companyId/:section" element={<WorkspaceFallback><WorkspaceApp /></WorkspaceFallback>} />
+      <Route path="/app/*" element={<WorkspaceFallback><WorkspaceApp /></WorkspaceFallback>} />
+      <Route path="/companies/:companyId/:section/*" element={<WorkspaceFallback><WorkspaceApp /></WorkspaceFallback>} />
       <Route path="*" element={<NotFoundPage />} />
     </Routes>
   );

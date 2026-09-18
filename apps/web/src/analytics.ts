@@ -48,7 +48,9 @@ export function initializeAnalytics() {
   if (Number.isInteger(ymId)) {
     appendScript('https://mc.yandex.ru/metrika/tag.js');
     window.ym = window.ym ?? (() => undefined);
-    window.ym(ymId, 'init', { clickmap: true, trackLinks: true, accurateTrackBounce: true, webvisor: false });
+    // SPA сама отправляет просмотры через trackPageView. Без defer Метрика
+    // дополнительно засчитает автоматический первый просмотр при инициализации.
+    window.ym(ymId, 'init', { clickmap: true, trackLinks: true, accurateTrackBounce: true, webvisor: false, defer: true });
   }
 }
 

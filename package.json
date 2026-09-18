@@ -1,5 +1,5 @@
 {
-  "name": "telegram-business-saas",
+  "name": "slotty",
   "version": "0.1.0",
   "private": true,
   "workspaces": [
@@ -16,8 +16,8 @@
     "smoke:scheduling": "node scripts/smoke-scheduling.mjs",
     "smoke:e2e": "npm run smoke:auth && npm run smoke:companies && npm run smoke:catalog && npm run smoke:booking",
     "test": "npm run test --workspaces --if-present",
-    "test:integration": "npm run test:integration -w @telegram-business/api",
-    "test:coverage": "npm run test:coverage -w @telegram-business/api",
+    "test:integration": "npm run test:integration -w @slotty/api",
+    "test:coverage": "npm run test:coverage -w @slotty/api",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "db:generate": "prisma generate --schema=apps/api/prisma/schema.prisma",
     "db:migrate": "prisma migrate dev --schema=apps/api/prisma/schema.prisma",
