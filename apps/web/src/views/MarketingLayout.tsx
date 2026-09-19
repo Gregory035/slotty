@@ -7,7 +7,7 @@ export function MarketingLayout({ children }: { children: ReactNode }) {
   return <div className="landing-page">
     <header className="landing-nav">
       <Link className="brand-home" to="/" aria-label="Slotty — главная"><Brand /></Link>
-      <nav className="landing-links" aria-label="Основная навигация"><Link to="/online-zapis">Онлайн-запись</Link><Link to="/zapis-cherez-telegram">Telegram</Link><a href="/#how">Как работает</a></nav>
+      <nav className="landing-links" aria-label="Основная навигация"><a href="/#demo">Демо</a><a href="/#features">Возможности</a><Link to="/online-zapis">Онлайн-запись</Link><Link to="/zapis-cherez-telegram">Telegram</Link></nav>
       <Link className="secondary-button landing-login" to="/app" onClick={() => trackEvent('landing_login')}>Войти</Link>
     </header>
     <main>{children}</main>

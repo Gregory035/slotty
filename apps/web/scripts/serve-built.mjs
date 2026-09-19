@@ -31,7 +31,7 @@ createServer(async (request, response) => {
     return;
   }
 
-  if (url.pathname === '/robots.txt' || url.pathname === '/sitemap.xml' || url.pathname.startsWith('/assets/') || url.pathname.startsWith('/fonts/') || url.pathname.startsWith('/og/') || url.pathname.startsWith('/brand/') || url.pathname === '/slotty-favicon.png') {
+  if (url.pathname === '/robots.txt' || url.pathname === '/sitemap.xml' || url.pathname === '/theme.v1.js' || url.pathname.startsWith('/assets/') || url.pathname.startsWith('/fonts/') || url.pathname.startsWith('/og/') || url.pathname.startsWith('/brand/') || url.pathname === '/slotty-favicon.png') {
     const relative = decodeURIComponent(url.pathname.slice(1));
     const file = resolve(dist, relative);
     if (file.startsWith(`${dist}${sep}`) && await isFile(file)) {
