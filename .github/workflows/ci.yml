@@ -67,7 +67,7 @@ jobs:
       - run: npm run build
       - name: API smoke and E2E
         run: |
-          npm run start -w @telegram-business/api > /tmp/telegram-business-api.log 2>&1 &
+          npm run start -w @slotty/api > /tmp/slotty-api.log 2>&1 &
           for attempt in {1..30}; do
             curl -fsS http://localhost:3000/api/health/ready && break
             sleep 1
@@ -82,7 +82,7 @@ jobs:
           path: |
             apps/api/coverage
             test-results
-            /tmp/telegram-business-api.log
+            /tmp/slotty-api.log
           if-no-files-found: warn
 
   containers:
@@ -96,14 +96,14 @@ jobs:
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
       - run: docker build --target runtime -t telegram-business-api:${{ github.sha }} -f apps/api/Dockerfile .
       - run: docker build --target runtime -t telegram-business-web:${{ github.sha }} -f apps/web/Dockerfile .
-      - uses: aquasecurity/trivy-action@915b19bbe73b92a6cf82a1bc12b087c9a19a5fe2
+      - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
         with:
           image-ref: telegram-business-api:${{ github.sha }}
           format: sarif
           output: trivy-api.sarif
           severity: HIGH,CRITICAL
           exit-code: "1"
-      - uses: aquasecurity/trivy-action@915b19bbe73b92a6cf82a1bc12b087c9a19a5fe2
+      - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
         with:
           image-ref: telegram-business-web:${{ github.sha }}
           format: sarif
