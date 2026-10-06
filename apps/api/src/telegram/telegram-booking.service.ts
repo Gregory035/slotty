@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -40,6 +41,8 @@ interface UpdateContext {
 
 @Injectable()
 export class TelegramBookingService {
+  private readonly logger = new Logger(TelegramBookingService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly scheduling: SchedulingService,
@@ -299,12 +302,20 @@ export class TelegramBookingService {
       select: { name: true },
     });
     if (!company) throw new NotFoundException('Company not found');
+    const miniAppUrl = this.miniAppUrl(companyId);
+    try {
+      await this.telegramApi.setWebAppMenuButton(token, chatId, miniAppUrl);
+    } catch (error) {
+      this.logger.warn(
+        `Failed to configure Telegram Mini App menu button: ${error instanceof Error ? error.message : 'unknown error'}`,
+      );
+    }
     await this.telegramApi.sendMessage(
       token,
       chatId,
       `${company.name}: чем помочь?`,
       new InlineKeyboard()
-        .webApp('Записаться', this.miniAppUrl(companyId))
+        .webApp('Открыть Slotty', miniAppUrl)
         .row()
         .text('Мои записи', 'm')
         .row()
@@ -386,7 +397,7 @@ export class TelegramBookingService {
         scope === 'upcoming' ? 'У вас нет предстоящих записей.' : 'Архив записей пока пуст.',
         new InlineKeyboard()
           .text(scope === 'upcoming' ? 'Архив' : 'Предстоящие', scope === 'upcoming' ? 'ma' : 'mu')
-          .row().text('Записаться', 'b').row().text('Главное меню', 'h'),
+          .row().webApp('Открыть Slotty', this.miniAppUrl(companyId)).row().text('Главное меню', 'h'),
       );
       return;
     }
@@ -486,7 +497,7 @@ export class TelegramBookingService {
       include: { service: true },
     });
     if (!assignment) {
-      await this.telegramApi.sendMessage(token, context.chatId, 'Эта услуга или специалист больше недоступны.', new InlineKeyboard().text('Выбрать услугу', 'b'));
+      await this.telegramApi.sendMessage(token, context.chatId, 'Эта услуга или специалист больше недоступны.', new InlineKeyboard().webApp('Открыть Slotty', this.miniAppUrl(companyId)));
       return;
     }
     const currentPrice = assignment.price ?? assignment.service.price;
@@ -905,7 +916,7 @@ export class TelegramBookingService {
           ? `Предоплата: ${booking.depositAmount} ${booking.currency}`
           : null,
       ].filter((line): line is string => Boolean(line)).join('\n'),
-      new InlineKeyboard().text('Записаться ещё', 'b').row().text('Мои записи', 'm'),
+      new InlineKeyboard().webApp('Открыть Slotty', this.miniAppUrl(companyId)).row().text('Мои записи', 'm'),
     );
   }
 

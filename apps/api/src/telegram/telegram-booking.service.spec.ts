@@ -74,6 +74,7 @@ describe('TelegramBookingService', () => {
     encryption = { decrypt: jest.fn().mockReturnValue('bot-token') };
     telegramApi = {
       sendMessage: jest.fn().mockResolvedValue(undefined),
+      setWebAppMenuButton: jest.fn().mockResolvedValue(undefined),
       answerCallbackQuery: jest.fn().mockResolvedValue(undefined),
       clearInlineKeyboard: jest.fn().mockResolvedValue(undefined),
     };
@@ -122,6 +123,11 @@ describe('TelegramBookingService', () => {
     await process(update);
 
     expect(telegramApi.sendMessage).toHaveBeenCalledTimes(1);
+    expect(telegramApi.setWebAppMenuButton).toHaveBeenCalledWith(
+      'bot-token',
+      42,
+      `${config.getOrThrow()}/miniapp/${companyId}`,
+    );
     const keyboard = telegramApi.sendMessage.mock.calls[0][3];
     expect(keyboard.inline_keyboard[0][0].web_app?.url).toBe(`${config.getOrThrow()}/miniapp/${companyId}`);
     expect(prisma.telegramUpdate.create).toHaveBeenCalled();

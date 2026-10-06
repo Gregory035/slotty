@@ -32,6 +32,21 @@ export class TelegramApiService {
     await this.createApi(token).deleteWebhook({ drop_pending_updates: true });
   }
 
+  async setWebAppMenuButton(
+    token: string,
+    chatId: number,
+    url: string,
+  ): Promise<void> {
+    await this.createApi(token).setChatMenuButton({
+      chat_id: chatId,
+      menu_button: {
+        type: 'web_app',
+        text: 'Открыть Slotty',
+        web_app: { url },
+      },
+    });
+  }
+
   async sendMessage(
     token: string,
     chatId: number | string,
