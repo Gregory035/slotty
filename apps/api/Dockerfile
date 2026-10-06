@@ -17,7 +17,7 @@ USER node
 CMD ["npx", "prisma", "migrate", "deploy", "--schema=apps/api/prisma/schema.prisma"]
 
 FROM dependencies AS production-dependencies
-RUN npm prune --omit=dev && npm cache clean --force
+RUN npm prune --omit=dev --omit=optional && npm cache clean --force
 
 FROM node:22-alpine AS runtime
 ENV NODE_ENV=production
