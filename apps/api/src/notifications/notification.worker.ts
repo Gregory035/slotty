@@ -1,10 +1,12 @@
 import { Injectable, Logger, OnApplicationBootstrap, OnApplicationShutdown } from '@nestjs/common';
 import {
+  AppointmentStatus,
   BotStatus,
   Notification,
   NotificationStatus,
   NotificationType,
   Prisma,
+  WaitlistStatus,
 } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import { InlineKeyboard } from 'grammy';
@@ -13,12 +15,15 @@ import { TelegramApiService } from '../telegram/telegram-api.service';
 import { TokenEncryptionService } from '../telegram/token-encryption.service';
 
 const MAX_ATTEMPTS = 5;
+const STALE_PROCESSING_MS = 5 * 60_000;
+const RECOVERY_INTERVAL_MS = 60_000;
 
 @Injectable()
 export class NotificationWorker implements OnApplicationBootstrap, OnApplicationShutdown {
   private readonly logger = new Logger(NotificationWorker.name);
   private timer?: NodeJS.Timeout;
   private running = false;
+  private lastRecovery = 0;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -27,7 +32,11 @@ export class NotificationWorker implements OnApplicationBootstrap, OnApplication
   ) {}
 
   onApplicationBootstrap(): void {
-    this.timer = setInterval(() => void this.tick(), 500);
+    this.timer = setInterval(() => {
+      void this.tick().catch((error: unknown) => {
+        this.logger.error('Notification worker tick failed', error);
+      });
+    }, 500);
     this.timer.unref();
   }
 
@@ -39,6 +48,17 @@ export class NotificationWorker implements OnApplicationBootstrap, OnApplication
     if (this.running) return;
     this.running = true;
     try {
+      if (Date.now() - this.lastRecovery >= RECOVERY_INTERVAL_MS) {
+        this.lastRecovery = Date.now();
+        await this.prisma.notification.updateMany({
+          where: {
+            status: NotificationStatus.PROCESSING,
+            attempts: { gte: MAX_ATTEMPTS },
+            updatedAt: { lt: new Date(Date.now() - STALE_PROCESSING_MS) },
+          },
+          data: { status: NotificationStatus.FAILED, lastError: 'Worker stopped before delivery completed' },
+        });
+      }
       for (let count = 0; count < 20; count += 1) {
         const notification = await this.claim();
         if (!notification) break;
@@ -55,7 +75,11 @@ export class NotificationWorker implements OnApplicationBootstrap, OnApplication
       SET "status" = 'PROCESSING', "attempts" = "attempts" + 1, "updatedAt" = NOW()
       WHERE "id" = (
         SELECT "id" FROM "Notification"
-        WHERE "status" = 'PENDING' AND "scheduledAt" <= NOW()
+        WHERE (
+          ("status" = 'PENDING' AND "scheduledAt" <= NOW())
+          OR ("status" = 'PROCESSING' AND "updatedAt" < ${new Date(Date.now() - STALE_PROCESSING_MS)})
+        )
+        AND "attempts" < ${MAX_ATTEMPTS}
         ORDER BY "scheduledAt", "createdAt"
         FOR UPDATE SKIP LOCKED
         LIMIT 1
@@ -77,6 +101,27 @@ export class NotificationWorker implements OnApplicationBootstrap, OnApplication
         },
       });
       if (!record || record.status !== NotificationStatus.PROCESSING) return;
+      if (record.type === NotificationType.WAITLIST_SLOT) {
+        const activeOffer = await this.prisma.waitlistEntry.findFirst({
+          where: {
+            companyId: record.companyId,
+            customerId: record.customerId,
+            offeredAppointmentId: record.appointmentId,
+            status: WaitlistStatus.OFFERED,
+            expiresAt: { gt: new Date() },
+          }, select: { id: true },
+        });
+        if (!activeOffer) {
+          await this.cancel(record.id, record.companyId, 'Waitlist offer is no longer valid');
+          return;
+        }
+      }
+      if (record.appointment &&
+        (record.type === NotificationType.APPOINTMENT_CREATED || record.type === NotificationType.APPOINTMENT_REMINDER || record.type === NotificationType.APPOINTMENT_CHANGED) &&
+        (record.appointment.status === AppointmentStatus.CANCELLED_BY_COMPANY || record.appointment.status === AppointmentStatus.CANCELLED_BY_CUSTOMER)) {
+        await this.cancel(record.id, record.companyId, 'Appointment is cancelled');
+        return;
+      }
       if (!record.customer.telegramId) {
         await this.cancel(record.id, record.companyId, 'Customer has no Telegram account');
         return;
@@ -160,7 +205,9 @@ export class NotificationWorker implements OnApplicationBootstrap, OnApplication
       `Специалист: ${employee}`,
       `Дата и время: ${date}`,
       `Стоимость: ${appointment.priceSnapshot.toFixed(2)} ${appointment.company.currency.trim()}`,
-      appointment.cancellationReason ? `Причина: ${appointment.cancellationReason}` : null,
+      type !== NotificationType.WAITLIST_SLOT && appointment.cancellationReason
+        ? `Причина: ${appointment.cancellationReason}`
+        : null,
     ].filter((line): line is string => Boolean(line)).join('\n');
   }
 

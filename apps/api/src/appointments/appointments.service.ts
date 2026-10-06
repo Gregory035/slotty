@@ -23,13 +23,14 @@ import { CompanyMembershipContext } from '../companies/company-access.types';
 import { CursorPage, decodeCursor, pageFromRows } from '../common/pagination';
 import { PrismaService } from '../database/prisma.service';
 import { SchedulingService } from '../scheduling/scheduling.service';
-import { dateInTimeZone, dateOnlyToUtc, localDateTimeToUtc } from '../scheduling/time-zone.util';
+import { addDays, dateInTimeZone, dateOnlyToUtc, localDateTimeToUtc } from '../scheduling/time-zone.util';
 import { TelegramApiService } from '../telegram/telegram-api.service';
 import { encodeUuid } from '../telegram/callback-data.util';
 import { TokenEncryptionService } from '../telegram/token-encryption.service';
 import { AppointmentQueryDto } from './dto/appointment-query.dto';
 import { AppointmentResponseDto } from './dto/appointment-response.dto';
 import { CreateAppointmentDto, RescheduleAppointmentDto } from './dto/create-appointment.dto';
+import { CreateVisitDto } from './dto/create-visit.dto';
 import { EntitlementsService } from '../billing/entitlements.service';
 import { UpdateAppointmentStatusDto } from './dto/update-appointment-status.dto';
 import { assertAppointmentTransition } from './appointment-state-machine';
@@ -185,6 +186,190 @@ export class AppointmentsService {
     return this.toResponse(appointment);
   }
 
+  /** One visit can contain successive services with different specialists. Repeats are atomic. */
+  async createVisitFromDashboard(
+    companyId: string,
+    input: CreateVisitDto,
+    actorId: string,
+    idempotencyKey?: string,
+  ): Promise<AppointmentResponseDto[]> {
+    if (!idempotencyKey || idempotencyKey.length > 128) {
+      throw new BadRequestException('Idempotency key is required (maximum 128 characters)');
+    }
+    const existing = await this.findVisitByKey(companyId, idempotencyKey);
+    if (existing.length) return existing.map((appointment) => this.toResponse(appointment));
+    const company = await this.prisma.company.findFirst({
+      where: { id: companyId, deletedAt: null },
+      select: { timezone: true },
+    });
+    if (!company) throw new NotFoundException('Company not found');
+    const timezone = company.timezone;
+    const firstItem = input.items[0];
+    if (!firstItem) throw new BadRequestException('At least one service is required');
+    const firstDate = dateInTimeZone(new Date(firstItem.startsAt), timezone);
+    const localTime = (value: Date) => new Intl.DateTimeFormat('en-GB', {
+      timeZone: timezone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+    }).format(value);
+    const originals = input.items.map((item) => {
+      const startsAt = new Date(item.startsAt);
+      if (!Number.isFinite(startsAt.getTime()) || dateInTimeZone(startsAt, timezone) !== firstDate) {
+        throw new BadRequestException('All services in a visit must be on the same day');
+      }
+      return { serviceId: item.serviceId, employeeId: item.employeeId, time: localTime(startsAt), startsAt };
+    });
+    if (originals.some((item, index) => index > 0 && item.startsAt <= originals[index - 1]!.startsAt)) {
+      throw new BadRequestException('Services must be ordered by start time');
+    }
+    const count = input.recurrence?.count ?? 1;
+    await this.entitlements.assertCanCreateAppointment(companyId, count * input.items.length);
+    const plans: Array<Array<{ serviceId: string; employeeId: string; startsAt: Date; endsAt: Date }>> = [];
+    for (let occurrence = 0; occurrence < count; occurrence += 1) {
+      const date = addDays(firstDate, occurrence * (input.recurrence?.intervalDays ?? 0));
+      const visit: (typeof plans)[number] = [];
+      for (const [itemIndex, item] of originals.entries()) {
+        const startsAt = localDateTimeToUtc(date, item.time, timezone);
+        let slot: Awaited<ReturnType<typeof this.requireAvailableSlot>>;
+        try {
+          slot = await this.requireAvailableSlot(companyId, item.employeeId, item.serviceId, startsAt);
+        } catch (error) {
+          if (error instanceof ConflictException || error instanceof BadRequestException) {
+            throw new ConflictException(`Услуга ${itemIndex + 1}: время ${date} ${item.time} недоступно`);
+          }
+          throw error;
+        }
+        const endsAt = new Date(slot.endsAt);
+        const previous = visit.at(-1);
+        if (previous && (startsAt < previous.endsAt || startsAt.getTime() - previous.endsAt.getTime() > 60 * 60_000)) {
+          throw new ConflictException('Services in one visit must be sequential, with no more than one hour between them');
+        }
+        visit.push({ serviceId: item.serviceId, employeeId: item.employeeId, startsAt, endsAt });
+      }
+      plans.push(visit);
+    }
+    const recurrenceId = count > 1 ? randomUUID() : null;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        const appointments = await this.prisma.$transaction(async (tx) => {
+          const replay = await tx.appointment.findFirst({
+            where: { companyId, idempotencyKey }, include: appointmentInclude,
+          });
+          if (replay) {
+            if (!replay.visitId && !replay.recurrenceId) return [replay];
+            return tx.appointment.findMany({
+              where: replay.recurrenceId
+                ? { companyId, recurrenceId: replay.recurrenceId }
+                : { companyId, visitId: replay.visitId },
+              include: appointmentInclude,
+              orderBy: [{ startsAt: 'asc' }, { id: 'asc' }],
+            });
+          }
+          const customer = input.customerId
+            ? await tx.customer.findUnique({ where: { id_companyId: { id: input.customerId, companyId } } })
+            : await tx.customer.create({ data: {
+              companyId,
+              firstName: input.customer?.firstName.trim() || '',
+              lastName: input.customer?.lastName?.trim() || null,
+              phone: input.customer?.phone?.trim() || null,
+            } });
+          if (!customer) throw new NotFoundException('Customer not found');
+          if (!customer.firstName.trim()) throw new BadRequestException('Customer first name is required');
+          if (customer.isBlacklisted) throw new ForbiddenException('Customer is blacklisted');
+          const created: AppointmentWithRelations[] = [];
+          for (const visit of plans) {
+            const visitId = randomUUID();
+            const plannedBusy: Array<{ employeeId: string; startsAt: Date; endsAt: Date }> = [];
+            for (const [index, item] of visit.entries()) {
+              const assignment = await tx.employeeService.findUnique({
+                where: { companyId_employeeId_serviceId: {
+                  companyId, employeeId: item.employeeId, serviceId: item.serviceId,
+                } },
+                include: { employee: true, service: true },
+              });
+              if (!assignment || !assignment.employee.isActive || assignment.employee.deletedAt || !assignment.service.isActive || assignment.service.deletedAt) {
+                throw new NotFoundException('Employee service assignment not found');
+              }
+              const busyStart = new Date(item.startsAt.getTime() - assignment.bufferBeforeMinutes * 60_000);
+              const busyEnd = new Date(item.endsAt.getTime() + assignment.bufferAfterMinutes * 60_000);
+              if (plannedBusy.some((busy) => busy.employeeId === item.employeeId && busyStart < busy.endsAt && busyEnd > busy.startsAt)) {
+                throw new ConflictException('Specialist needs more time between services');
+              }
+              plannedBusy.push({ employeeId: item.employeeId, startsAt: busyStart, endsAt: busyEnd });
+              const overlap = await tx.appointment.findFirst({
+                where: {
+                  companyId, employeeId: item.employeeId,
+                  startsAt: { lt: busyEnd }, endsAt: { gt: busyStart },
+                  status: { notIn: CANCELLED_STATUSES },
+                }, select: { id: true },
+              });
+              if (overlap) throw new ConflictException('Selected slot is no longer available');
+              const priceSnapshot = assignment.price ?? assignment.service.price;
+              const depositAmount = this.depositAmount(priceSnapshot, assignment.service.depositPercent, assignment.service.depositFixedAmount);
+              const appointment = await tx.appointment.create({ data: {
+                companyId, customerId: customer.id, employeeId: item.employeeId, serviceId: item.serviceId,
+                visitId, recurrenceId, startsAt: item.startsAt, endsAt: item.endsAt,
+                status: AppointmentStatus.CONFIRMED, source: AppointmentSource.DASHBOARD,
+                notes: input.notes?.trim() || null, priceSnapshot,
+                depositAmountSnapshot: depositAmount,
+                depositStatus: depositAmount.gt(0) ? 'PENDING' : 'NOT_REQUIRED',
+                durationMinutesSnapshot: assignment.durationMinutes ?? assignment.service.durationMinutes,
+                idempotencyKey: created.length === 0 && index === 0 ? idempotencyKey : null,
+              } });
+              await tx.appointmentHistory.create({ data: {
+                companyId, appointmentId: appointment.id, actorId,
+                action: AppointmentHistoryAction.CREATED,
+                toStatus: appointment.status, nextStartsAt: appointment.startsAt, nextEndsAt: appointment.endsAt,
+              } });
+              await tx.outboxEvent.create({ data: {
+                companyId, type: 'appointment.created', aggregateType: 'Appointment', aggregateId: appointment.id,
+                payload: { appointmentId: appointment.id, customerId: customer.id },
+                idempotencyKey: `appointment:${appointment.id}:created`,
+              } });
+              const result = await tx.appointment.findUnique({
+                where: { id_companyId: { id: appointment.id, companyId } }, include: appointmentInclude,
+              });
+              if (!result) throw new NotFoundException('Appointment not found');
+              created.push(result);
+            }
+          }
+          if (!created[0]) throw new BadRequestException('At least one service is required');
+          await tx.auditLog.create({ data: {
+            companyId, actorId, action: 'visit.created', entityType: 'Appointment',
+            entityId: created[0].id,
+            metadata: { appointments: created.length, visits: plans.length },
+          } });
+          return created;
+        }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+        return appointments.map((appointment) => this.toResponse(appointment));
+      } catch (error) {
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+          const replay = await this.findVisitByKey(companyId, idempotencyKey);
+          if (replay.length) return replay.map((appointment) => this.toResponse(appointment));
+        }
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034' && attempt < 2) continue;
+        this.rethrowBookingConflict(error);
+      }
+    }
+    throw new ConflictException('Selected slot is no longer available');
+  }
+
+  private async findVisitByKey(companyId: string, idempotencyKey: string): Promise<AppointmentWithRelations[]> {
+    const first = await this.prisma.appointment.findFirst({
+      where: { companyId, idempotencyKey }, select: { id: true, visitId: true, recurrenceId: true },
+    });
+    if (!first) return [];
+    if (!first.visitId && !first.recurrenceId) {
+      const appointment = await this.prisma.appointment.findUnique({
+        where: { id_companyId: { id: first.id, companyId } }, include: appointmentInclude,
+      });
+      return appointment ? [appointment] : [];
+    }
+    return this.prisma.appointment.findMany({
+      where: first.recurrenceId ? { companyId, recurrenceId: first.recurrenceId } : { companyId, visitId: first.visitId },
+      include: appointmentInclude,
+      orderBy: [{ startsAt: 'asc' }, { id: 'asc' }],
+    });
+  }
+
   async history(companyId: string, appointmentId: string) {
     const exists = await this.prisma.appointment.findUnique({
       where: { id_companyId: { id: appointmentId, companyId } },
@@ -200,6 +385,56 @@ export class AppointmentsService {
       },
       orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
     });
+  }
+
+  async calendarInvite(companyId: string, appointmentId: string, membership: CompanyMembershipContext): Promise<string> {
+    if (membership.role === CompanyRole.EMPLOYEE && !membership.employeeId) throw new ForbiddenException('Employee profile is not linked');
+    const appointment = await this.prisma.appointment.findFirst({
+      where: {
+        id: appointmentId,
+        companyId,
+        ...(membership.role === CompanyRole.EMPLOYEE ? { employeeId: membership.employeeId! } : {}),
+      },
+      include: {
+        company: { select: { name: true, address: true } },
+        employee: { select: { firstName: true, lastName: true } },
+        service: { select: { name: true } },
+      },
+    });
+    if (!appointment) throw new NotFoundException('Appointment not found');
+    if (CANCELLED_STATUSES.includes(appointment.status)) throw new BadRequestException('Cancelled appointment cannot be added to calendar');
+    const formatUtc = (value: Date) => value.toISOString().replace(/[-:]/gu, '').replace(/\.\d{3}Z$/u, 'Z');
+    const escapeText = (value: string) => value.replaceAll('\\', '\\\\').replaceAll(';', '\\;').replaceAll(',', '\\,').replace(/\r?\n/gu, '\\n');
+    const lines = [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//Slotty//Booking Calendar//RU',
+      'CALSCALE:GREGORIAN',
+      'METHOD:PUBLISH',
+      'BEGIN:VEVENT',
+      `UID:${appointment.id}`,
+      `DTSTAMP:${formatUtc(new Date())}`,
+      `DTSTART:${formatUtc(appointment.startsAt)}`,
+      `DTEND:${formatUtc(appointment.endsAt)}`,
+      `SUMMARY:${escapeText(`${appointment.service.name} — ${appointment.company.name}`)}`,
+      `DESCRIPTION:${escapeText(`Специалист: ${[appointment.employee.firstName, appointment.employee.lastName].filter(Boolean).join(' ')}`)}`,
+      ...(appointment.company.address ? [`LOCATION:${escapeText(appointment.company.address)}`] : []),
+      'END:VEVENT',
+      'END:VCALENDAR',
+    ];
+    const fold = (line: string) => {
+      let current = '';
+      const result: string[] = [];
+      for (const character of line) {
+        if (Buffer.byteLength(current + character, 'utf8') > 73) {
+          result.push(current);
+          current = ` ${character}`;
+        } else current += character;
+      }
+      result.push(current);
+      return result.join('\r\n');
+    };
+    return `${lines.map(fold).join('\r\n')}\r\n`;
   }
 
   async findAll(
@@ -633,7 +868,7 @@ export class AppointmentsService {
                   desiredDate: dateOnlyToUtc(dateInTimeZone(input.requestedStart, companyTimezone.timezone)),
                   status: { in: ['WAITING', 'OFFERED'] },
                 },
-                data: { status: 'BOOKED' },
+                data: { status: 'BOOKED', expiresAt: null },
               });
             }
             await tx.appointmentHistory.create({
@@ -920,6 +1155,8 @@ export class AppointmentsService {
     return {
       id: appointment.id,
       companyId: appointment.companyId,
+      visitId: appointment.visitId,
+      recurrenceId: appointment.recurrenceId,
       startsAt: appointment.startsAt,
       endsAt: appointment.endsAt,
       status: appointment.status,

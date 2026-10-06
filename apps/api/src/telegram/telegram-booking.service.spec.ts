@@ -25,6 +25,7 @@ describe('TelegramBookingService', () => {
   let waitlist: any;
   let encryption: any;
   let telegramApi: any;
+  let config: any;
   let booking: TelegramBookingService;
 
   beforeEach(() => {
@@ -76,6 +77,7 @@ describe('TelegramBookingService', () => {
       answerCallbackQuery: jest.fn().mockResolvedValue(undefined),
       clearInlineKeyboard: jest.fn().mockResolvedValue(undefined),
     };
+    config = { getOrThrow: jest.fn().mockReturnValue('https://slotty23.ru') };
     booking = new TelegramBookingService(
       prisma,
       scheduling,
@@ -83,6 +85,7 @@ describe('TelegramBookingService', () => {
       waitlist,
       encryption,
       telegramApi,
+      config,
     );
   });
 
@@ -120,7 +123,7 @@ describe('TelegramBookingService', () => {
 
     expect(telegramApi.sendMessage).toHaveBeenCalledTimes(1);
     const keyboard = telegramApi.sendMessage.mock.calls[0][3];
-    expect(keyboard.inline_keyboard[0][0].callback_data).toBe('b');
+    expect(keyboard.inline_keyboard[0][0].web_app?.url).toBe(`${config.getOrThrow()}/miniapp/${companyId}`);
     expect(prisma.telegramUpdate.create).toHaveBeenCalled();
   });
 

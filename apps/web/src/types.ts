@@ -123,6 +123,8 @@ export type AppointmentStatus =
 export interface Appointment {
   id: string;
   companyId: string;
+  visitId: string | null;
+  recurrenceId: string | null;
   startsAt: string;
   endsAt: string;
   status: AppointmentStatus;
@@ -173,6 +175,61 @@ export interface TelegramBot {
   updatedAt: string;
 }
 
+export interface MiniAppEmployee {
+  id: string;
+  firstName: string;
+  lastName: string | null;
+  name: string;
+  photoUrl: string | null;
+  description: string | null;
+  color: string;
+}
+
+export interface MiniAppService {
+  id: string;
+  name: string;
+  description: string | null;
+  durationMinutes: number;
+  price: string;
+  category: string | null;
+  photoUrl: string | null;
+  employees: MiniAppEmployee[];
+}
+
+export interface MiniAppSession {
+  company: {
+    name: string;
+    description: string | null;
+    timezone: string;
+    currency: string;
+    logoUrl: string | null;
+    maxBookingHorizonDays: number;
+  };
+  services: MiniAppService[];
+}
+
+export interface MiniAppAvailability {
+  date: string;
+  timezone: string;
+  employeeId: string;
+  serviceId: string;
+  durationMinutes: number;
+  slots: Array<{ startsAt: string; endsAt: string }>;
+}
+
+export interface MiniAppBookingResult {
+  appointmentId: string;
+  startsAt: string;
+  endsAt: string;
+  serviceName: string;
+  employeeName: string;
+  price: string;
+  depositAmount: string;
+  depositStatus: 'NOT_REQUIRED' | 'PENDING' | 'PAID' | 'WAIVED';
+  currency: string;
+  timezone: string;
+}
+
 export interface CursorPage<T> {
   items: T[];
   nextCursor: string | null;
@@ -200,6 +257,7 @@ export interface Dashboard {
   }>;
   setupChecklist: Array<{ id: string; label: string; done: boolean; section: Section }>;
   waitlistCount: number;
+  healthIssues: Array<{ id: string; label: string; section: Section }>;
   analytics: {
     summary: {
       appointments: number;

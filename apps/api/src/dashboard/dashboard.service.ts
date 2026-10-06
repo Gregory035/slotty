@@ -32,6 +32,9 @@ export class DashboardService {
     parseDateOnly(fromDate);
     parseDateOnly(toDate);
     if (fromDate > toDate) throw new BadRequestException('from must not be after to');
+    if (dateOnlyToUtc(toDate).getTime() - dateOnlyToUtc(fromDate).getTime() > 366 * 86_400_000) {
+      throw new BadRequestException('Analytics period must not exceed 366 days');
+    }
     const periodStart = localDateTimeToUtc(fromDate, '00:00', company.timezone);
     const periodEnd = localDateTimeToUtc(addDays(toDate, 1), '00:00', company.timezone);
     const todayStart = localDateTimeToUtc(today, '00:00', company.timezone);
@@ -40,7 +43,6 @@ export class DashboardService {
       AppointmentStatus.PENDING,
       AppointmentStatus.CONFIRMED,
       AppointmentStatus.COMPLETED,
-      AppointmentStatus.NO_SHOW,
     ];
     const [
       todayAppointments,
@@ -55,10 +57,14 @@ export class DashboardService {
       scheduleRules,
       exceptions,
       analyticsAppointments,
-      customers,
       waitlistCount,
       hasAppointment,
       telegramUpdates,
+      telegramBookings,
+      subscription,
+      failedNotifications,
+      deadEvents,
+      failedTelegramUpdates,
     ] = await Promise.all([
       this.prisma.appointment.count({
         where: { companyId, startsAt: { gte: todayStart, lt: todayEnd } },
@@ -131,17 +137,38 @@ export class DashboardService {
           employee: { select: { id: true, firstName: true, lastName: true } },
         },
       }),
-      this.prisma.customer.findMany({
-        where: { companyId, anonymizedAt: null },
-        select: { id: true, createdAt: true },
-      }),
       this.prisma.waitlistEntry.count({ where: { companyId, status: 'WAITING' } }),
       this.prisma.appointment.count({ where: { companyId } }),
       this.prisma.telegramUpdate.findMany({
         where: { companyId, createdAt: { gte: periodStart, lt: periodEnd } },
         select: { payload: true },
       }),
+      this.prisma.appointment.findMany({
+        where: { companyId, source: AppointmentSource.TELEGRAM, createdAt: { gte: periodStart, lt: periodEnd } },
+        select: { customer: { select: { telegramId: true } } },
+      }),
+      this.prisma.subscription.findFirst({
+        where: { companyId },
+        orderBy: { createdAt: 'desc' },
+        select: { status: true, trialEndsAt: true, currentPeriodEndsAt: true },
+      }),
+      this.prisma.notification.count({ where: { companyId, status: 'FAILED' } }),
+      this.prisma.outboxEvent.count({ where: { companyId, status: 'DEAD' } }),
+      this.prisma.telegramUpdate.count({ where: { companyId, status: 'FAILED' } }),
     ]);
+    const periodCustomerIds = [...new Set(analyticsAppointments.map((item) => item.customerId))];
+    const priorCompletedCustomers = periodCustomerIds.length
+      ? await this.prisma.appointment.findMany({
+          where: {
+            companyId,
+            customerId: { in: periodCustomerIds },
+            startsAt: { lt: periodStart },
+            status: AppointmentStatus.COMPLETED,
+          },
+          select: { customerId: true },
+          distinct: ['customerId'],
+        })
+      : [];
     const capacityMinutes = this.capacity(fromDate, toDate, scheduleRules, exceptions);
     const bookedMinutes = booked._sum.durationMinutesSnapshot ?? 0;
     return {
@@ -175,7 +202,30 @@ export class DashboardService {
         { id: 'test-booking', label: 'Сделать тестовую запись', done: hasAppointment > 0, section: 'appointments' },
       ],
       waitlistCount,
-      analytics: this.analytics(analyticsAppointments, customers, telegramUpdates, fromDate, toDate, company.timezone),
+      healthIssues: [
+        ...(bot?.status === BotStatus.ERROR
+          ? [{ id: 'bot-error', label: 'Telegram-бот требует внимания', section: 'bot' }]
+          : []),
+        ...(subscription?.status === 'PAST_DUE' || subscription?.status === 'EXPIRED' ||
+          (subscription?.status === 'TRIALING' && subscription.trialEndsAt && subscription.trialEndsAt <= new Date())
+          ? [{ id: 'subscription', label: 'Подписка требует продления', section: 'billing' }]
+          : []),
+        ...(failedNotifications > 0
+          ? [{ id: 'notifications', label: `Не доставлено уведомлений: ${failedNotifications}`, section: 'bot' }]
+          : []),
+        ...(deadEvents + failedTelegramUpdates > 0
+          ? [{ id: 'background-jobs', label: `Ошибки обработки: ${deadEvents + failedTelegramUpdates}`, section: 'audit' }]
+          : []),
+      ],
+      analytics: this.analytics(
+        analyticsAppointments,
+        new Set(priorCompletedCustomers.map((item) => item.customerId)),
+        telegramUpdates,
+        telegramBookings,
+        fromDate,
+        toDate,
+        company.timezone,
+      ),
     };
   }
 
@@ -189,8 +239,9 @@ export class DashboardService {
       service: { id: string; name: string };
       employee: { id: string; firstName: string; lastName: string | null };
     }>,
-    customers: Array<{ id: string; createdAt: Date }>,
+    priorCompletedCustomerIds: Set<string>,
     telegramUpdates: Array<{ payload: unknown }>,
+    telegramBookings: Array<{ customer: { telegramId: bigint | null } }>,
     from: string,
     to: string,
     timezone: string,
@@ -252,21 +303,52 @@ export class DashboardService {
         actualRevenue += appointment.priceSnapshot.toNumber();
       }
     }
-    const periodStart = dateOnlyToUtc(from);
     const customerIds = new Set(appointments.map((item) => item.customerId));
-    const newCustomers = customers.filter((customer) => customerIds.has(customer.id) && customer.createdAt >= periodStart).length;
+    const returningCustomers = [...customerIds].filter((id) => priorCompletedCustomerIds.has(id)).length;
+    const newCustomers = Math.max(0, customerIds.size - returningCustomers);
     const total = appointments.length;
-    const funnel = { started: 0, serviceSelected: 0, dateSelected: 0, timeSelected: 0, booked: 0 };
+    const funnelUsers = {
+      started: new Set<string>(),
+      serviceSelected: new Set<string>(),
+      dateSelected: new Set<string>(),
+      timeSelected: new Set<string>(),
+    };
     for (const update of telegramUpdates) {
-      const payload = update.payload as { message?: { text?: unknown }; callback_query?: { data?: unknown } };
+      const payload = update.payload as {
+        message?: { text?: unknown; from?: { id?: unknown } };
+        callback_query?: { data?: unknown; from?: { id?: unknown } };
+      };
       const text = typeof payload.message?.text === 'string' ? payload.message.text : '';
       const callback = typeof payload.callback_query?.data === 'string' ? payload.callback_query.data : '';
-      if (text.startsWith('/start') || callback === 'b') funnel.started += 1;
-      if (callback.startsWith('s:')) funnel.serviceSelected += 1;
-      if (callback.startsWith('d:')) funnel.dateSelected += 1;
-      if (callback.startsWith('t:')) funnel.timeSelected += 1;
+      const rawUserId = payload.message?.from?.id ?? payload.callback_query?.from?.id;
+      if (typeof rawUserId !== 'number' && typeof rawUserId !== 'string') continue;
+      const userId = String(rawUserId);
+      if (text.startsWith('/start') || callback === 'b') funnelUsers.started.add(userId);
+      if (callback.startsWith('s:')) funnelUsers.serviceSelected.add(userId);
+      if (callback.startsWith('d:')) funnelUsers.dateSelected.add(userId);
+      if (callback.startsWith('t:')) funnelUsers.timeSelected.add(userId);
     }
-    funnel.booked = source.telegram;
+    const bookedUsers = new Set(
+      telegramBookings
+        .map((item) => item.customer.telegramId?.toString())
+        .filter((id): id is string => Boolean(id)),
+    );
+    const selectedService = new Set(
+      [...funnelUsers.serviceSelected].filter((id) => funnelUsers.started.has(id)),
+    );
+    const selectedDate = new Set(
+      [...funnelUsers.dateSelected].filter((id) => selectedService.has(id)),
+    );
+    const selectedTime = new Set(
+      [...funnelUsers.timeSelected].filter((id) => selectedDate.has(id)),
+    );
+    const funnel = {
+      started: funnelUsers.started.size,
+      serviceSelected: selectedService.size,
+      dateSelected: selectedDate.size,
+      timeSelected: selectedTime.size,
+      booked: [...bookedUsers].filter((id) => selectedTime.has(id)).length,
+    };
     return {
       summary: {
         appointments: total,
@@ -278,7 +360,7 @@ export class DashboardService {
         cancellationRate: total ? Math.round((cancelled / total) * 100) : 0,
         noShowRate: total ? Math.round((noShows / total) * 100) : 0,
         newCustomers,
-        returningCustomers: Math.max(0, customerIds.size - newCustomers),
+        returningCustomers,
       },
       daily: [...days.values()],
       sources: source,

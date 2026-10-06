@@ -61,6 +61,12 @@ export class AppointmentResponseDto {
   @ApiProperty({ format: 'uuid' })
   companyId: string;
 
+  @ApiPropertyOptional({ format: 'uuid', nullable: true })
+  visitId: string | null;
+
+  @ApiPropertyOptional({ format: 'uuid', nullable: true })
+  recurrenceId: string | null;
+
   @ApiProperty({ format: 'date-time' })
   startsAt: Date;
 

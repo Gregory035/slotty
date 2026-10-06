@@ -110,6 +110,7 @@ docker compose -f docker-compose.production.yml up -d api web
 
 - `ready = 503`: проверьте PostgreSQL/Redis и `DATABASE_URL`/`REDIS_URL`;
 - бот не отвечает: проверьте `API_PUBLIC_URL`, HTTPS-туннель, статус бота и webhook secret;
+- Mini App не открывается: `WEB_URL` должен быть публичным HTTPS-адресом; после обновления откройте `/start` в боте, чтобы получить новую кнопку «Записаться»;
 - нет слотов: проверьте назначение услуги сотруднику, расписание, исключения, horizon и timezone;
 - `409` при записи: слот уже занят или изменился конкурентно — запросите availability снова;
 - `402`: trial/подписка истекла либо достигнут лимит тарифа.

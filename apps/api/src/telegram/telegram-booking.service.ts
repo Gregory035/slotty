@@ -5,6 +5,7 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import {
   AppointmentStatus,
   BotStatus,
@@ -46,6 +47,7 @@ export class TelegramBookingService {
     private readonly waitlist: WaitlistService,
     private readonly encryption: TokenEncryptionService,
     private readonly telegramApi: TelegramApiService,
+    private readonly config: ConfigService,
   ) {}
 
   async handleWebhook(
@@ -302,12 +304,17 @@ export class TelegramBookingService {
       chatId,
       `${company.name}: чем помочь?`,
       new InlineKeyboard()
-        .text('Записаться', 'b')
+        .webApp('Записаться', this.miniAppUrl(companyId))
         .row()
         .text('Мои записи', 'm')
         .row()
         .text('Контакты', 'c'),
     );
+  }
+
+  private miniAppUrl(companyId: string): string {
+    const webUrl = this.config.getOrThrow<string>('WEB_URL');
+    return new URL(`/miniapp/${companyId}`, webUrl).toString();
   }
 
   private async showServices(

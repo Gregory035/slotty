@@ -24,8 +24,8 @@ createServer(async (request, response) => {
     return;
   }
 
-  const companyRoute = /^\/companies\/[^/]+\/[^/]+$/.test(url.pathname);
-  const document = companyRoute ? ['private.html', 200, true] : documents.get(url.pathname);
+  const privateRoute = /^\/(?:companies\/[^/]+\/[^/]+|miniapp\/[0-9a-fA-F-]+)$/.test(url.pathname);
+  const document = privateRoute ? ['private.html', 200, true] : documents.get(url.pathname);
   if (document) {
     await send(response, document[0], document[1], document[2]);
     return;

@@ -83,7 +83,7 @@ export function syncSeo(pathname: string) {
   const indexingEnabled = import.meta.env.VITE_SEO_INDEXING_ENABLED === 'true';
   const configuredOrigin = (import.meta.env.VITE_SITE_URL ?? '').replace(/\/$/, '');
   const canonical = page && indexingEnabled && configuredOrigin ? `${configuredOrigin}${page.path}` : null;
-  const isPrivate = pathname.startsWith('/app') || pathname.startsWith('/companies/');
+  const isPrivate = pathname.startsWith('/app') || pathname.startsWith('/companies/') || pathname.startsWith('/miniapp/');
   const title = page?.title ?? (isPrivate ? 'Slotty — рабочее пространство' : 'Страница не найдена — Slotty');
   const description = page?.description ?? (isPrivate ? 'Рабочее пространство Slotty.' : 'Запрошенная страница не найдена.');
 

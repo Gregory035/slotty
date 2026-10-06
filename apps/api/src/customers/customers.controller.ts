@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, ParseUUIDPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, ParseUUIDPipe, Patch, Post, Query, Res, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { AuthenticatedUserDto } from '../auth/dto/auth-response.dto';
@@ -8,7 +8,12 @@ import { RequirePermissions } from '../companies/decorators/require-permissions.
 import { CompanyAccessGuard } from '../companies/guards/company-access.guard';
 import { CustomersService } from './customers.service';
 import { CustomerQueryDto } from './dto/customer-query.dto';
+import { ImportCustomersDto } from './dto/import-customers.dto';
 import { SetCustomerBlacklistDto, UpdateCustomerDto } from './dto/update-customer.dto';
+
+interface HeaderResponse {
+  setHeader(name: string, value: string): void;
+}
 
 @ApiTags('customers')
 @ApiBearerAuth()
@@ -21,6 +26,30 @@ export class CustomersController {
   @RequirePermissions(CompanyPermission.CUSTOMERS_READ)
   findAll(@Param('companyId') companyId: string, @Query() query: CustomerQueryDto) {
     return this.customers.findAll(companyId, query);
+  }
+
+  @Get('export.csv')
+  @RequirePermissions(CompanyPermission.CUSTOMERS_MANAGE)
+  async exportCsv(
+    @Param('companyId') companyId: string,
+    @CurrentUser() user: AuthenticatedUserDto,
+    @Res({ passthrough: true }) response: HeaderResponse,
+  ) {
+    const csv = await this.customers.exportCsv(companyId, user.id);
+    response.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    response.setHeader('Content-Disposition', 'attachment; filename="slotty-customers.csv"');
+    response.setHeader('Cache-Control', 'no-store');
+    return csv;
+  }
+
+  @Post('import')
+  @RequirePermissions(CompanyPermission.CUSTOMERS_MANAGE)
+  importCustomers(
+    @Param('companyId') companyId: string,
+    @Body() input: ImportCustomersDto,
+    @CurrentUser() user: AuthenticatedUserDto,
+  ) {
+    return this.customers.importRows(companyId, input.rows, user.id);
   }
 
   @Get(':customerId')

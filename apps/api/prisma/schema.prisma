@@ -231,6 +231,8 @@ model Customer {
 
 model Appointment {
   id                      String               @id @default(uuid()) @db.Uuid
+  visitId                 String?              @db.Uuid
+  recurrenceId            String?              @db.Uuid
   companyId               String               @db.Uuid
   customerId              String               @db.Uuid
   employeeId              String               @db.Uuid
@@ -264,6 +266,8 @@ model Appointment {
   @@index([companyId, startsAt, status])
   @@index([companyId, employeeId, startsAt, endsAt])
   @@index([companyId, customerId, startsAt])
+  @@index([companyId, visitId])
+  @@index([companyId, recurrenceId, startsAt])
 }
 
 model Review {
@@ -321,6 +325,7 @@ model WaitlistEntry {
   status      WaitlistStatus @default(WAITING)
   offeredAt   DateTime?
   expiresAt   DateTime?
+  offeredAppointmentId String?      @db.Uuid
   company     Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
   customer    Customer       @relation(fields: [customerId, companyId], references: [id, companyId], onDelete: Cascade)
   employee    Employee       @relation(fields: [employeeId, companyId], references: [id, companyId], onDelete: Cascade)
@@ -332,6 +337,7 @@ model WaitlistEntry {
   @@unique([id, companyId])
   @@index([companyId, status, desiredDate])
   @@index([companyId, employeeId, serviceId, desiredDate, status])
+  @@index([status, expiresAt])
 }
 
 model Subscription {

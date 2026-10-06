@@ -81,10 +81,10 @@ export class EntitlementsService {
     if (value.usage.services >= value.limits.services) this.denied('Service limit reached');
   }
 
-  async assertCanCreateAppointment(companyId: string): Promise<void> {
+  async assertCanCreateAppointment(companyId: string, count = 1): Promise<void> {
     const value = await this.get(companyId);
     this.assertActive(value.active);
-    if (value.usage.monthlyAppointments >= value.limits.monthlyAppointments) {
+    if (value.usage.monthlyAppointments + count > value.limits.monthlyAppointments) {
       this.denied('Monthly appointment limit reached');
     }
   }

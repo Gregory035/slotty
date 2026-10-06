@@ -1,8 +1,10 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Ban, Search, ShieldCheck, Trash2 } from 'lucide-react';
+import { Ban, Download, Search, ShieldCheck, Trash2, Upload } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { anonymizeCustomer, getCustomer, getCustomers, setCustomerBlacklist, updateCustomer } from '../api';
+import { anonymizeCustomer, exportCustomersCsv, getCustomer, getCustomers, importCustomers, setCustomerBlacklist, updateCustomer } from '../api';
+import type { ImportCustomerRow } from '../api';
+import { parseCustomerCsv } from '../customer-csv';
 import { useToast } from '../components/ToastProvider';
 import { EmptyState, ErrorBlock, LoadingBlock, Modal, SectionHeader } from '../components/ui';
 import type { Company, Customer, CustomerAppointment } from '../types';
@@ -11,6 +13,10 @@ import { customerDisplayName, customerInitials, customerSecondary, errorMessage,
 export function CustomersView({ company }: { company: Company }) {
   const [params, setParams] = useSearchParams();
   const [editing, setEditing] = useState<Customer | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [importRows, setImportRows] = useState<ImportCustomerRow[] | null>(null);
+  const [importing, setImporting] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
   const { notify } = useToast();
   const search = params.get('q') ?? '';
@@ -36,11 +42,60 @@ export function CustomersView({ company }: { company: Company }) {
     if (key !== 'cursor') next.delete('cursor');
     setParams(next);
   }
+  async function exportCsv() {
+    setExporting(true);
+    try {
+      const blob = await exportCustomersCsv(company.id);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'slotty-customers.csv';
+      document.body.append(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      notify('Файл с клиентами подготовлен');
+    } catch (caught) {
+      notify(errorMessage(caught), 'error');
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  async function readImportFile(file?: File) {
+    if (!file) return;
+    if (file.size > 500_000) {
+      notify('CSV-файл должен быть не больше 500 КБ', 'error');
+      return;
+    }
+    try {
+      const rows = parseCustomerCsv(await file.text());
+      if (!rows.length) throw new Error('В CSV нет клиентов');
+      setImportRows(rows);
+    } catch (caught) {
+      notify(errorMessage(caught), 'error');
+    }
+  }
+
+  async function submitImport() {
+    if (!importRows) return;
+    setImporting(true);
+    try {
+      const result = await importCustomers(company.id, importRows);
+      setImportRows(null);
+      notify(`Добавлено: ${result.created}. Пропущено повторов: ${result.skippedDuplicates}, некорректных строк: ${result.skippedInvalid}.`);
+      await invalidate();
+    } catch (caught) {
+      notify(errorMessage(caught), 'error');
+    } finally {
+      setImporting(false);
+    }
+  }
 
   return (
     <>
       <SectionHeader eyebrow="CRM" title="Клиенты" description="История посещений, заметки, отмены и ограничения записи." />
-      <div className="toolbar"><label className="search-box"><Search size={17} /><input value={search} onChange={(event) => setParam('q', event.target.value)} placeholder="Имя, username или телефон" /></label></div>
+      <div className="toolbar"><label className="search-box"><Search size={17} /><input value={search} onChange={(event) => setParam('q', event.target.value)} placeholder="Имя, username или телефон" /></label><div className="customer-toolbar-actions"><input ref={fileInput} type="file" accept=".csv,text/csv" hidden onChange={(event) => { void readImportFile(event.target.files?.[0]); event.target.value = ''; }} /><button type="button" className="secondary-button" onClick={() => fileInput.current?.click()}><Upload size={16} />Импорт CSV</button><button type="button" className="secondary-button" disabled={exporting} onClick={() => void exportCsv()}><Download size={16} />{exporting ? 'Готовим файл…' : 'Экспорт CSV'}</button></div></div>
       {customers.isLoading ? <LoadingBlock /> : customers.error ? <ErrorBlock message="Не удалось загрузить клиентов" /> : !customers.data?.items.length ? (
         <EmptyState title="Клиентов пока нет" description="Они появятся после первой записи или ручного создания записи." />
       ) : (
@@ -57,6 +112,12 @@ export function CustomersView({ company }: { company: Company }) {
         </div>
       )}
       {editing && <CustomerModal company={company} customer={editing} onClose={() => setEditing(null)} />}
+      {importRows && <Modal open title="Импорт клиентов" description={`Проверено строк: ${importRows.length}. Дубликаты по телефону или Telegram будут пропущены.`} onClose={() => { if (!importing) setImportRows(null); }}>
+        <div className="form-stack">
+          <div className="customer-import-preview">{importRows.slice(0, 5).map((row, index) => <div key={index}><strong>{[row.firstName, row.lastName].filter(Boolean).join(' ') || 'Без имени'}</strong><span>{row.phone || row.username || 'Нет контакта'}</span></div>)}{importRows.length > 5 && <p>И ещё {importRows.length - 5}</p>}</div>
+          <div className="modal-actions"><button type="button" className="secondary-button" disabled={importing} onClick={() => setImportRows(null)}>Отмена</button><button type="button" className="primary-button" disabled={importing} onClick={() => void submitImport()}>{importing ? 'Импортируем…' : 'Импортировать'}</button></div>
+        </div>
+      </Modal>}
     </>
   );
 }

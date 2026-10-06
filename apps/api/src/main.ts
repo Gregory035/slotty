@@ -11,7 +11,7 @@ async function bootstrap(): Promise<void> {
   const config = app.get(ConfigService);
 
   app.setGlobalPrefix('api');
-  app.use(json({ limit: '64kb' }));
+  app.use(json({ limit: '1mb' }));
   app.use(urlencoded({ extended: false, limit: '16kb' }));
   app.use(
     helmet({

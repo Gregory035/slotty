@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowRight, CalendarCheck2, Check, Clock3, Scissors, TrendingUp, UsersRound } from 'lucide-react';
+import { AlertTriangle, ArrowRight, CalendarCheck2, Check, Clock3, Scissors, TrendingUp, UsersRound } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import telegramIconUrl from '../assets/icontg.png';
 import { getDashboard, updateAppointmentStatus } from '../api';
@@ -40,6 +40,18 @@ export function OverviewView({ company }: { company: Company }) {
         <Metric icon={UsersRound} label="Сотрудников" value={String(data.activeEmployees)} />
         <Metric icon={Scissors} label="Активных услуг" value={String(data.activeServices)} />
       </section>
+      {data.healthIssues.length > 0 && (
+        <section className="setup-checklist panel" aria-label="Требуется внимание">
+          <div><p className="eyebrow">Состояние Slotty</p><h2>Требуется внимание</h2></div>
+          <div>
+            {data.healthIssues.map((issue) => (
+              <button key={issue.id} disabled={issue.section === 'billing' && company.role !== 'OWNER'} title={issue.section === 'billing' && company.role !== 'OWNER' ? 'Продлить подписку может владелец' : undefined} onClick={() => open(issue.section)}>
+                <AlertTriangle size={15} aria-hidden="true" />{issue.label}<ArrowRight size={14} aria-hidden="true" />
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
       {data.setupChecklist.some((item) => !item.done) && <section className="setup-checklist panel"><div><p className="eyebrow">Быстрый старт</p><h2>Подготовьте запись</h2></div><div>{data.setupChecklist.map((item) => <button key={item.id} className={item.done ? 'done' : ''} onClick={() => open(item.section)}><span>{item.done ? <Check size={14} /> : null}</span>{item.label}<ArrowRight size={14} /></button>)}</div></section>}
       <section className="overview-grid">
         <article className="panel upcoming-panel">

@@ -44,10 +44,6 @@ const environmentSchema = z.object({
   YOOKASSA_SHOP_ID: optionalString,
   YOOKASSA_SECRET_KEY: optionalString,
   PAYMENT_RETURN_URL: optionalUrl,
-  PAYMENT_WEBHOOK_SECRET: z.preprocess(
-    (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
-    z.string().min(32).optional(),
-  ),
   METRICS_TOKEN: z.preprocess(
     (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
     z.string().min(32).optional(),

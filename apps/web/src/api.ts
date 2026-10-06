@@ -18,6 +18,9 @@ import type {
   Service,
   Session,
   TelegramBot,
+  MiniAppAvailability,
+  MiniAppBookingResult,
+  MiniAppSession,
 } from './types';
 
 const apiUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:3000/api';
@@ -74,6 +77,33 @@ async function publicRequest<T>(
   if (!response.ok) throw await responseError(response);
   return responseBody<T>(response);
 }
+
+async function miniAppRequest<T>(
+  companyId: string,
+  path: 'session' | 'availability' | 'book',
+  input: Record<string, string>,
+): Promise<T> {
+  const response = await fetch(`${apiUrl}/telegram/miniapp/${companyId}/${path}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) throw await responseError(response);
+  return responseBody<T>(response);
+}
+
+export const getMiniAppSession = (companyId: string, initData: string) =>
+  miniAppRequest<MiniAppSession>(companyId, 'session', { initData });
+
+export const getMiniAppAvailability = (
+  companyId: string,
+  input: { initData: string; serviceId: string; employeeId: string; date: string },
+) => miniAppRequest<MiniAppAvailability>(companyId, 'availability', input);
+
+export const createMiniAppBooking = (
+  companyId: string,
+  input: { initData: string; serviceId: string; employeeId: string; date: string; time: string },
+) => miniAppRequest<MiniAppBookingResult>(companyId, 'book', input);
 
 async function refreshSession(): Promise<Session> {
   if (!refreshPromise) {
@@ -315,6 +345,22 @@ export const createAppointment = (
     body: JSON.stringify(input),
   });
 
+export const createVisit = (
+  companyId: string,
+  input: {
+    customerId?: string;
+    customer?: { firstName: string; lastName?: string; phone?: string };
+    items: Array<{ employeeId: string; serviceId: string; startsAt: string }>;
+    recurrence?: { intervalDays: number; count: number };
+    notes?: string;
+  },
+  idempotencyKey: string,
+) => request<Appointment[]>(`/companies/${companyId}/appointments/visits`, {
+  method: 'POST',
+  headers: { 'idempotency-key': idempotencyKey },
+  body: JSON.stringify(input),
+});
+
 export const rescheduleAppointment = (
   companyId: string,
   appointmentId: string,
@@ -383,6 +429,42 @@ export const getCustomers = (companyId: string, search = '', cursor?: string) =>
   if (cursor) params.set('cursor', cursor);
   return request<CursorPage<Customer>>(`/companies/${companyId}/customers?${params}`);
 };
+
+export interface ImportCustomerRow {
+  firstName: string;
+  lastName?: string;
+  phone?: string;
+  username?: string;
+  notes?: string;
+}
+
+export const importCustomers = (companyId: string, rows: ImportCustomerRow[]) =>
+  request<{ created: number; skippedDuplicates: number; skippedInvalid: number }>(
+    `/companies/${companyId}/customers/import`,
+    { method: 'POST', body: JSON.stringify({ rows }) },
+  );
+
+export async function exportCustomersCsv(companyId: string, retried = false): Promise<Blob> {
+  return requestBlob(`/companies/${companyId}/customers/export.csv`, retried);
+}
+
+export const getAppointmentCalendar = (companyId: string, appointmentId: string) =>
+  requestBlob(`/companies/${companyId}/appointments/${appointmentId}/calendar.ics`);
+
+async function requestBlob(path: string, retried = false): Promise<Blob> {
+  const session = readSession();
+  if (!session) throw new ApiError('Войдите в аккаунт', 401);
+  const response = await fetch(`${apiUrl}${path}`, {
+    credentials: 'include',
+    headers: { authorization: `Bearer ${session.accessToken}` },
+  });
+  if (response.status === 401 && !retried) {
+    await refreshSession();
+    return requestBlob(path, true);
+  }
+  if (!response.ok) throw await responseError(response);
+  return response.blob();
+}
 
 export const getCustomer = (companyId: string, customerId: string) =>
   request<CustomerDetails>(`/companies/${companyId}/customers/${customerId}`);

@@ -80,9 +80,8 @@ export class PaymentWebhookController {
     defaultWindowSeconds: 60,
   })
   webhook(
-    @Headers('x-payment-signature') signature: string | undefined,
     @Body() body: PaymentWebhookDto,
   ) {
-    return this.billing.handleWebhook(signature, body as Record<string, unknown>);
+    return this.billing.handleWebhook(body as Record<string, unknown>);
   }
 }

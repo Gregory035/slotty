@@ -10,6 +10,8 @@ import { TelegramClientModule } from './telegram-client.module';
 import { TelegramWebhookController } from './telegram-webhook.controller';
 import { TelegramUpdateWorker } from './telegram-update.worker';
 import { WaitlistModule } from '../waitlist/waitlist.module';
+import { TelegramMiniAppController } from './telegram-miniapp.controller';
+import { TelegramMiniAppService } from './telegram-miniapp.service';
 
 @Module({
   imports: [
@@ -20,10 +22,11 @@ import { WaitlistModule } from '../waitlist/waitlist.module';
     TelegramClientModule,
     WaitlistModule,
   ],
-  controllers: [BotsController, TelegramWebhookController],
+  controllers: [BotsController, TelegramWebhookController, TelegramMiniAppController],
   providers: [
     BotsService,
     TelegramBookingService,
+    TelegramMiniAppService,
     TelegramUpdateWorker,
   ],
 })

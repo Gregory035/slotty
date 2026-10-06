@@ -8,6 +8,7 @@ import {
   Patch,
   Post,
   Query,
+  Res,
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger';
@@ -24,6 +25,7 @@ import { AppointmentQueryDto } from './dto/appointment-query.dto';
 import { AppointmentResponseDto } from './dto/appointment-response.dto';
 import { UpdateAppointmentStatusDto } from './dto/update-appointment-status.dto';
 import { CreateAppointmentDto, RescheduleAppointmentDto } from './dto/create-appointment.dto';
+import { CreateVisitDto } from './dto/create-visit.dto';
 import { UpdateDepositStatusDto } from './dto/update-deposit-status.dto';
 import { CursorPage } from '../common/pagination';
 
@@ -61,6 +63,17 @@ export class AppointmentsController {
     );
   }
 
+  @Post('visits')
+  @RequirePermissions(CompanyPermission.APPOINTMENTS_CREATE)
+  createVisit(
+    @Param('companyId') companyId: string,
+    @Body() input: CreateVisitDto,
+    @CurrentUser() user: AuthenticatedUserDto,
+    @Headers('idempotency-key') idempotencyKey?: string,
+  ): Promise<AppointmentResponseDto[]> {
+    return this.appointments.createVisitFromDashboard(companyId, input, user.id, idempotencyKey?.trim());
+  }
+
   @Get(':appointmentId/history')
   @RequirePermissions(CompanyPermission.APPOINTMENT_HISTORY_READ)
   history(
@@ -68,6 +81,21 @@ export class AppointmentsController {
     @Param('appointmentId', ParseUUIDPipe) appointmentId: string,
   ) {
     return this.appointments.history(companyId, appointmentId);
+  }
+
+  @Get(':appointmentId/calendar.ics')
+  @RequirePermissions(CompanyPermission.APPOINTMENTS_READ)
+  async calendarInvite(
+    @Param('companyId') companyId: string,
+    @Param('appointmentId', ParseUUIDPipe) appointmentId: string,
+    @CurrentCompanyMember() membership: CompanyMembershipContext,
+    @Res({ passthrough: true }) response: { setHeader(name: string, value: string): void },
+  ) {
+    const ics = await this.appointments.calendarInvite(companyId, appointmentId, membership);
+    response.setHeader('Content-Type', 'text/calendar; charset=utf-8');
+    response.setHeader('Content-Disposition', 'attachment; filename="slotty-appointment.ics"');
+    response.setHeader('Cache-Control', 'no-store');
+    return ics;
   }
 
   @Patch(':appointmentId/reschedule')

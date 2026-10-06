@@ -1,8 +1,9 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, PayloadTooLargeException } from '@nestjs/common';
 import { AppointmentStatus, Prisma } from '@prisma/client';
 import { CursorPage, decodeCursor, pageFromRows } from '../common/pagination';
 import { PrismaService } from '../database/prisma.service';
 import { CustomerQueryDto } from './dto/customer-query.dto';
+import { ImportCustomerRowDto } from './dto/import-customers.dto';
 import { CustomerDetailsDto, CustomerResponseDto, CustomerStatisticsDto } from './dto/customer-response.dto';
 import { SetCustomerBlacklistDto, UpdateCustomerDto } from './dto/update-customer.dto';
 
@@ -27,6 +28,111 @@ type CustomerRow = Prisma.CustomerGetPayload<{ select: typeof customerFields }>;
 @Injectable()
 export class CustomersService {
   constructor(private readonly prisma: PrismaService) {}
+
+  async exportCsv(companyId: string, actorId: string): Promise<string> {
+    const customers = await this.prisma.customer.findMany({
+      where: { companyId, anonymizedAt: null },
+      select: {
+        firstName: true,
+        lastName: true,
+        phone: true,
+        username: true,
+        notes: true,
+        createdAt: true,
+        lastActivityAt: true,
+      },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      take: 10_001,
+    });
+    if (customers.length > 10_000) {
+      throw new PayloadTooLargeException('Для выгрузки более 10 000 клиентов обратитесь в поддержку');
+    }
+    const escape = (value: string | null): string => {
+      const raw = value ?? '';
+      // Prevent spreadsheet software from evaluating customer-controlled formulas.
+      const safe = /^\s*[=+\-@]/u.test(raw) ? `'${raw}` : raw;
+      return `"${safe.replaceAll('"', '""')}"`;
+    };
+    const rows = customers.map((customer) => [
+      customer.firstName,
+      customer.lastName,
+      customer.phone,
+      customer.username,
+      customer.notes,
+      customer.createdAt.toISOString(),
+      customer.lastActivityAt.toISOString(),
+    ].map(escape).join(','));
+    await this.prisma.auditLog.create({
+      data: {
+        companyId,
+        actorId,
+        action: 'customer.exported',
+        entityType: 'Customer',
+        metadata: { count: customers.length },
+      },
+    });
+    return '\uFEFF' + ['"Имя","Фамилия","Телефон","Telegram","Заметка","Создан","Последняя активность"', ...rows].join('\r\n');
+  }
+
+  async importRows(companyId: string, rows: ImportCustomerRowDto[], actorId: string) {
+    const report = { created: 0, skippedDuplicates: 0, skippedInvalid: 0 };
+    await this.prisma.$transaction(async (tx) => {
+      const existing = await tx.customer.findMany({
+        where: { companyId, anonymizedAt: null },
+        select: { phone: true, username: true },
+      });
+      const phones = new Set(existing.map((item) => this.phoneKey(item.phone)).filter(Boolean));
+      const usernames = new Set(existing.map((item) => this.usernameKey(item.username)).filter(Boolean));
+      for (const row of rows) {
+        const firstName = row.firstName.trim();
+        const phone = row.phone?.trim() || null;
+        const username = row.username?.trim().replace(/^@/, '') || null;
+        const phoneKey = this.phoneKey(phone);
+        const usernameKey = this.usernameKey(username);
+        if (!firstName || (!phoneKey && !usernameKey)) {
+          report.skippedInvalid += 1;
+          continue;
+        }
+        if ((phoneKey && phones.has(phoneKey)) || (usernameKey && usernames.has(usernameKey))) {
+          report.skippedDuplicates += 1;
+          continue;
+        }
+        await tx.customer.create({
+          data: {
+            companyId,
+            firstName,
+            lastName: row.lastName?.trim() || null,
+            phone,
+            username,
+            notes: row.notes?.trim() || null,
+          },
+        });
+        if (phoneKey) phones.add(phoneKey);
+        if (usernameKey) usernames.add(usernameKey);
+        report.created += 1;
+      }
+      await tx.auditLog.create({
+        data: {
+          companyId,
+          actorId,
+          action: 'customer.imported',
+          entityType: 'Customer',
+          metadata: report,
+        },
+      });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    return report;
+  }
+
+  private phoneKey(phone?: string | null): string {
+    const digits = phone?.replace(/\D/g, '') ?? '';
+    if (digits.length === 11 && digits.startsWith('8')) return `7${digits.slice(1)}`;
+    return digits.length >= 7 ? digits : '';
+  }
+
+  private usernameKey(username?: string | null): string {
+    return username?.trim().replace(/^@/, '').toLowerCase() ?? '';
+  }
 
   async findAll(companyId: string, query: CustomerQueryDto): Promise<CursorPage<CustomerResponseDto>> {
     const cursor = decodeCursor(query.cursor);

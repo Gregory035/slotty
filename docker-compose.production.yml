@@ -65,7 +65,6 @@ services:
       YOOKASSA_SHOP_ID: ${YOOKASSA_SHOP_ID:-}
       YOOKASSA_SECRET_KEY: ${YOOKASSA_SECRET_KEY:-}
       PAYMENT_RETURN_URL: ${PAYMENT_RETURN_URL:-}
-      PAYMENT_WEBHOOK_SECRET: ${PAYMENT_WEBHOOK_SECRET:-}
     depends_on:
       api-migrate:
         condition: service_completed_successfully

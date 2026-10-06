@@ -3,7 +3,6 @@ import {
   Injectable,
   NotFoundException,
   ServiceUnavailableException,
-  UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
@@ -12,7 +11,7 @@ import {
   SubscriptionPlan,
   SubscriptionStatus,
 } from '@prisma/client';
-import { createHash, createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { CursorPage, decodeCursor, pageFromRows } from '../common/pagination';
 import { PrismaService } from '../database/prisma.service';
 
@@ -24,6 +23,7 @@ const PRICE: Record<Exclude<SubscriptionPlan, 'TRIAL'>, string> = {
 interface YooKassaPayment {
   id: string;
   status: string;
+  amount?: { value: string; currency: string };
   confirmation?: { confirmation_url?: string };
 }
 
@@ -92,23 +92,10 @@ export class BillingService {
     };
   }
 
-  async handleWebhook(signature: string | undefined, body: Record<string, unknown>): Promise<void> {
-    const secret = this.config.get<string>('PAYMENT_WEBHOOK_SECRET');
-    if (!secret) throw new ServiceUnavailableException('Payment webhook is not configured');
-    const raw = JSON.stringify(body);
-    const expected = createHmac('sha256', secret).update(raw).digest('hex');
-    if (!signature || !this.safeEqual(expected, signature)) {
-      throw new UnauthorizedException('Invalid payment signature');
-    }
+  async handleWebhook(body: Record<string, unknown>): Promise<void> {
     const object = body.object as Record<string, unknown> | undefined;
     const providerPaymentId = typeof object?.id === 'string' ? object.id : '';
-    const providerStatus = typeof object?.status === 'string' ? object.status : '';
-    const eventName = typeof body.event === 'string' ? body.event : 'payment.updated';
-    const externalEventId =
-      typeof body.id === 'string'
-        ? body.id
-        : `${eventName}:${providerPaymentId}:${providerStatus}`;
-    if (!providerPaymentId || !providerStatus) {
+    if (!providerPaymentId) {
       throw new NotFoundException('Payment event is incomplete');
     }
     const payment = await this.prisma.payment.findUnique({
@@ -120,28 +107,56 @@ export class BillingService {
       },
     });
     if (!payment) throw new NotFoundException('Payment not found');
-    await this.applyProviderUpdate(payment, providerStatus, externalEventId, createHash('sha256').update(raw).digest('hex'));
-  }
-
-  async syncPayment(companyId: string, paymentId: string) {
-    const shopId = this.config.get<string>('YOOKASSA_SHOP_ID');
-    const secretKey = this.config.get<string>('YOOKASSA_SECRET_KEY');
-    if (!shopId || !secretKey) throw new ServiceUnavailableException('Payment provider is not configured');
-    const payment = await this.prisma.payment.findUnique({ where: { id_companyId: { id: paymentId, companyId } } });
-    if (!payment) throw new NotFoundException('Payment not found');
-    const response = await fetch(`https://api.yookassa.ru/v3/payments/${payment.externalPaymentId}`, {
-      headers: { authorization: `Basic ${Buffer.from(`${shopId}:${secretKey}`).toString('base64')}` },
-    });
-    if (!response.ok) throw new BadGatewayException('Payment provider is unavailable');
-    const provider = (await response.json()) as YooKassaPayment;
+    // YooKassa does not sign standard HTTP notifications. Always verify their
+    // current state with the authenticated API before changing local billing.
+    const provider = await this.fetchProviderPayment(providerPaymentId);
+    this.assertPaymentMatches(payment, provider);
     await this.applyProviderUpdate(
       payment,
       provider.status,
-      `sync:${provider.id}:${provider.status}`,
+      `payment:${provider.id}:${provider.status}`,
+      createHash('sha256').update(JSON.stringify(provider)).digest('hex'),
+    );
+  }
+
+  async syncPayment(companyId: string, paymentId: string) {
+    const payment = await this.prisma.payment.findUnique({ where: { id_companyId: { id: paymentId, companyId } } });
+    if (!payment) throw new NotFoundException('Payment not found');
+    const provider = await this.fetchProviderPayment(payment.externalPaymentId);
+    this.assertPaymentMatches(payment, provider);
+    await this.applyProviderUpdate(
+      payment,
+      provider.status,
+      `payment:${provider.id}:${provider.status}`,
       createHash('sha256').update(JSON.stringify(provider)).digest('hex'),
     );
     const updated = await this.prisma.payment.findUnique({ where: { id_companyId: { id: paymentId, companyId } } });
     return updated ? { ...updated, amount: updated.amount.toFixed(2) } : null;
+  }
+
+  private async fetchProviderPayment(id: string): Promise<YooKassaPayment> {
+    const shopId = this.config.get<string>('YOOKASSA_SHOP_ID');
+    const secretKey = this.config.get<string>('YOOKASSA_SECRET_KEY');
+    if (!shopId || !secretKey) throw new ServiceUnavailableException('Payment provider is not configured');
+    const response = await fetch(`https://api.yookassa.ru/v3/payments/${encodeURIComponent(id)}`, {
+      headers: { authorization: `Basic ${Buffer.from(`${shopId}:${secretKey}`).toString('base64')}` },
+    });
+    if (!response.ok) throw new BadGatewayException('Payment provider is unavailable');
+    return (await response.json()) as YooKassaPayment;
+  }
+
+  private assertPaymentMatches(
+    payment: { externalPaymentId: string; amount: Prisma.Decimal; currency: string },
+    provider: YooKassaPayment,
+  ): void {
+    if (
+      provider.id !== payment.externalPaymentId ||
+      provider.amount?.currency !== payment.currency.trim() ||
+      !provider.amount?.value ||
+      !new Prisma.Decimal(provider.amount.value).equals(payment.amount)
+    ) {
+      throw new BadGatewayException('Payment provider returned inconsistent data');
+    }
   }
 
   private async applyProviderUpdate(
@@ -161,14 +176,31 @@ export class BillingService {
           },
         });
         const status = this.paymentStatus(providerStatus);
-        await tx.payment.update({
-          where: { id_companyId: { id: payment.id, companyId: payment.companyId } },
+        if (status === PaymentStatus.PENDING) return;
+        const transitioned = await tx.payment.updateMany({
+          where: { id: payment.id, companyId: payment.companyId, status: PaymentStatus.PENDING },
           data: { status, paidAt: status === PaymentStatus.SUCCEEDED ? new Date() : null },
         });
+        if (!transitioned.count) return;
         if (payment.subscriptionId) {
           if (status === PaymentStatus.SUCCEEDED) {
-            const startsAt = new Date();
-            const endsAt = new Date(startsAt.getTime() + 30 * 24 * 60 * 60 * 1000);
+            await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "Subscription" WHERE "id" = ${payment.subscriptionId}::uuid FOR UPDATE`);
+            const subscription = await tx.subscription.findUnique({
+              where: { id_companyId: { id: payment.subscriptionId, companyId: payment.companyId } },
+              select: { currentPeriodStartsAt: true, currentPeriodEndsAt: true },
+            });
+            if (!subscription) throw new NotFoundException('Subscription not found');
+            const now = new Date();
+            const hasRemainingPeriod = Boolean(
+              subscription.currentPeriodEndsAt && subscription.currentPeriodEndsAt > now,
+            );
+            const startsAt = hasRemainingPeriod
+              ? subscription.currentPeriodStartsAt ?? now
+              : now;
+            const extensionBase = hasRemainingPeriod
+              ? subscription.currentPeriodEndsAt!
+              : now;
+            const endsAt = new Date(extensionBase.getTime() + 30 * 24 * 60 * 60 * 1000);
             await tx.subscription.update({
               where: { id_companyId: { id: payment.subscriptionId, companyId: payment.companyId } },
               data: {
@@ -180,8 +212,12 @@ export class BillingService {
               },
             });
           } else if (status === PaymentStatus.FAILED) {
-            await tx.subscription.update({
-              where: { id_companyId: { id: payment.subscriptionId, companyId: payment.companyId } },
+            await tx.subscription.updateMany({
+              where: {
+                id: payment.subscriptionId,
+                companyId: payment.companyId,
+                OR: [{ currentPeriodEndsAt: null }, { currentPeriodEndsAt: { lte: new Date() } }],
+              },
               data: {
                 status: SubscriptionStatus.PAST_DUE,
                 graceEndsAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
@@ -234,9 +270,4 @@ export class BillingService {
     return PaymentStatus.PENDING;
   }
 
-  private safeEqual(expected: string, actual: string): boolean {
-    const left = Buffer.from(expected);
-    const right = Buffer.from(actual.trim());
-    return left.length === right.length && timingSafeEqual(left, right);
-  }
 }

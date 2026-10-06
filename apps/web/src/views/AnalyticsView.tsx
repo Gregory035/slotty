@@ -28,17 +28,17 @@ export function AnalyticsView({ company }: { company: Company }) {
   const totalSources = analytics.sources.telegram + analytics.sources.dashboard || 1;
 
   return <>
-    <SectionHeader eyebrow="Показатели" title="Аналитика" description="Выручка, загрузка и качество записей без ручных таблиц." action={<div className="filter-pills analytics-range">{([7, 30, 90] as const).map((item) => <button key={item} className={range === item ? 'active' : ''} onClick={() => setRange(item)}>{item} дн.</button>)}</div>} />
+    <SectionHeader eyebrow="Показатели" title="Аналитика" description="Стоимость оказанных услуг, загрузка и качество записей без ручных таблиц." action={<div className="filter-pills analytics-range">{([7, 30, 90] as const).map((item) => <button key={item} className={range === item ? 'active' : ''} onClick={() => setRange(item)}>{item} дн.</button>)}</div>} />
     <section className="analytics-kpi-grid">
-      <Insight icon={CircleDollarSign} label="Выручка" value={formatMoney(analytics.summary.actualRevenue, data.currency)} detail={`Средний чек ${formatMoney(analytics.summary.averageCheck, data.currency)}`} />
+      <Insight icon={CircleDollarSign} label="Стоимость услуг" value={formatMoney(analytics.summary.actualRevenue, data.currency)} detail={`Средний чек ${formatMoney(analytics.summary.averageCheck, data.currency)}`} />
       <Insight icon={BarChart3} label="Загрузка" value={`${data.occupancy.percent}%`} detail={`${analytics.summary.completed} завершено из ${analytics.summary.appointments}`} />
       <Insight icon={UsersRound} label="Клиенты" value={String(analytics.summary.newCustomers + analytics.summary.returningCustomers)} detail={`Новых ${analytics.summary.newCustomers} · повторных ${analytics.summary.returningCustomers}`} />
       <Insight icon={UserRoundCheck} label="Качество записи" value={`${100 - analytics.summary.cancellationRate - analytics.summary.noShowRate}%`} detail={`Отмены ${analytics.summary.cancellationRate}% · не пришли ${analytics.summary.noShowRate}%`} />
     </section>
     <section className="analytics-layout">
       <article className="panel analytics-chart-panel">
-        <div className="panel-title-row"><div><p className="eyebrow">Динамика</p><h2>Выручка по дням</h2></div><strong>{formatMoney(analytics.summary.actualRevenue, data.currency)}</strong></div>
-        <div className="revenue-chart" aria-label="Выручка по дням">
+        <div className="panel-title-row"><div><p className="eyebrow">Динамика</p><h2>Стоимость оказанных услуг</h2></div><strong>{formatMoney(analytics.summary.actualRevenue, data.currency)}</strong></div>
+        <div className="revenue-chart" aria-label="Стоимость оказанных услуг по дням">
           {analytics.daily.map((item) => <div key={item.date} className="revenue-bar-wrap" title={`${item.date}: ${formatMoney(item.revenue, data.currency)}`}><div className="revenue-bar" style={{ height: `${Math.max(5, (item.revenue / peak) * 100)}%` }} /><span>{item.date.slice(8)}</span></div>)}
         </div>
       </article>
@@ -49,7 +49,7 @@ export function AnalyticsView({ company }: { company: Company }) {
         {data.waitlistCount > 0 && <p className="analytics-note">В листе ожидания: {data.waitlistCount}</p>}
       </article>
     </section>
-    <section className="panel funnel-panel"><div><p className="eyebrow">Telegram</p><h2>Воронка записи</h2><span>Конверсия в запись: <strong>{analytics.funnel.conversion}%</strong></span></div><div className="funnel-steps">{[
+    <section className="panel funnel-panel"><div><p className="eyebrow">Telegram · уникальные пользователи за период</p><h2>Воронка записи</h2><span>Конверсия в запись: <strong>{analytics.funnel.conversion}%</strong></span></div><div className="funnel-steps">{[
       ['Начал', analytics.funnel.started], ['Выбрал услугу', analytics.funnel.serviceSelected], ['Выбрал дату', analytics.funnel.dateSelected], ['Выбрал время', analytics.funnel.timeSelected], ['Записался', analytics.funnel.booked],
     ].map(([label, value]) => <article key={String(label)}><strong>{value}</strong><span>{label}</span></article>)}</div></section>
     <section className="analytics-tables">

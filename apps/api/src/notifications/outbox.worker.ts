@@ -11,12 +11,15 @@ import { PrismaService } from '../database/prisma.service';
 import { WaitlistService } from '../waitlist/waitlist.service';
 
 const MAX_ATTEMPTS = 5;
+const STALE_PROCESSING_MS = 5 * 60_000;
+const WAITLIST_SWEEP_MS = 60_000;
 
 @Injectable()
 export class OutboxWorker implements OnApplicationBootstrap, OnApplicationShutdown {
   private readonly logger = new Logger(OutboxWorker.name);
   private timer?: NodeJS.Timeout;
   private running = false;
+  private lastWaitlistSweep = 0;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -24,7 +27,11 @@ export class OutboxWorker implements OnApplicationBootstrap, OnApplicationShutdo
   ) {}
 
   onApplicationBootstrap(): void {
-    this.timer = setInterval(() => void this.tick(), 500);
+    this.timer = setInterval(() => {
+      void this.tick().catch((error: unknown) => {
+        this.logger.error('Outbox worker tick failed', error);
+      });
+    }, 500);
     this.timer.unref();
   }
 
@@ -36,6 +43,22 @@ export class OutboxWorker implements OnApplicationBootstrap, OnApplicationShutdo
     if (this.running) return;
     this.running = true;
     try {
+      if (Date.now() - this.lastWaitlistSweep >= WAITLIST_SWEEP_MS) {
+        this.lastWaitlistSweep = Date.now();
+        try {
+          await this.prisma.outboxEvent.updateMany({
+            where: {
+              status: OutboxStatus.PROCESSING,
+              attempts: { gte: MAX_ATTEMPTS },
+              updatedAt: { lt: new Date(Date.now() - STALE_PROCESSING_MS) },
+            },
+            data: { status: OutboxStatus.DEAD, lastError: 'Worker stopped before processing completed' },
+          });
+          await this.waitlist.sweepExpiredOffers();
+        } catch (error) {
+          this.logger.warn(`Waitlist sweep failed: ${this.message(error)}`);
+        }
+      }
       for (let count = 0; count < 20; count += 1) {
         const event = await this.claim();
         if (!event) break;
@@ -52,7 +75,11 @@ export class OutboxWorker implements OnApplicationBootstrap, OnApplicationShutdo
       SET "status" = 'PROCESSING', "attempts" = "attempts" + 1, "updatedAt" = NOW()
       WHERE "id" = (
         SELECT "id" FROM "OutboxEvent"
-        WHERE "status" = 'PENDING' AND "availableAt" <= NOW()
+        WHERE (
+          ("status" = 'PENDING' AND "availableAt" <= NOW())
+          OR ("status" = 'PROCESSING' AND "updatedAt" < ${new Date(Date.now() - STALE_PROCESSING_MS)})
+        )
+        AND "attempts" < ${MAX_ATTEMPTS}
         ORDER BY "availableAt", "createdAt"
         FOR UPDATE SKIP LOCKED
         LIMIT 1
