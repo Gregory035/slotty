@@ -65,6 +65,9 @@ services:
       YOOKASSA_SHOP_ID: ${YOOKASSA_SHOP_ID:-}
       YOOKASSA_SECRET_KEY: ${YOOKASSA_SECRET_KEY:-}
       PAYMENT_RETURN_URL: ${PAYMENT_RETURN_URL:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      PASSWORD_RESET_FROM_EMAIL: ${PASSWORD_RESET_FROM_EMAIL:-}
+      PASSWORD_RESET_TTL_MINUTES: ${PASSWORD_RESET_TTL_MINUTES:-30}
     depends_on:
       api-migrate:
         condition: service_completed_successfully

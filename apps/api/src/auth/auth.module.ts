@@ -6,6 +6,7 @@ import { AccessTokenGuard } from './guards/access-token.guard';
 import { PasswordService } from './password.service';
 import { TokenService } from './token.service';
 import { AuthCookieService } from './auth-cookie.service';
+import { PasswordResetMailerService } from './password-reset-mailer.service';
 
 @Module({
   imports: [UsersModule],
@@ -14,6 +15,7 @@ import { AuthCookieService } from './auth-cookie.service';
     AuthService,
     AuthCookieService,
     PasswordService,
+    PasswordResetMailerService,
     TokenService,
     AccessTokenGuard,
   ],

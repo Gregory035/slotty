@@ -1,25 +1,60 @@
 import { useState, type FormEvent } from 'react';
 import { ArrowRight } from 'lucide-react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { trackEvent } from '../analytics';
-import { login, register } from '../api';
+import { login, register, requestPasswordReset, resetPassword } from '../api';
 import { useAppStore } from '../store';
 import { errorMessage } from '../utils';
 import { Brand } from './Brand';
 
 export function AuthScreen() {
   const [searchParams] = useSearchParams();
+  const location = useLocation();
+  const navigate = useNavigate();
   const setSession = useAppStore((state) => state.setSession);
-  const [mode, setMode] = useState<'login' | 'register'>(() => searchParams.get('mode') === 'register' ? 'register' : 'login');
+  const resetToken = new URLSearchParams(location.hash.replace(/^#/, '')).get('token') ?? '';
+  const [mode, setMode] = useState<'login' | 'register' | 'forgot' | 'reset'>(() => {
+    if (searchParams.get('mode') === 'register') return 'register';
+    if (searchParams.get('mode') === 'forgot-password') return 'forgot';
+    if (searchParams.get('mode') === 'reset-password' && resetToken) return 'reset';
+    return 'login';
+  });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  function switchMode(next: 'login' | 'register' | 'forgot') {
+    setMode(next);
+    setError(null);
+    setNotice(null);
+    navigate(next === 'login' ? '/app' : next === 'register' ? '/app?mode=register' : '/app?mode=forgot-password', { replace: true });
+    if (next === 'register') trackEvent('registration_start');
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setBusy(true);
     setError(null);
+    setNotice(null);
     const form = new FormData(event.currentTarget);
     try {
+      if (mode === 'forgot') {
+        await requestPasswordReset({ email: String(form.get('email')) });
+        setNotice('Если аккаунт с этим email существует, мы отправили ссылку для восстановления.');
+        return;
+      }
+      if (mode === 'reset') {
+        const password = String(form.get('password'));
+        if (password !== String(form.get('passwordConfirmation'))) {
+          setError('Пароли не совпадают');
+          return;
+        }
+        await resetPassword({ token: resetToken, password });
+        setMode('login');
+        setNotice('Пароль обновлён. Теперь войдите с новым паролем.');
+        navigate('/app', { replace: true });
+        return;
+      }
       const session = mode === 'login'
         ? await login({
             email: String(form.get('email')),
@@ -44,17 +79,21 @@ export function AuthScreen() {
     <main className="auth-layout">
       <section className="auth-form-wrap">
         <div className="auth-brand"><Brand /></div>
-        <h1>{mode === 'login' ? 'С возвращением' : 'Создайте аккаунт'}</h1>
+        <h1>{mode === 'login' ? 'С возвращением' : mode === 'register' ? 'Создайте аккаунт' : mode === 'forgot' ? 'Восстановить пароль' : 'Новый пароль'}</h1>
         <p className="auth-subtitle">
           {mode === 'login'
             ? 'Войдите в рабочее пространство Slotty.'
-            : 'Настройте онлайн-запись за несколько минут.'}
+            : mode === 'register'
+              ? 'Настройте онлайн-запись за несколько минут.'
+              : mode === 'forgot'
+                ? 'Укажите email — отправим одноразовую ссылку для восстановления доступа.'
+                : 'Задайте новый пароль. Ссылка работает один раз.'}
         </p>
 
-        <div className="auth-tabs" role="tablist">
-          <button className={mode === 'login' ? 'active' : ''} onClick={() => { setMode('login'); setError(null); }}>Вход</button>
-          <button className={mode === 'register' ? 'active' : ''} onClick={() => { setMode('register'); setError(null); trackEvent('registration_start'); }}>Регистрация</button>
-        </div>
+        {(mode === 'login' || mode === 'register') && <div className="auth-tabs" role="tablist">
+          <button type="button" className={mode === 'login' ? 'active' : ''} onClick={() => switchMode('login')}>Вход</button>
+          <button type="button" className={mode === 'register' ? 'active' : ''} onClick={() => switchMode('register')}>Регистрация</button>
+        </div>}
 
         <form className="form-stack" onSubmit={submit}>
           {mode === 'register' && (
@@ -63,16 +102,21 @@ export function AuthScreen() {
               <label>Фамилия<input name="lastName" maxLength={50} placeholder="Громов" /></label>
             </div>
           )}
-          <label>Email<input name="email" required type="email" autoComplete="email" placeholder="owner@example.com" /></label>
-          <label>Пароль<input name="password" required type="password" minLength={8} maxLength={128} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} placeholder="Минимум 8 символов" /></label>
+          {mode !== 'reset' && <label>Email<input name="email" required type="email" autoComplete="email" placeholder="owner@example.com" /></label>}
+          {mode !== 'forgot' && <label>Пароль<input name="password" required type="password" minLength={8} maxLength={128} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} placeholder="Минимум 8 символов" /></label>}
+          {mode === 'reset' && <label>Повторите пароль<input name="passwordConfirmation" required type="password" minLength={8} maxLength={128} autoComplete="new-password" placeholder="Повторите новый пароль" /></label>}
           {error && <p className="form-error">{error}</p>}
+          {notice && <p className="form-notice">{notice}</p>}
           <button className="primary-button auth-submit" disabled={busy}>
-            {busy ? 'Подождите…' : mode === 'login' ? 'Войти' : 'Создать аккаунт'}
+            {busy ? 'Подождите…' : mode === 'login' ? 'Войти' : mode === 'register' ? 'Создать аккаунт' : mode === 'forgot' ? 'Отправить ссылку' : 'Сохранить пароль'}
             {!busy && <ArrowRight size={17} />}
           </button>
         </form>
 
-        <p className="auth-legal">Продолжая, вы соглашаетесь с правилами сервиса и обработкой данных.</p>
+        {mode === 'login' && <button type="button" className="auth-link-button" onClick={() => switchMode('forgot')}>Забыли пароль?</button>}
+        {(mode === 'forgot' || mode === 'reset') && <Link className="auth-link-button" to="/app" onClick={() => { setMode('login'); setError(null); setNotice(null); }}>Вернуться ко входу</Link>}
+
+        {mode !== 'reset' && <p className="auth-legal">Продолжая, вы соглашаетесь с правилами сервиса и обработкой данных.</p>}
       </section>
 
       <aside className="auth-product-preview" aria-hidden="true">

@@ -1005,6 +1005,7 @@ export class AppointmentsService {
       for (let rating = 1; rating <= 5; rating += 1) {
         keyboard.text(`${rating} ★`, `v:${appointmentCode}:${rating}`);
       }
+      keyboard.row().text('Добавить фото результата', `wr:${appointmentCode}`);
       await this.telegramApi.sendMessage(
         this.encryption.decrypt(bot.tokenEncrypted),
         appointment.customer.telegramId.toString(),

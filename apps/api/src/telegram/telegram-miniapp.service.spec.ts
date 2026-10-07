@@ -21,7 +21,7 @@ describe('TelegramMiniAppService', () => {
       }) },
       service: { findMany: jest.fn().mockResolvedValue([{
         id: serviceId, name: 'Стрижка', description: null, durationMinutes: 60, price: { toFixed: () => '2500.00' }, category: null, photoUrl: null,
-        employees: [{ employee: { id: employeeId, firstName: 'Елена', lastName: null, photoUrl: null, description: null, color: '#4F46E5' } }],
+        employees: [{ employee: { id: employeeId, firstName: 'Елена', lastName: null, photoUrl: null, description: null, color: '#4F46E5', workExamples: [], appointments: [] } }],
       }]) },
     };
     scheduling = { getAvailability: jest.fn().mockResolvedValue({ slots: [] }) };

@@ -47,7 +47,7 @@ export class EntitlementsService {
       where: { companyId },
       orderBy: { createdAt: 'desc' },
     });
-    if (!subscription) this.denied('Subscription is not configured');
+    if (!subscription) this.denied('Подписка для компании не настроена');
     const active = this.isActive(subscription);
     const limits = PLAN_LIMITS[subscription.plan];
     const monthStart = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1));
@@ -72,27 +72,27 @@ export class EntitlementsService {
   async assertCanCreateEmployee(companyId: string): Promise<void> {
     const value = await this.get(companyId);
     this.assertActive(value.active);
-    if (value.usage.employees >= value.limits.employees) this.denied('Employee limit reached');
+    if (value.usage.employees >= value.limits.employees) this.denied('Достигнут лимит сотрудников на текущем тарифе');
   }
 
   async assertCanCreateService(companyId: string): Promise<void> {
     const value = await this.get(companyId);
     this.assertActive(value.active);
-    if (value.usage.services >= value.limits.services) this.denied('Service limit reached');
+    if (value.usage.services >= value.limits.services) this.denied('Достигнут лимит услуг на текущем тарифе');
   }
 
   async assertCanCreateAppointment(companyId: string, count = 1): Promise<void> {
     const value = await this.get(companyId);
     this.assertActive(value.active);
     if (value.usage.monthlyAppointments + count > value.limits.monthlyAppointments) {
-      this.denied('Monthly appointment limit reached');
+      this.denied('Достигнут месячный лимит записей на текущем тарифе');
     }
   }
 
   async assertCanConnectBot(companyId: string): Promise<void> {
     const value = await this.get(companyId);
     this.assertActive(value.active);
-    if (value.usage.bots >= value.limits.bots) this.denied('Telegram bot limit reached');
+    if (value.usage.bots >= value.limits.bots) this.denied('Достигнут лимит Telegram-ботов на текущем тарифе');
   }
 
   private isActive(subscription: {
@@ -115,7 +115,7 @@ export class EntitlementsService {
   }
 
   private assertActive(active: boolean): void {
-    if (!active) this.denied('Subscription is inactive');
+    if (!active) this.denied('Пробный период или подписка завершены. Выберите тариф, чтобы продолжить работу');
   }
 
   private denied(message: string): never {

@@ -1,17 +1,21 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CalendarClock, Mail, Phone, Plus, Trash2, UserRoundPlus } from 'lucide-react';
+import { CalendarClock, ImagePlus, Images, Mail, Phone, Plus, Trash2, UserRoundPlus } from 'lucide-react';
 import {
   assignEmployeeService,
   createEmployee,
   createScheduleException,
   deleteEmployee,
+  deleteEmployeeWorkExample,
   deleteScheduleException,
+  getEmployeeWorkExamples,
   getEmployees,
   getSchedule,
   getScheduleExceptions,
   getServices,
+  getWorkExampleImageUrl,
   replaceSchedule,
+  uploadEmployeeWorkExample,
 } from '../api';
 import type { Company, Employee, ScheduleExceptionType } from '../types';
 import { errorMessage } from '../utils';
@@ -29,6 +33,7 @@ export function EmployeesView({ company }: { company: Company }) {
   const queryClient = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
   const [scheduleEmployee, setScheduleEmployee] = useState<Employee | null>(null);
+  const [portfolioEmployee, setPortfolioEmployee] = useState<Employee | null>(null);
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const employees = useQuery({ queryKey: ['employees', company.id], queryFn: () => getEmployees(company.id) });
@@ -78,7 +83,7 @@ export function EmployeesView({ company }: { company: Company }) {
               <div className="employee-head"><span className="avatar avatar-large" style={{ backgroundColor: `${employee.color}20`, color: employee.color }}>{employee.firstName[0]}{employee.lastName?.[0]}</span><div><h2>{employee.firstName} {employee.lastName}</h2><span className={`status-dot-label ${employee.isActive ? 'active' : ''}`}><i />{employee.isActive ? 'Работает' : 'Неактивен'}</span></div></div>
               <div className="employee-contacts">{employee.phone && <span><Phone size={15} />{employee.phone}</span>}{employee.email && <span><Mail size={15} />{employee.email}</span>}</div>
               <div className="employee-services"><p>Услуги</p><div>{employee.services.length ? employee.services.map((service) => <span key={service.id}>{service.name}</span>) : <em>Не назначены</em>}</div></div>
-              <div className="employee-actions"><button className="secondary-button" onClick={() => setScheduleEmployee(employee)}><CalendarClock size={16} /> Расписание</button><button className="icon-button danger" title="Удалить" onClick={() => { if (window.confirm(`Удалить сотрудника ${employee.firstName}?`)) deleteMutation.mutate(employee.id); }}><Trash2 size={16} /></button></div>
+              <div className="employee-actions"><button className="secondary-button" onClick={() => setScheduleEmployee(employee)}><CalendarClock size={16} /> Расписание</button><button className="secondary-button" onClick={() => setPortfolioEmployee(employee)}><Images size={16} /> Работы</button><button className="icon-button danger" title="Удалить" onClick={() => { if (window.confirm(`Удалить сотрудника ${employee.firstName}?`)) deleteMutation.mutate(employee.id); }}><Trash2 size={16} /></button></div>
             </article>
           ))}
         </div>
@@ -97,8 +102,46 @@ export function EmployeesView({ company }: { company: Company }) {
       </Modal>
 
       {scheduleEmployee && <ScheduleModal company={company} employee={scheduleEmployee} onClose={() => setScheduleEmployee(null)} />}
+      {portfolioEmployee && <PortfolioModal company={company} employee={portfolioEmployee} onClose={() => setPortfolioEmployee(null)} />}
     </>
   );
+}
+
+function PortfolioModal({ company, employee, onClose }: { company: Company; employee: Employee; onClose: () => void }) {
+  const queryClient = useQueryClient();
+  const [error, setError] = useState<string | null>(null);
+  const queryKey = ['employee-work-examples', company.id, employee.id];
+  const works = useQuery({ queryKey, queryFn: () => getEmployeeWorkExamples(company.id, employee.id) });
+  const uploadMutation = useMutation({
+    mutationFn: (input: { photo: File; caption?: string }) => uploadEmployeeWorkExample(company.id, employee.id, input),
+    onSuccess: async () => { setError(null); await queryClient.invalidateQueries({ queryKey }); },
+    onError: (caught) => setError(errorMessage(caught)),
+  });
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteEmployeeWorkExample(company.id, employee.id, id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey }),
+    onError: (caught) => setError(errorMessage(caught)),
+  });
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const photo = form.get('photo');
+    if (!(photo instanceof File) || !photo.size) return setError('Выберите фотографию');
+    uploadMutation.mutate({ photo, caption: String(form.get('caption') || '') || undefined }, { onSuccess: () => event.currentTarget.reset() });
+  }
+
+  return <Modal open title={`Работы · ${employee.firstName}`} description="Добавляйте реальные примеры работ. Согласие человека на публикацию мастер получает самостоятельно." onClose={onClose}>
+    <div className="portfolio-content">
+      <form className="portfolio-upload" onSubmit={submit}>
+        <label className="portfolio-file"><ImagePlus size={18} /><span>Фото работы<small>JPG, PNG или WebP до 5 МБ</small></span><input name="photo" type="file" accept="image/jpeg,image/png,image/webp" required /></label>
+        <label>Подпись<input name="caption" maxLength={300} placeholder="Например: окрашивание и укладка" /></label>
+        <button className="primary-button" disabled={uploadMutation.isPending}>{uploadMutation.isPending ? 'Загружаем…' : 'Опубликовать'}</button>
+      </form>
+      {error && <p className="form-error">{error}</p>}
+      {works.isLoading ? <LoadingBlock /> : works.error ? <ErrorBlock message="Не удалось загрузить работы" /> : works.data?.length ? <div className="portfolio-grid">{works.data.map((work) => <figure key={work.id}><img src={getWorkExampleImageUrl(work.id)} alt={work.caption || `Работа ${employee.firstName}`} loading="lazy" /><figcaption><span>{work.caption || (work.source === 'CUSTOMER' ? 'Результат клиента' : 'Работа мастера')}</span><button className="icon-button danger" aria-label="Удалить фото" onClick={() => deleteMutation.mutate(work.id)}><Trash2 size={15} /></button></figcaption></figure>)}</div> : <EmptyState title="Работ пока нет" description="Первое фото появится здесь и в карточке специалиста в Telegram." />}
+    </div>
+  </Modal>;
 }
 
 function ScheduleModal({ company, employee, onClose }: { company: Company; employee: Employee; onClose: () => void }) {

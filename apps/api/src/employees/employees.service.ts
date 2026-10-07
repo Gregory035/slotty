@@ -1,5 +1,5 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { Employee, Prisma, Service } from '@prisma/client';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { CompanyRole, Employee, Prisma, Service, WorkExampleSource } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import { ServicesService } from '../services/services.service';
 import { CreateEmployeeDto } from './dto/create-employee.dto';
@@ -199,6 +199,67 @@ export class EmployeesService {
     });
 
     return this.findOne(companyId, employeeId);
+  }
+
+  async listWorkExamples(companyId: string, employeeId: string, actorId: string) {
+    await this.assertPortfolioAccess(companyId, employeeId, actorId);
+    return this.prisma.workExample.findMany({
+      where: { companyId, employeeId, publishedAt: { not: null }, imageData: { not: null } },
+      select: { id: true, caption: true, source: true, publishedAt: true, createdAt: true },
+      orderBy: [{ publishedAt: 'desc' }, { createdAt: 'desc' }],
+    });
+  }
+
+  async addWorkExample(
+    companyId: string,
+    employeeId: string,
+    actorId: string,
+    file: { buffer: Buffer; mimetype: string; size: number } | undefined,
+    caption?: string,
+  ) {
+    await this.assertPortfolioAccess(companyId, employeeId, actorId);
+    if (!file) throw new BadRequestException('Выберите фотографию');
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.mimetype) || file.size > 5 * 1024 * 1024) {
+      throw new BadRequestException('Поддерживаются JPG, PNG или WebP до 5 МБ');
+    }
+    const work = await this.prisma.workExample.create({
+      data: {
+        companyId,
+        employeeId,
+        source: WorkExampleSource.EMPLOYEE,
+        caption: caption?.trim() || null,
+        imageData: Uint8Array.from(file.buffer),
+        mimeType: file.mimetype,
+        publishedAt: new Date(),
+      },
+      select: { id: true, caption: true, source: true, publishedAt: true, createdAt: true },
+    });
+    await this.prisma.auditLog.create({ data: { companyId, actorId, action: 'employee.work_published', entityType: 'WorkExample', entityId: work.id, metadata: { employeeId } } });
+    return work;
+  }
+
+  async deleteWorkExample(companyId: string, employeeId: string, workId: string, actorId: string): Promise<void> {
+    await this.assertPortfolioAccess(companyId, employeeId, actorId);
+    const deleted = await this.prisma.workExample.deleteMany({ where: { id: workId, companyId, employeeId } });
+    if (!deleted.count) throw new NotFoundException('Work example not found');
+    await this.prisma.auditLog.create({ data: { companyId, actorId, action: 'employee.work_deleted', entityType: 'WorkExample', entityId: workId, metadata: { employeeId } } });
+  }
+
+  async getPublishedWorkImage(id: string) {
+    const work = await this.prisma.workExample.findFirst({
+      where: { id, publishedAt: { not: null }, imageData: { not: null }, employee: { deletedAt: null, isActive: true } },
+      select: { imageData: true, mimeType: true, updatedAt: true },
+    });
+    if (!work?.imageData || !work.mimeType) throw new NotFoundException('Work image not found');
+    return work;
+  }
+
+  private async assertPortfolioAccess(companyId: string, employeeId: string, actorId: string): Promise<void> {
+    await this.requireEmployee(companyId, employeeId);
+    const membership = await this.prisma.companyMember.findUnique({ where: { userId_companyId: { userId: actorId, companyId } }, select: { role: true, employeeId: true } });
+    if (!membership || (membership.role === CompanyRole.EMPLOYEE && membership.employeeId !== employeeId)) {
+      throw new ForbiddenException('Portfolio access denied');
+    }
   }
 
   private async requireEmployee(

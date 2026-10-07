@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { CalendarDays, Check, ChevronLeft, Clock3, LoaderCircle, UserRound } from 'lucide-react';
+import { CalendarDays, Check, ChevronLeft, Clock3, LoaderCircle, Star, UserRound } from 'lucide-react';
 import { useParams } from 'react-router-dom';
-import { ApiError, createMiniAppBooking, getMiniAppAvailability, getMiniAppSession } from '../api';
+import { ApiError, createMiniAppBooking, getMiniAppAvailability, getMiniAppSession, getWorkExampleImageUrl } from '../api';
 import type { MiniAppEmployee, MiniAppService, MiniAppSession } from '../types';
 import { SlottyMark } from '../components/Brand';
 import './telegram-miniapp.css';
@@ -20,7 +20,7 @@ declare global {
   }
 }
 
-type Step = 'service' | 'employee' | 'time' | 'success';
+type Step = 'service' | 'employee' | 'profile' | 'time' | 'success';
 
 export function TelegramMiniAppPage() {
   const { companyId = '' } = useParams();
@@ -98,7 +98,7 @@ export function TelegramMiniAppPage() {
     setEmployee(nextService.employees.length === 1 ? nextService.employees[0]! : null);
     setSelectedSlot(null);
     setError('');
-    setStep(nextService.employees.length === 1 ? 'time' : 'employee');
+    setStep(nextService.employees.length === 1 ? 'profile' : 'employee');
   };
 
   const chooseEmployee = (nextEmployee: MiniAppEmployee) => {
@@ -106,7 +106,7 @@ export function TelegramMiniAppPage() {
     setEmployee(nextEmployee);
     setSelectedSlot(null);
     setError('');
-    setStep('time');
+    setStep('profile');
   };
 
   const confirm = async () => {
@@ -136,6 +136,12 @@ export function TelegramMiniAppPage() {
   if (error && !session) return <MiniAppState label={error} retry={() => window.location.reload()} />;
   if (!session) return null;
 
+  const goBack = () => {
+    if (step === 'time') return setStep('profile');
+    if (step === 'profile') return setStep(service && service.employees.length > 1 ? 'employee' : 'service');
+    setStep('service');
+  };
+
   if (step === 'success') {
     return (
       <main className="miniapp-page miniapp-success">
@@ -152,13 +158,13 @@ export function TelegramMiniAppPage() {
   return (
     <main className="miniapp-page">
       <header className="miniapp-header">
-        <div className="miniapp-brand"><span><SlottyMark size={21} /></span><b>{session.company.name}</b></div>
-        {step !== 'service' && <button className="miniapp-back" onClick={() => setStep(step === 'time' && service!.employees.length > 1 ? 'employee' : 'service')} aria-label="Назад"><ChevronLeft size={21} /></button>}
+        <div className="miniapp-brand"><span><SlottyMark size={21} tone="dark" /></span><b>{session.company.name}</b></div>
+        {step !== 'service' && <button className="miniapp-back" onClick={goBack} aria-label="Назад"><ChevronLeft size={21} /></button>}
       </header>
 
       <section className="miniapp-intro">
         <p className="miniapp-eyebrow">ОНЛАЙН-ЗАПИСЬ</p>
-        <h1>{step === 'service' ? 'Выберите услугу' : step === 'employee' ? 'Выберите специалиста' : 'Выберите время'}</h1>
+        <h1>{step === 'service' ? 'Выберите услугу' : step === 'employee' ? 'Выберите специалиста' : step === 'profile' ? 'О специалисте' : 'Выберите время'}</h1>
         {step === 'service' && <p>{session.company.description || 'Свободное время отображается сразу — без переписки и ожидания.'}</p>}
       </section>
 
@@ -186,8 +192,17 @@ export function TelegramMiniAppPage() {
         ))}
       </section>}
 
+      {step === 'profile' && service && employee && <section className="miniapp-profile">
+        <button className="miniapp-choice-summary" onClick={() => setStep(service.employees.length > 1 ? 'employee' : 'service')}><span>{service.name}</span><small>{formatPrice(service.price, session.company.currency)} · {duration(service.durationMinutes)}</small></button>
+        <div className="miniapp-profile-head"><Avatar employee={employee} /><div><h2>{employee.name}</h2><span><Star size={14} fill="currentColor" />{employee.reviewsCount ? `${employee.rating} · ${employee.reviewsCount} ${reviewWord(employee.reviewsCount)}` : 'Пока без оценок'}</span></div></div>
+        {employee.description && <p className="miniapp-profile-description">{employee.description}</p>}
+        <div className="miniapp-profile-section"><h3>Отзывы</h3>{employee.reviews.length ? <div className="miniapp-carousel">{employee.reviews.map((review) => <article className="miniapp-review-card" key={review.id}><div><b>{review.customerName}</b><span>{'★'.repeat(review.rating)}</span></div><p>{review.comment || 'Клиент оставил оценку без комментария.'}</p></article>)}</div> : <p className="miniapp-empty">Отзывов пока нет.</p>}</div>
+        <div className="miniapp-profile-section"><h3>Фото работ</h3>{employee.workExamples.length ? <div className="miniapp-carousel miniapp-work-carousel">{employee.workExamples.map((work) => <figure key={work.id}><img src={getWorkExampleImageUrl(work.id)} alt={work.caption || `Работа специалиста ${employee.name}`} loading="lazy" />{work.caption && <figcaption>{work.caption}</figcaption>}</figure>)}</div> : <p className="miniapp-empty">Специалист ещё не добавил примеры работ.</p>}</div>
+        <button className="miniapp-primary" onClick={() => setStep('time')}>Выбрать время</button>
+      </section>}
+
       {step === 'time' && service && employee && <section className="miniapp-time-step">
-        <button className="miniapp-choice-summary" onClick={() => setStep(service.employees.length > 1 ? 'employee' : 'service')}>
+        <button className="miniapp-choice-summary" onClick={() => setStep('profile')}>
           <span>{service.name} · {employee.name}</span><small>{duration(service.durationMinutes)} · {formatPrice(service.price, session.company.currency)}</small>
         </button>
         <div className="miniapp-dates" role="tablist" aria-label="Даты">
@@ -223,3 +238,4 @@ function weekday(value: string) { return new Intl.DateTimeFormat('ru-RU', { week
 function month(value: string) { return new Intl.DateTimeFormat('ru-RU', { month: 'short', timeZone: 'UTC' }).format(new Date(`${value}T12:00:00Z`)).replace('.', ''); }
 function duration(minutes: number) { return minutes < 60 ? `${minutes} мин` : `${Math.floor(minutes / 60)} ч${minutes % 60 ? ` ${minutes % 60} мин` : ''}`; }
 function formatPrice(price: string, currency: string) { return `${new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).format(Number(price))} ${currency}`; }
+function reviewWord(count: number) { const mod10 = count % 10; const mod100 = count % 100; return mod10 === 1 && mod100 !== 11 ? 'отзыв' : mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14) ? 'отзыва' : 'отзывов'; }

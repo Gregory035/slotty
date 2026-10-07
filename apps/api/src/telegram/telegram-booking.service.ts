@@ -12,6 +12,7 @@ import {
   BotStatus,
   Prisma,
   TelegramUpdateStatus,
+  WorkExampleSource,
 } from '@prisma/client';
 import { InlineKeyboard } from 'grammy';
 import type { Update, User } from 'grammy/types';
@@ -110,6 +111,10 @@ export class TelegramBookingService {
     }
 
     try {
+      if (!update.callback_query && update.message && 'photo' in update.message && update.message.photo?.length) {
+        const photo = update.message.photo.at(-1);
+        if (photo && await this.savePendingWorkPhoto(bot.companyId, token, context, photo.file_id)) return;
+      }
       if (!update.callback_query && update.message && 'text' in update.message) {
         const text = update.message.text?.trim();
         if (text && !text.startsWith('/') && await this.savePendingReviewComment(
@@ -186,6 +191,10 @@ export class TelegramBookingService {
     }
     if (parts[0] === 'vs' && parts.length === 2) {
       await this.skipReviewComment(companyId, token, context, decodeUuid(parts[1]!));
+      return;
+    }
+    if (parts[0] === 'wr' && parts.length === 2) {
+      await this.requestWorkPhoto(companyId, token, context, decodeUuid(parts[1]!));
       return;
     }
     if (parts[0] === 'x' && parts.length === 2) {
@@ -386,7 +395,7 @@ export class TelegramBookingService {
               { status: { in: [AppointmentStatus.COMPLETED, AppointmentStatus.NO_SHOW, AppointmentStatus.CANCELLED_BY_COMPANY, AppointmentStatus.CANCELLED_BY_CUSTOMER] } },
             ] }),
       },
-      include: { company: true, employee: true, service: true, review: true },
+      include: { company: true, employee: true, service: true, review: true, workExample: true },
       orderBy: [{ startsAt: scope === 'upcoming' ? 'asc' : 'desc' }, { id: 'asc' }],
       take: 10,
     });
@@ -443,7 +452,7 @@ export class TelegramBookingService {
   ): Promise<void> {
     const appointment = await this.prisma.appointment.findFirst({
       where: { id: appointmentId, companyId, customer: { telegramId: BigInt(context.user.id) } },
-      include: { company: true, employee: true, service: true, review: true },
+      include: { company: true, employee: true, service: true, review: true, workExample: true },
     });
     if (!appointment) throw new NotFoundException('Appointment not found');
     const date = new Intl.DateTimeFormat('ru-RU', {
@@ -458,6 +467,9 @@ export class TelegramBookingService {
     if (upcoming) {
       keyboard.text('Перенести', `r:${code}`).text('Отменить', `x:${code}`).row();
     }
+    if (appointment.status === AppointmentStatus.COMPLETED && !appointment.workExample?.publishedAt) {
+      keyboard.text('Добавить фото результата', `wr:${code}`).row();
+    }
     keyboard.text('Повторить запись', `p:${code}`).row();
     keyboard.text(upcoming ? 'К предстоящим' : 'К архиву', upcoming ? 'mu' : 'ma');
     await this.telegramApi.sendMessage(token, context.chatId, [
@@ -469,6 +481,7 @@ export class TelegramBookingService {
       `Статус: ${this.appointmentStatusLabel(appointment.status)}`,
       appointment.customerConfirmedAt ? 'Визит подтверждён клиентом ✅' : null,
       appointment.review ? `Оценка: ${appointment.review.rating} ★${appointment.review.comment ? `\n${appointment.review.comment}` : ''}` : null,
+      appointment.workExample?.publishedAt ? 'Фото результата опубликовано ✅' : null,
       appointment.company.address ? `Адрес: ${appointment.company.address}` : null,
       appointment.company.phone ? `Телефон: ${appointment.company.phone}` : null,
     ].filter((line): line is string => Boolean(line)).join('\n'), keyboard);
@@ -1005,6 +1018,60 @@ export class TelegramBookingService {
       data: { comment: comment.slice(0, 1000), commentRequestedAt: null },
     });
     await this.telegramApi.sendMessage(token, context.chatId, 'Спасибо! Отзыв сохранён.', new InlineKeyboard().text('Главное меню', 'h'));
+    return true;
+  }
+
+  private async requestWorkPhoto(
+    companyId: string,
+    token: string,
+    context: UpdateContext,
+    appointmentId: string,
+  ): Promise<void> {
+    const appointment = await this.prisma.appointment.findFirst({
+      where: { id: appointmentId, companyId, status: AppointmentStatus.COMPLETED, customer: { telegramId: BigInt(context.user.id) } },
+      select: { id: true, customerId: true, employeeId: true },
+    });
+    if (!appointment) throw new NotFoundException('Appointment not found');
+    await this.prisma.workExample.upsert({
+      where: { appointmentId_companyId: { appointmentId, companyId } },
+      update: { imageData: null, mimeType: null, publishedAt: null, uploadRequestedAt: new Date(), source: WorkExampleSource.CUSTOMER },
+      create: {
+        companyId,
+        employeeId: appointment.employeeId,
+        appointmentId,
+        customerId: appointment.customerId,
+        source: WorkExampleSource.CUSTOMER,
+        uploadRequestedAt: new Date(),
+      },
+    });
+    await this.telegramApi.sendMessage(token, context.chatId, 'Отправьте одним сообщением фотографию результата. Она появится в примерах работ этого специалиста.');
+  }
+
+  private async savePendingWorkPhoto(
+    companyId: string,
+    token: string,
+    context: UpdateContext,
+    fileId: string,
+  ): Promise<boolean> {
+    const work = await this.prisma.workExample.findFirst({
+      where: {
+        companyId,
+        source: WorkExampleSource.CUSTOMER,
+        imageData: null,
+        uploadRequestedAt: { gte: new Date(Date.now() - 2 * 60 * 60 * 1000) },
+        customer: { telegramId: BigInt(context.user.id) },
+      },
+      orderBy: { uploadRequestedAt: 'desc' },
+      select: { id: true },
+    });
+    if (!work) return false;
+    const photo = await this.telegramApi.downloadPhoto(token, fileId);
+    if (photo.buffer.length > 5 * 1024 * 1024) throw new BadRequestException('Photo is too large');
+    await this.prisma.workExample.update({
+      where: { id: work.id },
+      data: { imageData: Uint8Array.from(photo.buffer), mimeType: photo.mimeType, publishedAt: new Date(), uploadRequestedAt: null },
+    });
+    await this.telegramApi.sendMessage(token, context.chatId, 'Фото результата опубликовано ✅', new InlineKeyboard().text('Мои записи', 'm'));
     return true;
   }
 

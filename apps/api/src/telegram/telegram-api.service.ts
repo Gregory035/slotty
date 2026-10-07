@@ -71,4 +71,15 @@ export class TelegramApiService {
       reply_markup: { inline_keyboard: [] },
     });
   }
+
+  async downloadPhoto(token: string, fileId: string): Promise<{ buffer: Buffer; mimeType: string }> {
+    const file = await this.createApi(token).getFile(fileId);
+    if (!file.file_path) throw new Error('Telegram file path is missing');
+    const apiRoot = (process.env.TELEGRAM_API_ROOT?.trim() || 'https://api.telegram.org').replace(/\/$/, '');
+    const response = await fetch(`${apiRoot}/file/bot${token}/${file.file_path}`);
+    if (!response.ok) throw new Error(`Telegram file download failed: ${response.status}`);
+    const extension = file.file_path.split('.').pop()?.toLowerCase();
+    const mimeType = extension === 'png' ? 'image/png' : extension === 'webp' ? 'image/webp' : 'image/jpeg';
+    return { buffer: Buffer.from(await response.arrayBuffer()), mimeType };
+  }
 }

@@ -43,7 +43,7 @@ export class BillingService {
     const secretKey = this.config.get<string>('YOOKASSA_SECRET_KEY');
     const returnUrl = this.config.get<string>('PAYMENT_RETURN_URL');
     if (!shopId || !secretKey || !returnUrl) {
-      throw new ServiceUnavailableException('Payment provider is not configured');
+      throw new ServiceUnavailableException('Оплата временно недоступна. Обратитесь в поддержку Slotty');
     }
     const subscription = await this.prisma.subscription.findFirst({
       where: { companyId },
@@ -65,7 +65,7 @@ export class BillingService {
         metadata: { companyId, plan },
       }),
     });
-    if (!response.ok) throw new BadGatewayException('Payment provider is unavailable');
+    if (!response.ok) throw new BadGatewayException('Платёжный сервис временно недоступен');
     const provider = (await response.json()) as YooKassaPayment;
     if (!provider.id || !provider.confirmation?.confirmation_url) {
       throw new BadGatewayException('Invalid payment provider response');
@@ -137,11 +137,13 @@ export class BillingService {
   private async fetchProviderPayment(id: string): Promise<YooKassaPayment> {
     const shopId = this.config.get<string>('YOOKASSA_SHOP_ID');
     const secretKey = this.config.get<string>('YOOKASSA_SECRET_KEY');
-    if (!shopId || !secretKey) throw new ServiceUnavailableException('Payment provider is not configured');
+    if (!shopId || !secretKey) {
+      throw new ServiceUnavailableException('Оплата временно недоступна. Обратитесь в поддержку Slotty');
+    }
     const response = await fetch(`https://api.yookassa.ru/v3/payments/${encodeURIComponent(id)}`, {
       headers: { authorization: `Basic ${Buffer.from(`${shopId}:${secretKey}`).toString('base64')}` },
     });
-    if (!response.ok) throw new BadGatewayException('Payment provider is unavailable');
+    if (!response.ok) throw new BadGatewayException('Платёжный сервис временно недоступен');
     return (await response.json()) as YooKassaPayment;
   }
 
@@ -155,7 +157,7 @@ export class BillingService {
       !provider.amount?.value ||
       !new Prisma.Decimal(provider.amount.value).equals(payment.amount)
     ) {
-      throw new BadGatewayException('Payment provider returned inconsistent data');
+      throw new BadGatewayException('Платёжный сервис вернул некорректный ответ');
     }
   }
 

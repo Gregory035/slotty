@@ -1,6 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" fill="none">
-  <rect width="28" height="28" rx="4" fill="#11110F"/>
-  <path d="M7 6v16M21 6v16" stroke="#F3F3EF" stroke-width="3"/>
-  <path d="M10 10h8v8h-8z" fill="#F3F3EF"/>
-  <path d="M12.5 12.5h3v3h-3z" fill="#11110F"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Slotty">
+  <path fill="#0A0A0A" d="M16 8h32a8 8 0 0 1 8 8v2a8 8 0 0 1-8 8H38v-8H16a5 5 0 0 1 0-10Z"/>
+  <path fill="#0A0A0A" d="M26 38v8h22a5 5 0 0 1 0 10H16a8 8 0 0 1-8-8v-2a8 8 0 0 1 8-8h10Z"/>
+  <rect x="26" y="26" width="12" height="12" rx="2" fill="#C7FF31"/>
 </svg>

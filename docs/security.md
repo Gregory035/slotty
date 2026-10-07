@@ -3,6 +3,7 @@
 ## Реализовано
 
 - bcrypt-equivalent `scrypt` с уникальной солью для паролей;
+- одноразовые хешированные токены восстановления пароля с ограниченным сроком действия и отзывом всех сессий после смены пароля;
 - короткий JWT access token, refresh token hash SHA-256 в БД;
 - HttpOnly/Secure production cookie, `SameSite=Lax`, path `/api/auth`, 30 дней;
 - refresh rotation, reuse detection, revoke current/all sessions;

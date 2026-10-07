@@ -67,7 +67,7 @@ export function LandingPage() {
     <MarketingLayout>
       <section className="landing-hero" ref={heroRef} onPointerMove={moveHeroGlow} onPointerLeave={resetHeroGlow}>
         <span className="landing-hero-cursor-glow" aria-hidden="true" />
-        <span className="landing-hero-mark" aria-hidden="true"><SlottyMark size={44} /></span>
+        <span className="landing-hero-mark" aria-hidden="true"><SlottyMark size={44} tone="light" /></span>
         <p className="eyebrow">Онлайн-запись для бизнеса услуг</p>
         <h1>Slotty</h1>
         <p className="landing-hero-tagline">Клиент записывается через Telegram.<br />Вы управляете расписанием в одной панели.</p>
@@ -216,7 +216,7 @@ function BookingDemo() {
         <div className="demo-sync" aria-hidden="true"><span><ArrowRight size={15} /></span></div>
 
         <div className="demo-panel" aria-label="Демонстрация панели Slotty">
-          <header><div><span className="landing-product-mark"><SlottyMark size={21} /></span><b>Slotty</b></div><span><i /> Синхронизировано</span></header>
+          <header><div><span className="landing-product-mark"><SlottyMark size={21} tone="dark" /></span><b>Slotty</b></div><span><i /> Синхронизировано</span></header>
           <div className="demo-panel-title"><div><p className="eyebrow">Сегодня</p><h3>Расписание</h3></div><button type="button" onClick={resetDemo} aria-label="Начать демонстрацию заново"><RotateCcw size={15} /> Заново</button></div>
           <div className="demo-schedule" aria-live="polite">
             <span>09:00</span><article><b>Анна Миронова</b><small>Окрашивание · Елена</small></article>

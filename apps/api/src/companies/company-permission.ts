@@ -10,6 +10,7 @@ export enum CompanyPermission {
   SERVICES_MANAGE = 'services:manage',
   EMPLOYEES_READ = 'employees:read',
   EMPLOYEES_MANAGE = 'employees:manage',
+  PORTFOLIO_MANAGE = 'portfolio:manage',
   SCHEDULE_READ = 'schedule:read',
   SCHEDULE_MANAGE = 'schedule:manage',
   APPOINTMENTS_READ = 'appointments:read',
@@ -40,6 +41,7 @@ export const ROLE_PERMISSIONS: Record<CompanyRole, ReadonlySet<CompanyPermission
     CompanyPermission.SERVICES_MANAGE,
     CompanyPermission.EMPLOYEES_READ,
     CompanyPermission.EMPLOYEES_MANAGE,
+    CompanyPermission.PORTFOLIO_MANAGE,
     CompanyPermission.SCHEDULE_READ,
     CompanyPermission.SCHEDULE_MANAGE,
     CompanyPermission.APPOINTMENTS_READ,
@@ -60,6 +62,7 @@ export const ROLE_PERMISSIONS: Record<CompanyRole, ReadonlySet<CompanyPermission
     CompanyPermission.SCHEDULE_MANAGE,
     CompanyPermission.APPOINTMENTS_READ,
     CompanyPermission.APPOINTMENTS_STATUS,
+    CompanyPermission.PORTFOLIO_MANAGE,
   ]),
 };
 

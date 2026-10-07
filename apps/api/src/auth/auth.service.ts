@@ -4,8 +4,8 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { Prisma, User } from '@prisma/client';
-import { createHash } from 'node:crypto';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../database/prisma.service';
 import { UsersService } from '../users/users.service';
 import { AuthResponseDto, AuthenticatedUserDto } from './dto/auth-response.dto';
@@ -13,6 +13,7 @@ import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { PasswordService } from './password.service';
 import { ACCESS_TOKEN_TTL_SECONDS, TokenService } from './token.service';
+import { PasswordResetMailerService } from './password-reset-mailer.service';
 
 const REFRESH_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const DUMMY_PASSWORD_HASH =
@@ -30,6 +31,8 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly passwords: PasswordService,
     private readonly tokens: TokenService,
+    private readonly config: ConfigService,
+    private readonly passwordResetMailer: PasswordResetMailerService,
   ) {}
 
   async register(input: RegisterDto): Promise<IssuedSession> {
@@ -162,6 +165,53 @@ export class AuthService {
     await this.auditUserCompanies(userId, 'auth.logout_all');
   }
 
+  async requestPasswordReset(input: { email: string }): Promise<void> {
+    this.passwordResetMailer.assertConfigured();
+    const user = await this.users.findByEmail(this.normalizeEmail(input.email));
+    if (!user) return;
+    const ttlMinutes = this.config.get<number>('PASSWORD_RESET_TTL_MINUTES') ?? 30;
+    const token = randomBytes(32).toString('base64url');
+    await this.prisma.$transaction(async (transaction) => {
+      await transaction.passwordResetToken.deleteMany({ where: { userId: user.id } });
+      await transaction.passwordResetToken.create({ data: {
+        userId: user.id,
+        tokenHash: this.hashPasswordResetToken(token),
+        expiresAt: new Date(Date.now() + ttlMinutes * 60_000),
+      } });
+    });
+    const webUrl = new URL(this.config.getOrThrow<string>('WEB_URL'));
+    webUrl.pathname = '/app';
+    webUrl.search = 'mode=reset-password';
+    webUrl.hash = new URLSearchParams({ token }).toString();
+    try {
+      await this.passwordResetMailer.send({ email: user.email, firstName: user.firstName, resetUrl: webUrl.toString(), expiresInMinutes: ttlMinutes });
+    } catch (error) {
+      await this.prisma.passwordResetToken.deleteMany({ where: { userId: user.id, tokenHash: this.hashPasswordResetToken(token) } });
+      throw error;
+    }
+  }
+
+  async resetPassword(input: { token: string; password: string }): Promise<void> {
+    const resetToken = await this.prisma.passwordResetToken.findUnique({
+      where: { tokenHash: this.hashPasswordResetToken(input.token) },
+      select: { id: true, userId: true, expiresAt: true, usedAt: true },
+    });
+    if (!resetToken || resetToken.usedAt || resetToken.expiresAt <= new Date()) {
+      throw new UnauthorizedException('Ссылка для восстановления недействительна или устарела');
+    }
+    const passwordHash = await this.passwords.hash(input.password);
+    const completed = await this.prisma.$transaction(async (transaction) => {
+      const used = await transaction.passwordResetToken.updateMany({ where: { id: resetToken.id, usedAt: null, expiresAt: { gt: new Date() } }, data: { usedAt: new Date() } });
+      if (used.count !== 1) return false;
+      await transaction.user.update({ where: { id: resetToken.userId }, data: { passwordHash } });
+      await transaction.refreshToken.updateMany({ where: { userId: resetToken.userId, revokedAt: null }, data: { revokedAt: new Date() } });
+      await transaction.passwordResetToken.deleteMany({ where: { userId: resetToken.userId, id: { not: resetToken.id } } });
+      return true;
+    });
+    if (!completed) throw new UnauthorizedException('Ссылка для восстановления недействительна или устарела');
+    await this.auditUserCompanies(resetToken.userId, 'auth.password_reset');
+  }
+
   private async issueSession(user: User): Promise<IssuedSession> {
     const refreshToken = this.tokens.createRefreshToken();
 
@@ -204,6 +254,10 @@ export class AuthService {
 
   private hashRefreshToken(refreshToken: string): string {
     return createHash('sha256').update(refreshToken).digest('hex');
+  }
+
+  private hashPasswordResetToken(token: string): string {
+    return createHash('sha256').update(token).digest('hex');
   }
 
   private async auditUserCompanies(userId: string, action: string): Promise<void> {

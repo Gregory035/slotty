@@ -9,6 +9,7 @@ import type {
   CustomerDetails,
   Dashboard,
   Employee,
+  EmployeeWorkExample,
   Entitlements,
   Payment,
   ScheduleException,
@@ -62,15 +63,23 @@ async function responseBody<T>(response: Response): Promise<T> {
   return (body ? JSON.parse(body) : null) as T;
 }
 
+async function fetchResponse(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  try {
+    return await fetch(input, init);
+  } catch {
+    throw new ApiError('Не удалось связаться с сервером. Проверьте интернет и повторите попытку', 0);
+  }
+}
+
 async function publicRequest<T>(
   path: string,
   options: RequestInit = {},
 ): Promise<T> {
-  const response = await fetch(`${apiUrl}${path}`, {
+  const response = await fetchResponse(`${apiUrl}${path}`, {
     ...options,
     credentials: 'include',
     headers: {
-      ...(options.body ? { 'content-type': 'application/json' } : {}),
+      ...(options.body && !(options.body instanceof FormData) ? { 'content-type': 'application/json' } : {}),
       ...options.headers,
     },
   });
@@ -83,7 +92,7 @@ async function miniAppRequest<T>(
   path: 'session' | 'availability' | 'book',
   input: Record<string, string>,
 ): Promise<T> {
-  const response = await fetch(`${apiUrl}/telegram/miniapp/${companyId}/${path}`, {
+  const response = await fetchResponse(`${apiUrl}/telegram/miniapp/${companyId}/${path}`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(input),
@@ -125,11 +134,11 @@ async function request<T>(
 ): Promise<T> {
   const session = readSession();
   if (!session) throw new ApiError('Войдите в аккаунт', 401);
-  const response = await fetch(`${apiUrl}${path}`, {
+  const response = await fetchResponse(`${apiUrl}${path}`, {
     ...options,
     credentials: 'include',
     headers: {
-      ...(options.body ? { 'content-type': 'application/json' } : {}),
+      ...(options.body && !(options.body instanceof FormData) ? { 'content-type': 'application/json' } : {}),
       authorization: `Bearer ${session.accessToken}`,
       ...options.headers,
     },
@@ -165,6 +174,14 @@ export function register(input: {
     method: 'POST',
     body: JSON.stringify(input),
   });
+}
+
+export function requestPasswordReset(input: { email: string }): Promise<void> {
+  return publicRequest<void>('/auth/password-reset/request', { method: 'POST', body: JSON.stringify(input) });
+}
+
+export function resetPassword(input: { token: string; password: string }): Promise<void> {
+  return publicRequest<void>('/auth/password-reset/confirm', { method: 'POST', body: JSON.stringify(input) });
 }
 
 export async function restoreSession(): Promise<Session | null> {
@@ -254,6 +271,28 @@ export const deleteEmployee = (companyId: string, employeeId: string) =>
   request<void>(`/companies/${companyId}/employees/${employeeId}`, {
     method: 'DELETE',
   });
+
+export const getEmployeeWorkExamples = (companyId: string, employeeId: string) =>
+  request<EmployeeWorkExample[]>(`/companies/${companyId}/employees/${employeeId}/work-examples`);
+
+export const uploadEmployeeWorkExample = (
+  companyId: string,
+  employeeId: string,
+  input: { photo: File; caption?: string },
+) => {
+  const body = new FormData();
+  body.set('photo', input.photo);
+  if (input.caption) body.set('caption', input.caption);
+  return request<EmployeeWorkExample>(`/companies/${companyId}/employees/${employeeId}/work-examples`, {
+    method: 'POST',
+    body,
+  });
+};
+
+export const deleteEmployeeWorkExample = (companyId: string, employeeId: string, workId: string) =>
+  request<void>(`/companies/${companyId}/employees/${employeeId}/work-examples/${workId}`, { method: 'DELETE' });
+
+export const getWorkExampleImageUrl = (workId: string) => `${apiUrl}/work-examples/${workId}/image`;
 
 export const getSchedule = (companyId: string, employeeId: string) =>
   request<ScheduleRule[]>(
@@ -454,7 +493,7 @@ export const getAppointmentCalendar = (companyId: string, appointmentId: string)
 async function requestBlob(path: string, retried = false): Promise<Blob> {
   const session = readSession();
   if (!session) throw new ApiError('Войдите в аккаунт', 401);
-  const response = await fetch(`${apiUrl}${path}`, {
+  const response = await fetchResponse(`${apiUrl}${path}`, {
     credentials: 'include',
     headers: { authorization: `Bearer ${session.accessToken}` },
   });

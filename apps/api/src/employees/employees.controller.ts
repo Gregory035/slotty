@@ -9,6 +9,9 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Res,
+  UploadedFile,
+  UseInterceptors,
   UseGuards,
 } from '@nestjs/common';
 import {
@@ -30,6 +33,8 @@ import { EmployeeResponseDto } from './dto/employee-response.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
 import { EmployeesService } from './employees.service';
 import { AssignEmployeeServiceDto } from './dto/assign-service.dto';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { CreateWorkExampleDto } from './dto/create-work-example.dto';
 
 @ApiTags('employees')
 @ApiBearerAuth()
@@ -117,5 +122,49 @@ export class EmployeesController {
     @CurrentUser() user: AuthenticatedUserDto,
   ): Promise<EmployeeResponseDto> {
     return this.employees.unassignService(companyId, employeeId, serviceId, user.id);
+  }
+
+  @Get(':employeeId/work-examples')
+  @RequirePermissions(CompanyPermission.PORTFOLIO_MANAGE)
+  workExamples(@Param('companyId') companyId: string, @Param('employeeId', ParseUUIDPipe) employeeId: string, @CurrentUser() user: AuthenticatedUserDto) {
+    return this.employees.listWorkExamples(companyId, employeeId, user.id);
+  }
+
+  @Post(':employeeId/work-examples')
+  @RequirePermissions(CompanyPermission.PORTFOLIO_MANAGE)
+  @UseInterceptors(FileInterceptor('photo', { limits: { fileSize: 5 * 1024 * 1024, files: 1 } }))
+  addWorkExample(
+    @Param('companyId') companyId: string,
+    @Param('employeeId', ParseUUIDPipe) employeeId: string,
+    @CurrentUser() user: AuthenticatedUserDto,
+    @UploadedFile() file: { buffer: Buffer; mimetype: string; size: number } | undefined,
+    @Body() input: CreateWorkExampleDto,
+  ) {
+    return this.employees.addWorkExample(companyId, employeeId, user.id, file, input.caption);
+  }
+
+  @Delete(':employeeId/work-examples/:workId')
+  @RequirePermissions(CompanyPermission.PORTFOLIO_MANAGE)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  deleteWorkExample(
+    @Param('companyId') companyId: string,
+    @Param('employeeId', ParseUUIDPipe) employeeId: string,
+    @Param('workId', ParseUUIDPipe) workId: string,
+    @CurrentUser() user: AuthenticatedUserDto,
+  ) {
+    return this.employees.deleteWorkExample(companyId, employeeId, workId, user.id);
+  }
+}
+
+@Controller('work-examples')
+export class PublicWorkExamplesController {
+  constructor(private readonly employees: EmployeesService) {}
+
+  @Get(':id/image')
+  async image(@Param('id', ParseUUIDPipe) id: string, @Res() response: { setHeader(name: string, value: string): void; send(body: Buffer): void }) {
+    const image = await this.employees.getPublishedWorkImage(id);
+    response.setHeader('Content-Type', image.mimeType!);
+    response.setHeader('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
+    response.send(Buffer.from(image.imageData!));
   }
 }

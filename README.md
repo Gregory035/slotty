@@ -96,6 +96,18 @@ npm run build -w @slotty/web
 
 При необходимости задайте `VITE_GA_MEASUREMENT_ID` и `VITE_YM_COUNTER_ID`. Счётчики запускаются только после согласия, учитывают Do Not Track и не получают страницы кабинета. Аудит, карта контента и действия после релиза: [SEO-аудит](docs/seo-audit.md), [SEO-чек-лист](docs/seo-checklist.md), [контент-план](docs/seo-content-plan.md).
 
+## Восстановление пароля
+
+Письма отправляются через Resend. В production обязательны `RESEND_API_KEY` и `PASSWORD_RESET_FROM_EMAIL`, причём домен отправителя должен быть подтверждён в Resend. Ссылка одноразовая, по умолчанию действует 30 минут; после смены пароля все активные сессии пользователя отзываются.
+
+```bash
+RESEND_API_KEY=re_...
+PASSWORD_RESET_FROM_EMAIL=Slotty <support@slotty23.ru>
+PASSWORD_RESET_TTL_MINUTES=30
+```
+
+Секретный ключ храните только в `.env` или в секретах сервера — не добавляйте его в Git.
+
 ## Production deployment
 
 ```bash

@@ -85,6 +85,14 @@ export interface Employee {
   updatedAt: string;
 }
 
+export interface EmployeeWorkExample {
+  id: string;
+  caption: string | null;
+  source: 'CUSTOMER' | 'EMPLOYEE';
+  publishedAt: string;
+  createdAt: string;
+}
+
 export interface ScheduleRule {
   id: string;
   companyId: string;
@@ -183,6 +191,20 @@ export interface MiniAppEmployee {
   photoUrl: string | null;
   description: string | null;
   color: string;
+  rating: number;
+  reviewsCount: number;
+  reviews: Array<{
+    id: string;
+    rating: number;
+    comment: string | null;
+    createdAt: string;
+    customerName: string;
+  }>;
+  workExamples: Array<{
+    id: string;
+    caption: string | null;
+    publishedAt: string;
+  }>;
 }
 
 export interface MiniAppService {

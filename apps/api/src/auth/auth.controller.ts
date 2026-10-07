@@ -27,6 +27,8 @@ import { CurrentUser } from './decorators/current-user.decorator';
 import { AuthResponseDto, AuthenticatedUserDto } from './dto/auth-response.dto';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
+import { RequestPasswordResetDto } from './dto/request-password-reset.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 import { AccessTokenGuard } from './guards/access-token.guard';
 import { RateLimits } from '../rate-limit/rate-limit.decorator';
 
@@ -78,6 +80,26 @@ export class AuthController {
     const session = await this.auth.login(input);
     this.cookies.set(response, session.refreshToken);
     return session.response;
+  }
+
+  @Post('password-reset/request')
+  @RateLimits(
+    { name: 'password-reset-ip', identity: 'ip', limitEnv: 'RATE_LIMIT_PASSWORD_RESET_MAX', windowEnv: 'RATE_LIMIT_PASSWORD_RESET_WINDOW_SECONDS', defaultLimit: 3, defaultWindowSeconds: 3600 },
+    { name: 'password-reset-email', identity: 'email', limitEnv: 'RATE_LIMIT_PASSWORD_RESET_MAX', windowEnv: 'RATE_LIMIT_PASSWORD_RESET_WINDOW_SECONDS', defaultLimit: 3, defaultWindowSeconds: 3600 },
+  )
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiNoContentResponse({ description: 'A recovery email is sent if the account exists' })
+  async requestPasswordReset(@Body() input: RequestPasswordResetDto): Promise<void> {
+    await this.auth.requestPasswordReset(input);
+  }
+
+  @Post('password-reset/confirm')
+  @RateLimits({ name: 'password-reset-confirm', identity: 'ip', limitEnv: 'RATE_LIMIT_PASSWORD_RESET_MAX', windowEnv: 'RATE_LIMIT_PASSWORD_RESET_WINDOW_SECONDS', defaultLimit: 3, defaultWindowSeconds: 3600 })
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiNoContentResponse()
+  @ApiUnauthorizedResponse({ description: 'Reset token is invalid or expired' })
+  async resetPassword(@Body() input: ResetPasswordDto): Promise<void> {
+    await this.auth.resetPassword(input);
   }
 
   @Post('refresh')

@@ -38,6 +38,8 @@ const environmentSchema = z.object({
   RATE_LIMIT_AVAILABILITY_WINDOW_SECONDS: z.coerce.number().int().positive().default(60),
   RATE_LIMIT_CONNECT_BOT_MAX: z.coerce.number().int().positive().default(5),
   RATE_LIMIT_CONNECT_BOT_WINDOW_SECONDS: z.coerce.number().int().positive().default(3600),
+  RATE_LIMIT_PASSWORD_RESET_MAX: z.coerce.number().int().positive().default(3),
+  RATE_LIMIT_PASSWORD_RESET_WINDOW_SECONDS: z.coerce.number().int().positive().default(3600),
   JWT_ACCESS_SECRET: z.string().min(32),
   JWT_REFRESH_SECRET: z.string().min(32),
   BOT_TOKEN_ENCRYPTION_KEY: z.string().min(32),
@@ -49,6 +51,9 @@ const environmentSchema = z.object({
     z.string().min(32).optional(),
   ),
   ERROR_TRACKING_URL: optionalUrl,
+  RESEND_API_KEY: optionalString,
+  PASSWORD_RESET_FROM_EMAIL: optionalString,
+  PASSWORD_RESET_TTL_MINUTES: z.coerce.number().int().min(5).max(1440).default(30),
 });
 
 export type Environment = z.infer<typeof environmentSchema>;

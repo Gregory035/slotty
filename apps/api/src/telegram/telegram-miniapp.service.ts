@@ -68,6 +68,20 @@ export class TelegramMiniAppService {
                 photoUrl: true,
                 description: true,
                 color: true,
+                workExamples: {
+                  where: { publishedAt: { not: null }, imageData: { not: null } },
+                  select: { id: true, caption: true, publishedAt: true },
+                  orderBy: { publishedAt: 'desc' },
+                  take: 20,
+                },
+                appointments: {
+                  where: { review: { isNot: null } },
+                  select: {
+                    review: { select: { id: true, rating: true, comment: true, createdAt: true, customer: { select: { firstName: true } } } },
+                  },
+                  orderBy: { startsAt: 'desc' },
+                  take: 20,
+                },
               },
             },
           },
@@ -82,10 +96,23 @@ export class TelegramMiniAppService {
       services: services.map((service) => ({
         ...service,
         price: service.price.toFixed(2),
-        employees: service.employees.map(({ employee }) => ({
-          ...employee,
-          name: [employee.firstName, employee.lastName].filter(Boolean).join(' '),
-        })),
+        employees: service.employees.map(({ employee }) => {
+          const reviews = employee.appointments.flatMap(({ review }) => review ? [{ ...review, customerName: review.customer.firstName }] : []);
+          const rating = reviews.length ? Number((reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length).toFixed(1)) : 0;
+          return {
+            id: employee.id,
+            firstName: employee.firstName,
+            lastName: employee.lastName,
+            name: [employee.firstName, employee.lastName].filter(Boolean).join(' '),
+            photoUrl: employee.photoUrl,
+            description: employee.description,
+            color: employee.color,
+            rating,
+            reviewsCount: reviews.length,
+            reviews,
+            workExamples: employee.workExamples,
+          };
+        }),
       })),
     };
   }

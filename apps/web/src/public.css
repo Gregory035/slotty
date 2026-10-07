@@ -19,6 +19,17 @@ a { color:inherit; }
 .brand-mark { display:grid; width:32px; height:32px; place-items:center; border-radius:6px; color:var(--surface); background:var(--text); }
 .brand-wordmark { font-size:18px; font-weight:700; letter-spacing:-.035em; }
 .brand-home { display:inline-flex; flex:0 0 auto; border-radius:8px; text-decoration:none; }
+.slotty-logo-asset { display:block; line-height:0; }
+.slotty-logo-asset img { display:block; }
+.slotty-logo-asset-icon { width:var(--slotty-logo-size,32px); height:var(--slotty-logo-size,32px); }
+.slotty-logo-asset-icon img { width:100%; height:100%; }
+.slotty-logo-asset-horizontal { width:112px; height:32px; }
+.slotty-logo-asset-horizontal img { width:100%; height:100%; }
+.slotty-logo-dark { display:none!important; }
+[data-theme='dark'] .slotty-logo-asset-auto .slotty-logo-light { display:none!important; }
+[data-theme='dark'] .slotty-logo-asset-auto .slotty-logo-dark { display:block!important; }
+.slotty-logo-asset-light .slotty-logo-dark, .slotty-logo-asset-dark .slotty-logo-light { display:none!important; }
+.slotty-logo-asset-light .slotty-logo-light, .slotty-logo-asset-dark .slotty-logo-dark { display:block!important; }
 .eyebrow { margin:0 0 8px; color:var(--muted); font-size:11px; font-weight:700; letter-spacing:.055em; line-height:1; text-transform:uppercase; }
 .primary-button,.secondary-button { display:inline-flex; min-height:40px; align-items:center; justify-content:center; gap:8px; padding:0 15px; border:1px solid transparent; border-radius:7px; font-size:13px; font-weight:650; text-decoration:none; transition:background-color .15s ease,border-color .15s ease,transform .15s ease; }
 .primary-button,.lime-button { color:var(--accent-ink); border-color:var(--accent); background:var(--accent); }
