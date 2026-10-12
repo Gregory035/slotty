@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, Trash2 } from 'lucide-react';
 import { getEmployees, getSchedule, replaceSchedule } from '../api';
@@ -12,9 +12,9 @@ type DraftRule = { key: string; weekday: number; startTime: string; endTime: str
 
 export function ScheduleView({ company }: { company: Company }) {
   const employees = useQuery({ queryKey: ['employees', company.id], queryFn: () => getEmployees(company.id) });
-  const availableEmployees = company.role === 'EMPLOYEE'
+  const availableEmployees = useMemo(() => company.role === 'EMPLOYEE'
     ? employees.data?.filter((item) => item.id === company.employeeId) ?? []
-    : employees.data ?? [];
+    : employees.data ?? [], [company.employeeId, company.role, employees.data]);
   const [employeeId, setEmployeeId] = useState(company.employeeId ?? '');
   useEffect(() => { if (!employeeId && availableEmployees[0]) setEmployeeId(availableEmployees[0].id); }, [availableEmployees, employeeId]);
   const schedule = useQuery({ queryKey: ['schedule', company.id, employeeId], queryFn: () => getSchedule(company.id, employeeId), enabled: Boolean(employeeId) });

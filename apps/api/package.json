@@ -7,7 +7,7 @@
     "dev": "nest start --watch",
     "start": "node dist/main.js",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "lint": "tsc --noEmit -p tsconfig.json",
+    "lint": "eslint src test --max-warnings=0",
     "test": "jest --runInBand",
     "test:coverage": "jest --runInBand --coverage",
     "test:integration": "jest --config jest.integration.json --runInBand",

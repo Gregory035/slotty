@@ -27,7 +27,7 @@ export function AuthScreen() {
     setMode(next);
     setError(null);
     setNotice(null);
-    navigate(next === 'login' ? '/app' : next === 'register' ? '/app?mode=register' : '/app?mode=forgot-password', { replace: true });
+    void navigate(next === 'login' ? '/app' : next === 'register' ? '/app?mode=register' : '/app?mode=forgot-password', { replace: true });
     if (next === 'register') trackEvent('registration_start');
   }
 
@@ -52,7 +52,7 @@ export function AuthScreen() {
         await resetPassword({ token: resetToken, password });
         setMode('login');
         setNotice('Пароль обновлён. Теперь войдите с новым паролем.');
-        navigate('/app', { replace: true });
+        void navigate('/app', { replace: true });
         return;
       }
       const session = mode === 'login'

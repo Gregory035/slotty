@@ -92,14 +92,14 @@ export function AppShell({
 
   function openSection(next: Section) {
     closeSidebar();
-    navigate(`/companies/${activeCompany.id}/${next}`);
+    void navigate(`/companies/${activeCompany.id}/${next}`);
   }
 
   function selectCompany(companyId: string) {
     const company = companies.find((item) => item.id === companyId);
     if (!company) return;
     setActiveCompanyId(companyId);
-    navigate(`/companies/${companyId}/${company.role === 'EMPLOYEE' ? 'calendar' : 'dashboard'}`);
+    void navigate(`/companies/${companyId}/${company.role === 'EMPLOYEE' ? 'calendar' : 'dashboard'}`);
   }
 
   useEffect(() => {

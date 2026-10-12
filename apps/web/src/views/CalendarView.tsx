@@ -31,14 +31,14 @@ export function CalendarView({ company }: { company: Company }) {
       {appointments.isLoading || employees.isLoading ? <LoadingBlock /> : appointments.error ? <ErrorBlock message="Не удалось загрузить календарь" /> : <div className="calendar-scroll"><div className={`calendar-grid calendar-grid-${days.length}`}>
         <div className="calendar-corner">{employees.data?.length ? `${employees.data.length} в команде` : 'Команда'}</div>{days.map((day) => <div className="calendar-day-label" key={day.toISOString()}><span>{new Intl.DateTimeFormat('ru-RU', { weekday: 'short', timeZone: company.timezone }).format(day)}</span><b>{new Intl.DateTimeFormat('ru-RU', { day: 'numeric', timeZone: company.timezone }).format(day)}</b></div>)}
         <div className="calendar-times">{hourRows.map((hour) => <span key={hour}>{String(hour).padStart(2, '0')}:00</span>)}</div>
-        {days.map((day) => <CalendarDay key={day.toISOString()} day={day} items={inRange.filter((item) => isSameDay(new Date(item.startsAt), day))} company={company} onSelect={setSelected} />)}
+        {days.map((day) => <CalendarDay key={day.toISOString()} items={inRange.filter((item) => isSameDay(new Date(item.startsAt), day))} company={company} onSelect={setSelected} />)}
       </div></div>}
     </section>
     {selected && <aside className="appointment-drawer" role="dialog" aria-label="Детали записи"><header><span className="eyebrow">Запись</span><button className="icon-button" onClick={() => setSelected(null)} aria-label="Закрыть"><X size={18} /></button></header><div className="drawer-avatar">{selected.customer.firstName.slice(0, 1)}{selected.customer.lastName?.slice(0, 1)}</div><h2>{selected.customer.firstName} {selected.customer.lastName}</h2><span className={`status-badge ${statusTone[selected.status]}`}>{statusLabel[selected.status]}</span><dl><div><dt>Услуга</dt><dd>{selected.service.name}</dd></div><div><dt>Время</dt><dd>{formatTime(selected.startsAt, company.timezone)} · {selected.service.durationMinutes} мин</dd></div><div><dt>Специалист</dt><dd>{selected.employee.firstName} {selected.employee.lastName}</dd></div><div><dt>Стоимость</dt><dd>{formatMoney(selected.price, selected.currency)}</dd></div></dl></aside>}
   </>;
 }
 
-function CalendarDay({ day, items, company, onSelect }: { day: Date; items: Appointment[]; company: Company; onSelect: (item: Appointment) => void }) {
+function CalendarDay({ items, company, onSelect }: { items: Appointment[]; company: Company; onSelect: (item: Appointment) => void }) {
   return <div className="calendar-day-column">{hourRows.map((hour) => <span className="calendar-hour-line" key={hour} />)}{items.map((item) => { const time = new Date(item.startsAt); const start = (time.getHours() - 9) * 72 + (time.getMinutes() / 60) * 72; const height = Math.max(38, item.service.durationMinutes / 60 * 72); return <button className={`calendar-event ${statusTone[item.status]}`} style={{ top: `${Math.max(0, start)}px`, height: `${height}px` }} onClick={() => onSelect(item)} key={item.id}><b>{formatTime(item.startsAt, company.timezone)} · {item.customer.firstName}</b><span>{item.service.name}</span></button>; })}</div>;
 }
 function startMonday(date: Date) { const copy = new Date(date); copy.setHours(0, 0, 0, 0); const day = (copy.getDay() + 6) % 7; copy.setDate(copy.getDate() - day); return copy; }

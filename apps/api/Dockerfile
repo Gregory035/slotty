@@ -26,6 +26,13 @@ COPY --from=production-dependencies --chown=node:node /app/node_modules ./node_m
 COPY --from=build --chown=node:node /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=build --chown=node:node /app/apps/api/dist ./apps/api/dist
 COPY --from=build --chown=node:node /app/apps/api/package.json ./apps/api/package.json
+RUN rm -rf \
+  /usr/local/lib/node_modules/npm \
+  /usr/local/bin/npm \
+  /usr/local/bin/npx \
+  /app/node_modules/prisma \
+  /app/node_modules/@prisma/config \
+  /app/node_modules/deepmerge-ts
 USER node
 EXPOSE 3000
 HEALTHCHECK --interval=15s --timeout=3s --start-period=15s --retries=3 \

@@ -140,7 +140,7 @@ function CustomerModal({ company, customer, onClose }: { company: Company; custo
     const target = appointment ?? repeat;
     if (!target) return;
     onClose();
-    navigate(`/companies/${company.id}/appointments?customerId=${customer.id}&serviceId=${target.service.id}&employeeId=${target.employee.id}`);
+    void navigate(`/companies/${company.id}/appointments?customerId=${customer.id}&serviceId=${target.service.id}&employeeId=${target.employee.id}`);
   }
   return (
     <Modal open title="Карточка клиента" description={`Всего записей: ${customer.statistics.appointments}`} onClose={onClose}>

@@ -9,6 +9,7 @@ import {
 } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import { WaitlistService } from '../waitlist/waitlist.service';
+import { AdaptivePollingLoop } from '../common/adaptive-polling-loop';
 
 const MAX_ATTEMPTS = 5;
 const STALE_PROCESSING_MS = 5 * 60_000;
@@ -17,31 +18,33 @@ const WAITLIST_SWEEP_MS = 60_000;
 @Injectable()
 export class OutboxWorker implements OnApplicationBootstrap, OnApplicationShutdown {
   private readonly logger = new Logger(OutboxWorker.name);
-  private timer?: NodeJS.Timeout;
+  private readonly polling: AdaptivePollingLoop;
   private running = false;
   private lastWaitlistSweep = 0;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly waitlist: WaitlistService,
-  ) {}
+  ) {
+    this.polling = new AdaptivePollingLoop(() => this.tick(), {
+      activeDelayMs: 500,
+      idleDelaysMs: [1_000, 2_000, 5_000],
+      onError: (error) => this.logger.error('Outbox worker tick failed', error),
+    });
+  }
 
   onApplicationBootstrap(): void {
-    this.timer = setInterval(() => {
-      void this.tick().catch((error: unknown) => {
-        this.logger.error('Outbox worker tick failed', error);
-      });
-    }, 500);
-    this.timer.unref();
+    this.polling.start();
   }
 
   onApplicationShutdown(): void {
-    if (this.timer) clearInterval(this.timer);
+    this.polling.stop();
   }
 
-  async tick(): Promise<void> {
-    if (this.running) return;
+  async tick(): Promise<number> {
+    if (this.running) return 0;
     this.running = true;
+    let processed = 0;
     try {
       if (Date.now() - this.lastWaitlistSweep >= WAITLIST_SWEEP_MS) {
         this.lastWaitlistSweep = Date.now();
@@ -62,11 +65,13 @@ export class OutboxWorker implements OnApplicationBootstrap, OnApplicationShutdo
       for (let count = 0; count < 20; count += 1) {
         const event = await this.claim();
         if (!event) break;
+        processed += 1;
         await this.process(event);
       }
     } finally {
       this.running = false;
     }
+    return processed;
   }
 
   private async claim(): Promise<OutboxEvent | null> {

@@ -108,7 +108,7 @@ function SubscriptionExpiryNotice({ company }: { company: Company }) {
   useEffect(() => setDismissed(false), [company.id]);
   if (!trialExpired || dismissed) return null;
   const canPurchase = company.role === 'OWNER';
-  return <Modal open title="Пробный период завершён" description="Новые записи и изменения временно остановлены. Выберите тариф, чтобы продолжить работу Slotty." onClose={() => setDismissed(true)}><div className="modal-actions"><button className="secondary-button" onClick={() => setDismissed(true)}>Позже</button>{canPurchase ? <button className="primary-button" onClick={() => { setDismissed(true); navigate(`/companies/${company.id}/billing`); }}>Выбрать тариф</button> : <span className="muted-text">Обратитесь к владельцу, чтобы оформить подписку.</span>}</div></Modal>;
+  return <Modal open title="Пробный период завершён" description="Новые записи и изменения временно остановлены. Выберите тариф, чтобы продолжить работу Slotty." onClose={() => setDismissed(true)}><div className="modal-actions"><button className="secondary-button" onClick={() => setDismissed(true)}>Позже</button>{canPurchase ? <button className="primary-button" onClick={() => { setDismissed(true); void navigate(`/companies/${company.id}/billing`); }}>Выбрать тариф</button> : <span className="muted-text">Обратитесь к владельцу, чтобы оформить подписку.</span>}</div></Modal>;
 }
 
 function allowedSections(company: Company): Section[] {

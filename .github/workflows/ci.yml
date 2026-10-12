@@ -65,6 +65,8 @@ jobs:
       - name: Integration tests
         run: npm run test:integration -- --json --outputFile=../../test-results/api-integration.json
       - run: npm run build
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium webkit
       - name: API smoke and E2E
         run: |
           npm run start -w @slotty/api > /tmp/slotty-api.log 2>&1 &
@@ -74,7 +76,9 @@ jobs:
           done
           curl -fsS http://localhost:3000/api/health/ready
           npm run smoke:e2e
-      - run: npm audit --audit-level=high
+      - name: Browser E2E
+        run: npm run test:e2e:web
+      - run: npm run audit:production
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
@@ -82,6 +86,7 @@ jobs:
           path: |
             apps/api/coverage
             test-results
+            output/playwright
             /tmp/slotty-api.log
           if-no-files-found: warn
 

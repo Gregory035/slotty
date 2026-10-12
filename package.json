@@ -8,7 +8,8 @@
   "scripts": {
     "build": "npm run build --workspaces --if-present",
     "dev": "node scripts/dev.mjs",
-    "lint": "npm run lint --workspaces --if-present",
+    "lint": "eslint . --max-warnings=0",
+    "audit:production": "node scripts/audit-production.mjs",
     "smoke:auth": "node scripts/smoke-auth.mjs",
     "smoke:booking": "node scripts/smoke-booking.mjs",
     "smoke:catalog": "node scripts/smoke-catalog.mjs",
@@ -16,6 +17,7 @@
     "smoke:scheduling": "node scripts/smoke-scheduling.mjs",
     "smoke:e2e": "npm run smoke:auth && npm run smoke:companies && npm run smoke:catalog && npm run smoke:booking",
     "test": "npm run test --workspaces --if-present",
+    "test:e2e:web": "playwright test",
     "test:integration": "npm run test:integration -w @slotty/api",
     "test:coverage": "npm run test:coverage -w @slotty/api",
     "typecheck": "npm run typecheck --workspaces --if-present",
@@ -24,7 +26,14 @@
     "db:studio": "prisma studio --schema=apps/api/prisma/schema.prisma"
   },
   "devDependencies": {
-    "js-yaml": "5.4.3"
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.64.0",
+    "eslint": "^10.12.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.7",
+    "globals": "^17.13.0",
+    "js-yaml": "5.4.3",
+    "typescript-eslint": "^8.71.1"
   },
   "engines": {
     "node": ">=22.0.0",

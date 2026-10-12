@@ -13,6 +13,7 @@ import { InlineKeyboard } from 'grammy';
 import { encodeUuid } from '../telegram/callback-data.util';
 import { TelegramApiService } from '../telegram/telegram-api.service';
 import { TokenEncryptionService } from '../telegram/token-encryption.service';
+import { AdaptivePollingLoop } from '../common/adaptive-polling-loop';
 
 const MAX_ATTEMPTS = 5;
 const STALE_PROCESSING_MS = 5 * 60_000;
@@ -21,7 +22,7 @@ const RECOVERY_INTERVAL_MS = 60_000;
 @Injectable()
 export class NotificationWorker implements OnApplicationBootstrap, OnApplicationShutdown {
   private readonly logger = new Logger(NotificationWorker.name);
-  private timer?: NodeJS.Timeout;
+  private readonly polling: AdaptivePollingLoop;
   private running = false;
   private lastRecovery = 0;
 
@@ -29,24 +30,26 @@ export class NotificationWorker implements OnApplicationBootstrap, OnApplication
     private readonly prisma: PrismaService,
     private readonly encryption: TokenEncryptionService,
     private readonly telegram: TelegramApiService,
-  ) {}
+  ) {
+    this.polling = new AdaptivePollingLoop(() => this.tick(), {
+      activeDelayMs: 500,
+      idleDelaysMs: [1_000, 2_000, 5_000],
+      onError: (error) => this.logger.error('Notification worker tick failed', error),
+    });
+  }
 
   onApplicationBootstrap(): void {
-    this.timer = setInterval(() => {
-      void this.tick().catch((error: unknown) => {
-        this.logger.error('Notification worker tick failed', error);
-      });
-    }, 500);
-    this.timer.unref();
+    this.polling.start();
   }
 
   onApplicationShutdown(): void {
-    if (this.timer) clearInterval(this.timer);
+    this.polling.stop();
   }
 
-  async tick(): Promise<void> {
-    if (this.running) return;
+  async tick(): Promise<number> {
+    if (this.running) return 0;
     this.running = true;
+    let processed = 0;
     try {
       if (Date.now() - this.lastRecovery >= RECOVERY_INTERVAL_MS) {
         this.lastRecovery = Date.now();
@@ -62,11 +65,13 @@ export class NotificationWorker implements OnApplicationBootstrap, OnApplication
       for (let count = 0; count < 20; count += 1) {
         const notification = await this.claim();
         if (!notification) break;
+        processed += 1;
         await this.send(notification);
       }
     } finally {
       this.running = false;
     }
+    return processed;
   }
 
   private async claim(): Promise<Notification | null> {
