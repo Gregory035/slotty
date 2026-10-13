@@ -26,7 +26,7 @@ COPY --from=production-dependencies --chown=node:node /app/node_modules ./node_m
 COPY --from=build --chown=node:node /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=build --chown=node:node /app/apps/api/dist ./apps/api/dist
 COPY --from=build --chown=node:node /app/apps/api/package.json ./apps/api/package.json
-RUN rm -rf \
+RUN apk upgrade --no-cache && rm -rf \
   /usr/local/lib/node_modules/npm \
   /usr/local/bin/npm \
   /usr/local/bin/npx \

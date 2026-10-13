@@ -21,6 +21,8 @@ ENV VITE_SEO_INDEXING_ENABLED=$SEO_INDEXING_ENABLED
 RUN npm run build -w @slotty/web
 
 FROM nginxinc/nginx-unprivileged:1.27-alpine AS runtime
+USER root
+RUN apk upgrade --no-cache
 COPY apps/web/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/apps/web/dist /usr/share/nginx/html
 USER 101

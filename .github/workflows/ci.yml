@@ -107,6 +107,7 @@ jobs:
           format: sarif
           output: trivy-api.sarif
           severity: HIGH,CRITICAL
+          limit-severities-for-sarif: true
           exit-code: "1"
       - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
         with:
@@ -114,6 +115,7 @@ jobs:
           format: sarif
           output: trivy-web.sarif
           severity: HIGH,CRITICAL
+          limit-severities-for-sarif: true
           exit-code: "1"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
