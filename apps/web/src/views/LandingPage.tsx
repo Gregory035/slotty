@@ -24,7 +24,8 @@ const setupSteps = [
 const faqItems = [
   ['Как клиент записывается?', 'Открывает Mini App из Telegram-бота, выбирает услугу, специалиста и время.'],
   ['Нужна ли клиенту регистрация?', 'Нет. Отдельная учётная запись в Slotty ему не нужна.'],
-  ['Сколько длится пробный период?', '14 дней после создания компании. Банковская карта для старта не нужна.'],
+  ['Что входит в пробный период?', '14 дней после создания компании: до 3 специалистов, 10 услуг и 100 записей. Банковская карта не нужна.'],
+  ['Что будет через 14 дней?', 'Для новых записей и продолжения работы потребуется платный тариф. Выбрать его можно в разделе «Подписка» в панели Slotty.'],
 ] as const;
 
 export function LandingPage() {
@@ -65,10 +66,10 @@ export function LandingPage() {
     <MarketingLayout>
       <section className="landing-hero" ref={heroRef} onPointerMove={moveHeroGlow} onPointerLeave={resetHeroGlow}>
         <span className="landing-hero-cursor-glow" aria-hidden="true" />
-        <span className="landing-hero-mark" aria-hidden="true"><SlottyMark size={44} tone="light" /></span>
         <p className="eyebrow">Онлайн-запись для бизнеса услуг</p>
-        <h1>Slotty</h1>
-        <p className="landing-hero-tagline">Клиент бронирует время в Telegram Mini App.<br />Вы видите запись в Slotty.</p>
+        <h1>Онлайн-запись<br />прямо в Telegram</h1>
+        <p className="landing-hero-tagline">Клиенты выбирают время в мини-приложении.<br />Вы управляете записями в одной панели.</p>
+        <p className="landing-hero-audience">Для частных мастеров, студий и команд</p>
         <div className="landing-actions">
           <Link className="primary-button lime-button" to="/app?mode=register" onClick={() => { trackEvent('landing_start_trial'); trackEvent('registration_start', { source: 'home' }); }}>Начать бесплатно <ArrowRight size={17} /></Link>
           <a className="text-button" href="#demo" onClick={() => trackEvent('landing_view_demo')}>Попробовать демо <ChevronRight size={15} /></a>
@@ -81,17 +82,17 @@ export function LandingPage() {
       <section className="landing-sides" id="features" aria-labelledby="features-title">
         <div className="landing-section-heading" data-reveal>
           <p className="eyebrow">Для клиента и команды</p>
-          <h2 id="features-title">Бронь в Telegram.<br />Управление в Slotty.</h2>
+          <h2 id="features-title">Меньше переписок.<br />Больше порядка.</h2>
         </div>
         <div className="landing-side-grid">
           <article className="landing-side-card client-side-card" data-reveal="left">
             <div className="side-card-icon"><MessageCircleMore size={22} /></div>
             <p className="eyebrow">Для клиента</p>
-            <h3>Выбрать время в Telegram Mini App</h3>
+            <h3>Записаться без переписки</h3>
             <ul>
               <li><Check size={15} /> Услуги, специалисты и свободное время</li>
               <li><Check size={15} /> Отзывы и фото работ мастера</li>
-              <li><Check size={15} /> Запись без звонка и регистрации</li>
+              <li><Check size={15} /> Не нужно скачивать отдельное приложение</li>
             </ul>
             <Link to="/zapis-cherez-telegram">Как работает запись <ArrowRight size={15} /></Link>
           </article>
@@ -114,6 +115,14 @@ export function LandingPage() {
         <div className="landing-steps" data-reveal="right">{setupSteps.map(([number, title, description]) => <article key={number}><span>{number}</span><h3>{title}</h3><p>{description}</p></article>)}</div>
       </section>
 
+      <section className="landing-pricing" id="pricing" aria-labelledby="pricing-title" data-reveal>
+        <div><p className="eyebrow">Прозрачные условия</p><h2 id="pricing-title">Сначала попробуйте.<br />Потом выберите тариф.</h2><p>14 дней бесплатно, без банковской карты.</p></div>
+        <div className="landing-price-options">
+          <article><h3>Starter</h3><p className="landing-price">990 ₽ <span>/ 30 дней</span></p><p>До 10 специалистов и 1 000 записей в месяц.</p></article>
+          <article><h3>Pro</h3><p className="landing-price">2 490 ₽ <span>/ 30 дней</span></p><p>До 100 специалистов и 10 000 записей в месяц.</p></article>
+        </div>
+      </section>
+
       <section className="landing-faq" aria-labelledby="home-faq-title">
         <div className="landing-section-heading" data-reveal="left"><p className="eyebrow">Вопросы</p><h2 id="home-faq-title">Коротко о главном</h2></div>
         <LandingFaq />
@@ -123,7 +132,7 @@ export function LandingPage() {
         <p className="eyebrow">Slotty для вашего бизнеса</p>
         <h2 id="final-cta-title">Запустите запись в Telegram.</h2>
         <p>14 дней бесплатно, без банковской карты.</p>
-        <Link className="primary-button lime-button" to="/app?mode=register" onClick={() => { trackEvent('landing_start_trial', { source: 'home_final' }); trackEvent('registration_start', { source: 'home_final' }); }}>Создать рабочее пространство <ArrowRight size={17} /></Link>
+        <Link className="primary-button lime-button" to="/app?mode=register" onClick={() => { trackEvent('landing_start_trial', { source: 'home_final' }); trackEvent('registration_start', { source: 'home_final' }); }}>Начать бесплатно <ArrowRight size={17} /></Link>
       </section>
     </MarketingLayout>
   );
@@ -150,24 +159,25 @@ function BookingDemo() {
   return (
     <section className="landing-demo" id="demo" aria-labelledby="demo-title">
       <div className="landing-section-heading demo-heading" data-reveal>
-        <div><p className="eyebrow">Попробуйте сами</p><h2 id="demo-title">Выбор в Mini App.<br />Запись в календаре.</h2></div>
+        <div><p className="eyebrow">Попробуйте сами</p><h2 id="demo-title">От выбора времени<br />до готовой записи.</h2></div>
         <p>Демо показывает процесс, не создавая настоящую запись.</p>
       </div>
       <div className="demo-stage" data-reveal>
         <div className="demo-chat" aria-label="Демонстрация Telegram Mini App">
           <header><span className="demo-telegram-mark"><Send size={17} /></span><div><b>Slotty в Telegram</b><small>демо Mini App</small></div><i aria-hidden="true" /></header>
           <div className="demo-chat-body">
-            <h3 className="demo-miniapp-title">Выберите услугу</h3>
+            <h3 className="demo-miniapp-title">1. Выберите услугу</h3>
             <div className="demo-options demo-services" aria-label="Выбор услуги">
               {services.map((item) => <button type="button" key={item.id} className={serviceId === item.id ? 'selected' : ''} aria-pressed={serviceId === item.id} onClick={() => chooseService(item.id)}><span>{item.name}</span><small>{item.duration} мин · {item.price}</small></button>)}
             </div>
-            <p className="demo-miniapp-step">Свободное время · {service.employee}</p>
+            <p className="demo-miniapp-step">2. Выберите время · {service.employee}</p>
             <div className="demo-options demo-times" aria-label="Выбор времени">
               {demoTimes.map((time) => <button type="button" key={time} className={selectedTime === time ? 'selected' : ''} aria-pressed={selectedTime === time} onClick={() => { setSelectedTime(time); setConfirmed(false); }}>{time}</button>)}
             </div>
             <button type="button" className="demo-confirm" disabled={!selectedTime || confirmed} onClick={() => { setConfirmed(true); trackEvent('landing_demo_completed', { service: service.id }); }}>
-              {confirmed ? <><CircleCheck size={17} /> Запись подтверждена</> : 'Подтвердить запись'}
+              {confirmed ? <><CircleCheck size={17} /> Запись подтверждена</> : '3. Подтвердить запись'}
             </button>
+            <p className={`demo-feedback ${confirmed ? 'is-confirmed' : ''}`} role="status">{confirmed ? 'Готово! Запись появилась у мастера в расписании Slotty.' : selectedTime ? `${service.name} · ${selectedTime} · ${service.price}` : 'Выберите свободное время, чтобы продолжить.'}</p>
           </div>
         </div>
 

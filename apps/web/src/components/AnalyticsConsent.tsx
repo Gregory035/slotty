@@ -17,7 +17,7 @@ export function AnalyticsConsent() {
 
   return (
     <section className="analytics-consent" aria-label="Настройки аналитики">
-      <div><strong>Помогите улучшить Slotty</strong><p>Используем обезличенную аналитику посещений. Данные записей и клиентов не отправляются.</p></div>
+      <div><strong>Аналитика посещений</strong><p>Помогает улучшать Slotty. Без данных клиентов и записей.</p></div>
       <div className="analytics-consent-actions"><button className="text-button" onClick={() => decide('denied')}>Только необходимое</button><button className="primary-button lime-button" onClick={() => decide('granted')}>Разрешить</button></div>
     </section>
   );
