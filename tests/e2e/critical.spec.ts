@@ -11,7 +11,7 @@ test('public landing opens the registration flow without browser errors', async 
   const errors = collectPageErrors(page);
   await page.goto('/');
 
-  await expect(page.getByRole('heading', { level: 1 })).toContainText('Slotty');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Онлайн-запись прямо в Telegram');
   await page.getByRole('link', { name: /Начать бесплатно/ }).first().click();
   await expect(page).toHaveURL(/\/app\?mode=register$/);
   await expect(page.getByRole('heading', { name: 'Создайте аккаунт' })).toBeVisible();
