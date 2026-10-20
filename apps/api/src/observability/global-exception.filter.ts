@@ -1,5 +1,6 @@
 import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import * as Sentry from '@sentry/node';
 
 interface ErrorRequest { method: string; originalUrl?: string; url?: string; requestId?: string }
 interface ErrorResponse { status(code: number): ErrorResponse; json(body: unknown): void }
@@ -29,7 +30,8 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       error: exception instanceof Error ? exception.name : 'UnknownError',
       message: status >= 500 && exception instanceof Error ? this.mask(exception.message) : undefined,
     };
-    this.logger.error(JSON.stringify(event));
+    if (status >= 500) this.logger.error(JSON.stringify(event));
+    else this.logger.warn(JSON.stringify(event));
     if (status >= 500 && this.trackingUrl) {
       void fetch(this.trackingUrl, {
         method: 'POST',
@@ -37,6 +39,15 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         body: JSON.stringify(event),
         signal: AbortSignal.timeout(2000),
       }).catch(() => undefined);
+    }
+    if (status >= 500 && exception instanceof Error) {
+      Sentry.withScope((scope) => {
+        scope.setTag('request_id', request.requestId || 'missing');
+        scope.setTag('http.method', request.method);
+        scope.setTag('http.status_code', status);
+        scope.setExtra('path', event.path);
+        Sentry.captureException(exception);
+      });
     }
     response.status(status).json({
       ...(typeof body === 'object' && body ? body : { message: body }),

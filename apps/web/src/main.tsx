@@ -6,6 +6,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { ToastProvider } from './components/ToastProvider';
 import { AnalyticsConsent } from './components/AnalyticsConsent';
 import './public.css';
+import { initializeWebVitals } from './web-vitals';
 
 const application = (
   <StrictMode>
@@ -20,3 +21,5 @@ const application = (
 const root = document.getElementById('root')!;
 if (root.hasChildNodes()) hydrateRoot(root, application);
 else createRoot(root).render(application);
+
+initializeWebVitals();

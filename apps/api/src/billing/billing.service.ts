@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   BadGatewayException,
   Injectable,
   NotFoundException,
@@ -25,6 +26,8 @@ interface YooKassaPayment {
   status: string;
   amount?: { value: string; currency: string };
   confirmation?: { confirmation_url?: string };
+  payment_method?: { id?: string; saved?: boolean };
+  receipt_registration?: string;
 }
 
 @Injectable()
@@ -37,6 +40,7 @@ export class BillingService {
   async createCheckout(
     companyId: string,
     plan: Exclude<SubscriptionPlan, 'TRIAL'>,
+    autoRenew: boolean,
     idempotencyKey?: string,
   ) {
     const shopId = this.config.get<string>('YOOKASSA_SHOP_ID');
@@ -50,23 +54,17 @@ export class BillingService {
       orderBy: { createdAt: 'desc' },
     });
     if (!subscription) throw new NotFoundException('Subscription not found');
-    const response = await fetch('https://api.yookassa.ru/v3/payments', {
-      method: 'POST',
-      headers: {
-        authorization: `Basic ${Buffer.from(`${shopId}:${secretKey}`).toString('base64')}`,
-        'content-type': 'application/json',
-        'idempotence-key': idempotencyKey?.slice(0, 64) || randomUUID(),
-      },
-      body: JSON.stringify({
-        amount: { value: PRICE[plan], currency: 'RUB' },
-        capture: true,
-        confirmation: { type: 'redirect', return_url: returnUrl },
-        description: `Подписка ${plan}`,
-        metadata: { companyId, plan },
-      }),
+    await this.prisma.subscription.update({
+      where: { id_companyId: { id: subscription.id, companyId } },
+      data: { autoRenewEnabled: autoRenew, cancelAtPeriodEnd: false },
     });
-    if (!response.ok) throw new BadGatewayException('Платёжный сервис временно недоступен');
-    const provider = (await response.json()) as YooKassaPayment;
+    const provider = await this.createProviderPayment({
+      companyId,
+      plan,
+      idempotencyKey: idempotencyKey?.slice(0, 64) || randomUUID(),
+      returnUrl,
+      savePaymentMethod: true,
+    });
     if (!provider.id || !provider.confirmation?.confirmation_url) {
       throw new BadGatewayException('Invalid payment provider response');
     }
@@ -82,6 +80,7 @@ export class BillingService {
         currency: 'RUB',
         status: PaymentStatus.PENDING,
         planSnapshot: plan,
+        receiptStatus: provider.receipt_registration,
       },
     });
     return {
@@ -90,6 +89,94 @@ export class BillingService {
       status: payment.status,
       confirmationUrl: provider.confirmation.confirmation_url,
     };
+  }
+
+  async setAutoRenew(companyId: string, enabled: boolean) {
+    const subscription = await this.latestSubscription(companyId);
+    if (enabled && !subscription.providerPaymentMethodId) {
+      throw new BadRequestException('Сначала оплатите тариф и сохраните способ оплаты');
+    }
+    return this.prisma.subscription.update({
+      where: { id_companyId: { id: subscription.id, companyId } },
+      data: { autoRenewEnabled: enabled, cancelAtPeriodEnd: enabled ? false : subscription.cancelAtPeriodEnd },
+      select: { autoRenewEnabled: true, cancelAtPeriodEnd: true },
+    });
+  }
+
+  async cancelAtPeriodEnd(companyId: string) {
+    const subscription = await this.latestSubscription(companyId);
+    return this.prisma.subscription.update({
+      where: { id_companyId: { id: subscription.id, companyId } },
+      data: { autoRenewEnabled: false, cancelAtPeriodEnd: true },
+      select: { autoRenewEnabled: true, cancelAtPeriodEnd: true, currentPeriodEndsAt: true },
+    });
+  }
+
+  async processRenewals(limit = 20): Promise<number> {
+    const renewBefore = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    const subscriptions = await this.prisma.subscription.findMany({
+      where: {
+        autoRenewEnabled: true,
+        cancelAtPeriodEnd: false,
+        providerPaymentMethodId: { not: null },
+        currentPeriodEndsAt: { not: null, lte: renewBefore },
+        status: { in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.PAST_DUE] },
+      },
+      orderBy: { currentPeriodEndsAt: 'asc' },
+      take: limit,
+    });
+    let processed = 0;
+    for (const subscription of subscriptions) {
+      if (!subscription.currentPeriodEndsAt || !subscription.providerPaymentMethodId || subscription.plan === SubscriptionPlan.TRIAL) continue;
+      try {
+        const existing = await this.prisma.payment.findUnique({
+          where: {
+            subscriptionId_renewalForPeriodEndAt: {
+              subscriptionId: subscription.id,
+              renewalForPeriodEndAt: subscription.currentPeriodEndsAt,
+            },
+          },
+          select: { id: true },
+        });
+        if (existing) continue;
+        const provider = await this.createProviderPayment({
+          companyId: subscription.companyId,
+          plan: subscription.plan,
+          idempotencyKey: `renew-${subscription.id}-${subscription.currentPeriodEndsAt.toISOString()}`.slice(0, 64),
+          paymentMethodId: subscription.providerPaymentMethodId,
+        });
+        await this.prisma.payment.create({
+          data: {
+            companyId: subscription.companyId,
+            subscriptionId: subscription.id,
+            provider: 'yookassa',
+            externalPaymentId: provider.id,
+            amount: new Prisma.Decimal(PRICE[subscription.plan]),
+            currency: 'RUB',
+            status: PaymentStatus.PENDING,
+            planSnapshot: subscription.plan,
+            renewalForPeriodEndAt: subscription.currentPeriodEndsAt,
+            receiptStatus: provider.receipt_registration,
+          },
+        });
+        processed += 1;
+        if (provider.status !== 'pending') {
+          const payment = await this.prisma.payment.findUniqueOrThrow({
+            where: { provider_externalPaymentId: { provider: 'yookassa', externalPaymentId: provider.id } },
+          });
+          await this.applyProviderUpdate(
+            payment,
+            provider,
+            `payment:${provider.id}:${provider.status}`,
+            createHash('sha256').update(JSON.stringify(provider)).digest('hex'),
+          );
+        }
+      } catch (error) {
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') continue;
+        throw error;
+      }
+    }
+    return processed;
   }
 
   async handleWebhook(body: Record<string, unknown>): Promise<void> {
@@ -113,7 +200,7 @@ export class BillingService {
     this.assertPaymentMatches(payment, provider);
     await this.applyProviderUpdate(
       payment,
-      provider.status,
+      provider,
       `payment:${provider.id}:${provider.status}`,
       createHash('sha256').update(JSON.stringify(provider)).digest('hex'),
     );
@@ -126,7 +213,7 @@ export class BillingService {
     this.assertPaymentMatches(payment, provider);
     await this.applyProviderUpdate(
       payment,
-      provider.status,
+      provider,
       `payment:${provider.id}:${provider.status}`,
       createHash('sha256').update(JSON.stringify(provider)).digest('hex'),
     );
@@ -163,7 +250,7 @@ export class BillingService {
 
   private async applyProviderUpdate(
     payment: { id: string; companyId: string; subscriptionId: string | null; planSnapshot: SubscriptionPlan },
-    providerStatus: string,
+    provider: YooKassaPayment,
     externalEventId: string,
     payloadHash: string,
   ): Promise<void> {
@@ -177,11 +264,15 @@ export class BillingService {
             payloadHash,
           },
         });
-        const status = this.paymentStatus(providerStatus);
+        const status = this.paymentStatus(provider.status);
         if (status === PaymentStatus.PENDING) return;
         const transitioned = await tx.payment.updateMany({
           where: { id: payment.id, companyId: payment.companyId, status: PaymentStatus.PENDING },
-          data: { status, paidAt: status === PaymentStatus.SUCCEEDED ? new Date() : null },
+          data: {
+            status,
+            paidAt: status === PaymentStatus.SUCCEEDED ? new Date() : null,
+            receiptStatus: provider.receipt_registration,
+          },
         });
         if (!transitioned.count) return;
         if (payment.subscriptionId) {
@@ -211,6 +302,10 @@ export class BillingService {
                 currentPeriodStartsAt: startsAt,
                 currentPeriodEndsAt: endsAt,
                 graceEndsAt: null,
+                cancelAtPeriodEnd: false,
+                ...(provider.payment_method?.saved && provider.payment_method.id
+                  ? { providerPaymentMethodId: provider.payment_method.id }
+                  : {}),
               },
             });
           } else if (status === PaymentStatus.FAILED) {
@@ -270,6 +365,74 @@ export class BillingService {
     if (['canceled', 'failed'].includes(status)) return PaymentStatus.FAILED;
     if (status === 'refunded') return PaymentStatus.REFUNDED;
     return PaymentStatus.PENDING;
+  }
+
+  private async latestSubscription(companyId: string) {
+    const subscription = await this.prisma.subscription.findFirst({
+      where: { companyId },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!subscription) throw new NotFoundException('Subscription not found');
+    return subscription;
+  }
+
+  private async createProviderPayment(input: {
+    companyId: string;
+    plan: Exclude<SubscriptionPlan, 'TRIAL'>;
+    idempotencyKey: string;
+    returnUrl?: string;
+    savePaymentMethod?: boolean;
+    paymentMethodId?: string;
+  }): Promise<YooKassaPayment> {
+    const shopId = this.config.get<string>('YOOKASSA_SHOP_ID');
+    const secretKey = this.config.get<string>('YOOKASSA_SECRET_KEY');
+    if (!shopId || !secretKey) {
+      throw new ServiceUnavailableException('Оплата временно недоступна. Обратитесь в поддержку Slotty');
+    }
+    const vatCode = this.config.get<number>('YOOKASSA_VAT_CODE');
+    const owner = await this.prisma.companyMember.findFirst({
+      where: { companyId: input.companyId, role: 'OWNER' },
+      include: { user: { select: { email: true } } },
+    });
+    const description = `Подписка Slotty ${input.plan}`;
+    const body: Record<string, unknown> = {
+      amount: { value: PRICE[input.plan], currency: 'RUB' },
+      capture: true,
+      description,
+      metadata: { companyId: input.companyId, plan: input.plan, recurring: Boolean(input.paymentMethodId) },
+      ...(input.paymentMethodId
+        ? { payment_method_id: input.paymentMethodId }
+        : {
+            confirmation: { type: 'redirect', return_url: input.returnUrl },
+            save_payment_method: input.savePaymentMethod,
+          }),
+    };
+    if (vatCode && owner?.user.email) {
+      body.receipt = {
+        customer: { email: owner.user.email },
+        items: [{
+          description,
+          quantity: '1.00',
+          amount: { value: PRICE[input.plan], currency: 'RUB' },
+          vat_code: vatCode,
+          payment_mode: 'full_payment',
+          payment_subject: 'service',
+        }],
+      };
+    }
+    const response = await fetch('https://api.yookassa.ru/v3/payments', {
+      method: 'POST',
+      headers: {
+        authorization: `Basic ${Buffer.from(`${shopId}:${secretKey}`).toString('base64')}`,
+        'content-type': 'application/json',
+        'idempotence-key': input.idempotencyKey,
+      },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) throw new BadGatewayException('Платёжный сервис временно недоступен');
+    const provider = (await response.json()) as YooKassaPayment;
+    if (!provider.id) throw new BadGatewayException('Invalid payment provider response');
+    return provider;
   }
 
 }

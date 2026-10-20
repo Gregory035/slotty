@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { hasAnalyticsConfiguration, initializeAnalytics, setAnalyticsConsent, trackPageView } from '../analytics';
+import { initializeWebVitals } from '../web-vitals';
 
 export function AnalyticsConsent() {
   const [visible, setVisible] = useState(false);
@@ -11,6 +12,7 @@ export function AnalyticsConsent() {
     if (value === 'granted') {
       initializeAnalytics();
       trackPageView(window.location.pathname);
+      initializeWebVitals();
     }
     setVisible(false);
   }

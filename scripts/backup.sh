@@ -7,6 +7,11 @@ set -eu
 
 umask 077
 mkdir -p "$BACKUP_DIR"
+config_file=""
+cleanup() {
+  if [ -n "$config_file" ]; then rm -f "$config_file"; fi
+}
+trap cleanup EXIT INT TERM HUP
 timestamp=$(date -u +%Y%m%dT%H%M%SZ)
 backup_file="$BACKUP_DIR/slotty-$timestamp.dump"
 
@@ -19,7 +24,18 @@ if [ -n "${BACKUP_REMOTE:-}" ]; then
     echo "BACKUP_REMOTE is set, but rclone is unavailable" >&2
     exit 1
   fi
-  rclone copyto "$backup_file" "$BACKUP_REMOTE/$(basename "$backup_file")"
-  rclone copyto "$backup_file.sha256" "$BACKUP_REMOTE/$(basename "$backup_file.sha256")"
+  rclone_args=""
+  if [ -n "${RCLONE_CONFIG_BASE64:-}" ]; then
+    config_file=$(mktemp)
+    printf '%s' "$RCLONE_CONFIG_BASE64" | base64 -d > "$config_file"
+    chmod 600 "$config_file"
+    rclone_args="--config $config_file"
+  fi
+  # shellcheck disable=SC2086
+  rclone $rclone_args copyto "$backup_file" "$BACKUP_REMOTE/$(basename "$backup_file")"
+  # shellcheck disable=SC2086
+  rclone $rclone_args copyto "$backup_file.sha256" "$BACKUP_REMOTE/$(basename "$backup_file.sha256")"
+  # shellcheck disable=SC2086
+  rclone $rclone_args size "$BACKUP_REMOTE/$(basename "$backup_file")" >/dev/null
 fi
 echo "$backup_file"

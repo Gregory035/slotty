@@ -1,4 +1,4 @@
-import { Allow, IsIn } from 'class-validator';
+import { Allow, IsBoolean, IsIn, IsOptional } from 'class-validator';
 import { Body, Controller, Get, Headers, Param, ParseUUIDPipe, Post, Query, UseGuards } from '@nestjs/common';
 import { SubscriptionPlan } from '@prisma/client';
 import { AccessTokenGuard } from '../auth/guards/access-token.guard';
@@ -13,6 +13,10 @@ import { EntitlementsService } from './entitlements.service';
 class CheckoutDto {
   @IsIn([SubscriptionPlan.STARTER, SubscriptionPlan.PRO])
   plan: Exclude<SubscriptionPlan, 'TRIAL'>;
+
+  @IsOptional()
+  @IsBoolean()
+  autoRenew?: boolean;
 }
 
 class PaymentWebhookDto {
@@ -24,6 +28,11 @@ class PaymentWebhookDto {
 
   @Allow()
   object?: unknown;
+}
+
+class AutoRenewDto {
+  @IsBoolean()
+  enabled: boolean;
 }
 
 @Controller('companies/:companyId/billing')
@@ -53,7 +62,19 @@ export class BillingController {
     @Body() input: CheckoutDto,
     @Headers('idempotency-key') idempotencyKey?: string,
   ) {
-    return this.billing.createCheckout(companyId, input.plan, idempotencyKey);
+    return this.billing.createCheckout(companyId, input.plan, input.autoRenew ?? false, idempotencyKey);
+  }
+
+  @Post('auto-renew')
+  @RequirePermissions(CompanyPermission.BILLING_MANAGE)
+  autoRenew(@Param('companyId') companyId: string, @Body() input: AutoRenewDto) {
+    return this.billing.setAutoRenew(companyId, input.enabled);
+  }
+
+  @Post('cancel')
+  @RequirePermissions(CompanyPermission.BILLING_MANAGE)
+  cancel(@Param('companyId') companyId: string) {
+    return this.billing.cancelAtPeriodEnd(companyId);
   }
 
   @Post('payments/:paymentId/sync')

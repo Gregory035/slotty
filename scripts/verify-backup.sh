@@ -10,7 +10,7 @@ if [ ! -f "$BACKUP_FILE" ]; then
 fi
 
 if [ -f "$BACKUP_FILE.sha256" ]; then
-  sha256sum --check "$BACKUP_FILE.sha256"
+  sha256sum -c "$BACKUP_FILE.sha256"
 fi
 
 pg_restore --clean --if-exists --no-owner --no-acl --dbname="$RESTORE_DATABASE_URL" "$BACKUP_FILE"

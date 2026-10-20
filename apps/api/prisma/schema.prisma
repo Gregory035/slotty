@@ -383,6 +383,9 @@ model Subscription {
   graceEndsAt            DateTime?
   providerCustomerId     String?
   providerSubscriptionId String?            @unique
+  providerPaymentMethodId String?
+  autoRenewEnabled       Boolean            @default(false)
+  cancelAtPeriodEnd      Boolean            @default(false)
   company                Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
   payments               Payment[]
   createdAt              DateTime           @default(now())
@@ -402,6 +405,8 @@ model Payment {
   currency          String           @db.Char(3)
   status            PaymentStatus    @default(PENDING)
   planSnapshot      SubscriptionPlan
+  renewalForPeriodEndAt DateTime?
+  receiptStatus     String?          @db.VarChar(32)
   paidAt            DateTime?
   company           Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
   subscription      Subscription?    @relation(fields: [subscriptionId, companyId], references: [id, companyId], onDelete: Restrict)
@@ -410,6 +415,7 @@ model Payment {
 
   @@unique([id, companyId])
   @@unique([provider, externalPaymentId])
+  @@unique([subscriptionId, renewalForPeriodEndAt])
   @@index([companyId, status])
 }
 
@@ -425,6 +431,19 @@ model PaymentEvent {
 
   @@unique([provider, externalEventId])
   @@index([companyId, createdAt])
+}
+
+model WebVitalSample {
+  id             String   @id @default(uuid()) @db.Uuid
+  name           String   @db.VarChar(8)
+  value          Float
+  rating         String   @db.VarChar(24)
+  path           String   @db.VarChar(128)
+  navigationType String?  @db.VarChar(32)
+  createdAt      DateTime @default(now())
+
+  @@index([name, createdAt])
+  @@index([createdAt])
 }
 
 model RefreshToken {

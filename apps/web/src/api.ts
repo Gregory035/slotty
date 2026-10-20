@@ -592,15 +592,26 @@ export const getPayments = (companyId: string, cursor?: string) => {
   return request<CursorPage<Payment>>(`/companies/${companyId}/billing/payments?${params}`);
 };
 
-export const createCheckout = (companyId: string, plan: 'STARTER' | 'PRO') =>
+export const createCheckout = (companyId: string, plan: 'STARTER' | 'PRO', autoRenew: boolean) =>
   request<{ confirmationUrl: string }>(`/companies/${companyId}/billing/checkout`, {
     method: 'POST',
     headers: { 'idempotency-key': crypto.randomUUID() },
-    body: JSON.stringify({ plan }),
+    body: JSON.stringify({ plan, autoRenew }),
   });
 
 export const syncPayment = (companyId: string, paymentId: string) =>
   request<Payment | null>(`/companies/${companyId}/billing/payments/${paymentId}/sync`, { method: 'POST' });
+
+export const setAutoRenew = (companyId: string, enabled: boolean) =>
+  request<{ autoRenewEnabled: boolean; cancelAtPeriodEnd: boolean }>(`/companies/${companyId}/billing/auto-renew`, {
+    method: 'POST',
+    body: JSON.stringify({ enabled }),
+  });
+
+export const cancelSubscription = (companyId: string) =>
+  request<{ autoRenewEnabled: boolean; cancelAtPeriodEnd: boolean; currentPeriodEndsAt: string | null }>(`/companies/${companyId}/billing/cancel`, {
+    method: 'POST',
+  });
 
 export const getAuditLogs = (companyId: string, cursor?: string) => {
   const params = new URLSearchParams({ limit: '25' });

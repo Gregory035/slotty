@@ -5,10 +5,11 @@ import { MetricsController } from './metrics.controller';
 import { MetricsService } from './metrics.service';
 import { RequestIdMiddleware } from './request-id.middleware';
 import { RequestLoggingInterceptor } from './request-logging.interceptor';
+import { WebVitalsController } from './web-vitals.controller';
 
 @Global()
 @Module({
-  controllers: [MetricsController],
+  controllers: [MetricsController, WebVitalsController],
   providers: [
     MetricsService,
     RequestIdMiddleware,

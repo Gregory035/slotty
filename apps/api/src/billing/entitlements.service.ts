@@ -64,6 +64,9 @@ export class EntitlementsService {
       trialEndsAt: subscription.trialEndsAt,
       currentPeriodEndsAt: subscription.currentPeriodEndsAt,
       graceEndsAt: subscription.graceEndsAt,
+      autoRenewEnabled: subscription.autoRenewEnabled,
+      cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
+      paymentMethodSaved: Boolean(subscription.providerPaymentMethodId),
       limits,
       usage: { employees, services, monthlyAppointments, bots },
     };

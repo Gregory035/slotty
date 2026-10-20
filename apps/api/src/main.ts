@@ -4,11 +4,21 @@ import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { json, urlencoded } from 'express';
 import helmet from 'helmet';
+import * as Sentry from '@sentry/node';
 import { AppModule } from './app.module';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule, { bodyParser: false });
   const config = app.get(ConfigService);
+  const sentryDsn = config.get<string>('SENTRY_DSN');
+  if (sentryDsn) {
+    Sentry.init({
+      dsn: sentryDsn,
+      environment: config.get<string>('SENTRY_ENVIRONMENT') || config.get<string>('NODE_ENV'),
+      release: config.get<string>('SENTRY_RELEASE'),
+      tracesSampleRate: 0,
+    });
+  }
 
   app.setGlobalPrefix('api');
   app.use(json({ limit: '1mb' }));

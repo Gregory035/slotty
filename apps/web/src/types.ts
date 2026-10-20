@@ -397,6 +397,9 @@ export interface Entitlements {
   trialEndsAt: string | null;
   currentPeriodEndsAt: string | null;
   graceEndsAt: string | null;
+  autoRenewEnabled: boolean;
+  cancelAtPeriodEnd: boolean;
+  paymentMethodSaved: boolean;
   limits: {
     employees: number;
     services: number;

@@ -1,5 +1,5 @@
 import { BadGatewayException } from '@nestjs/common';
-import { PaymentStatus, Prisma, SubscriptionPlan } from '@prisma/client';
+import { PaymentStatus, Prisma, SubscriptionPlan, SubscriptionStatus } from '@prisma/client';
 import { BillingService } from './billing.service';
 
 describe('BillingService payment reconciliation', () => {
@@ -102,5 +102,48 @@ describe('BillingService payment reconciliation', () => {
       }),
     );
     expect(tx.subscription.update).not.toHaveBeenCalled();
+  });
+
+  it('creates one automatic payment for a period that is about to end', async () => {
+    const periodEnd = new Date(Date.now() + 60_000);
+    const subscription = {
+      id: payment.subscriptionId,
+      companyId,
+      plan: SubscriptionPlan.STARTER,
+      status: SubscriptionStatus.ACTIVE,
+      currentPeriodEndsAt: periodEnd,
+      providerPaymentMethodId: 'saved-method',
+    };
+    const prisma = {
+      subscription: { findMany: jest.fn().mockResolvedValue([subscription]) },
+      payment: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue({}),
+      },
+      companyMember: {
+        findFirst: jest.fn().mockResolvedValue({ user: { email: 'owner@example.com' } }),
+      },
+    };
+    const config = { get: jest.fn((key: string) => ({
+      YOOKASSA_SHOP_ID: 'shop',
+      YOOKASSA_SECRET_KEY: 'secret',
+      YOOKASSA_VAT_CODE: 1,
+    })[key as 'YOOKASSA_SHOP_ID' | 'YOOKASSA_SECRET_KEY' | 'YOOKASSA_VAT_CODE']) };
+    const service = new BillingService(prisma as never, config as never);
+    const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({ id: 'renewal-payment', status: 'pending' }),
+    } as Response);
+
+    await expect(service.processRenewals()).resolves.toBe(1);
+
+    const request = fetchMock.mock.calls[0]?.[1] as RequestInit;
+    expect(JSON.parse(String(request.body))).toEqual(expect.objectContaining({
+      payment_method_id: 'saved-method',
+      receipt: expect.objectContaining({ customer: { email: 'owner@example.com' } }),
+    }));
+    expect(prisma.payment.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ renewalForPeriodEndAt: periodEnd }),
+    });
   });
 });

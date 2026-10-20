@@ -1,4 +1,6 @@
 services:
+  backup:
+    image: ghcr.io/${GHCR_REPOSITORY:?GHCR_REPOSITORY is required}/backup:${IMAGE_TAG:?IMAGE_TAG is required}
   api-migrate:
     image: ghcr.io/${GHCR_REPOSITORY:?GHCR_REPOSITORY is required}/api-release:${IMAGE_TAG:?IMAGE_TAG is required}
   api:

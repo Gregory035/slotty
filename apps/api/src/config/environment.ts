@@ -10,6 +10,11 @@ const optionalUrl = z.preprocess(
   z.string().url().optional(),
 );
 
+const optionalVatCode = z.preprocess(
+  (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+  z.coerce.number().int().min(1).max(6).optional(),
+);
+
 const environmentSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   API_PORT: z.coerce.number().int().positive().default(3000),
@@ -40,17 +45,34 @@ const environmentSchema = z.object({
   RATE_LIMIT_CONNECT_BOT_WINDOW_SECONDS: z.coerce.number().int().positive().default(3600),
   RATE_LIMIT_PASSWORD_RESET_MAX: z.coerce.number().int().positive().default(3),
   RATE_LIMIT_PASSWORD_RESET_WINDOW_SECONDS: z.coerce.number().int().positive().default(3600),
+  RATE_LIMIT_WEB_VITALS_MAX: z.coerce.number().int().positive().default(30),
+  RATE_LIMIT_WEB_VITALS_WINDOW_SECONDS: z.coerce.number().int().positive().default(60),
   JWT_ACCESS_SECRET: z.string().min(32),
   JWT_REFRESH_SECRET: z.string().min(32),
   BOT_TOKEN_ENCRYPTION_KEY: z.string().min(32),
   YOOKASSA_SHOP_ID: optionalString,
   YOOKASSA_SECRET_KEY: optionalString,
+  YOOKASSA_VAT_CODE: optionalVatCode,
   PAYMENT_RETURN_URL: optionalUrl,
   METRICS_TOKEN: z.preprocess(
     (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
     z.string().min(32).optional(),
   ),
   ERROR_TRACKING_URL: optionalUrl,
+  SENTRY_DSN: optionalUrl,
+  SENTRY_ENVIRONMENT: optionalString,
+  SENTRY_RELEASE: optionalString,
+  WORK_EXAMPLES_DIR: z.string().min(1).default('./data/work-examples'),
+  WORK_EXAMPLES_STORAGE: z.enum(['local', 's3']).default('local'),
+  S3_ENDPOINT: optionalUrl,
+  S3_REGION: z.string().min(1).default('us-east-1'),
+  S3_BUCKET: optionalString,
+  S3_ACCESS_KEY_ID: optionalString,
+  S3_SECRET_ACCESS_KEY: optionalString,
+  S3_FORCE_PATH_STYLE: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
   RESEND_API_KEY: optionalString,
   PASSWORD_RESET_FROM_EMAIL: optionalString,
   PASSWORD_RESET_TTL_MINUTES: z.coerce.number().int().min(5).max(1440).default(30),
@@ -63,6 +85,14 @@ export function validateEnvironment(config: Record<string, unknown>): Environmen
 
   if (!result.success) {
     throw new Error(`Invalid environment configuration: ${result.error.message}`);
+  }
+
+  if (result.data.WORK_EXAMPLES_STORAGE === 's3') {
+    const required = ['S3_BUCKET', 'S3_ACCESS_KEY_ID', 'S3_SECRET_ACCESS_KEY'] as const;
+    const missing = required.filter((key) => !result.data[key]);
+    if (missing.length) {
+      throw new Error(`Invalid environment configuration: ${missing.join(', ')} required for S3 storage`);
+    }
   }
 
   return result.data;

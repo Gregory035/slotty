@@ -4,12 +4,13 @@ import { CompaniesModule } from '../companies/companies.module';
 import { BillingController, PaymentWebhookController } from './billing.controller';
 import { BillingService } from './billing.service';
 import { EntitlementsService } from './entitlements.service';
+import { BillingRenewalWorker } from './billing-renewal.worker';
 
 @Global()
 @Module({
   imports: [AuthModule, CompaniesModule],
   controllers: [BillingController, PaymentWebhookController],
-  providers: [EntitlementsService, BillingService],
+  providers: [EntitlementsService, BillingService, BillingRenewalWorker],
   exports: [EntitlementsService, BillingService],
 })
 export class BillingModule {}
