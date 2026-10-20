@@ -1,0 +1,9 @@
+[Unit]
+Description=Slotty PostgreSQL backup
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/slotty
+ExecStart=/usr/bin/docker compose -f docker-compose.production.yml run --rm backup

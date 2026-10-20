@@ -20,6 +20,7 @@ import type {
   Session,
   TelegramBot,
   MiniAppAvailability,
+  MiniAppAppointments,
   MiniAppBookingResult,
   MiniAppSession,
 } from './types';
@@ -89,7 +90,7 @@ async function publicRequest<T>(
 
 async function miniAppRequest<T>(
   companyId: string,
-  path: 'session' | 'availability' | 'book',
+  path: 'session' | 'availability' | 'book' | 'event' | 'appointments' | 'appointments/cancel' | 'appointments/reschedule',
   input: Record<string, string>,
 ): Promise<T> {
   const response = await fetchResponse(`${apiUrl}/telegram/miniapp/${companyId}/${path}`, {
@@ -106,13 +107,27 @@ export const getMiniAppSession = (companyId: string, initData: string) =>
 
 export const getMiniAppAvailability = (
   companyId: string,
-  input: { initData: string; serviceId: string; employeeId: string; date: string },
+  input: { initData: string; serviceId: string; employeeId?: string; date: string },
 ) => miniAppRequest<MiniAppAvailability>(companyId, 'availability', input);
 
 export const createMiniAppBooking = (
   companyId: string,
   input: { initData: string; serviceId: string; employeeId: string; date: string; time: string },
 ) => miniAppRequest<MiniAppBookingResult>(companyId, 'book', input);
+
+export const trackMiniAppEvent = (companyId: string, initData: string, step: 'SERVICE_SELECTED' | 'TIME_SELECTED') =>
+  miniAppRequest<{ ok: true }>(companyId, 'event', { initData, step });
+
+export const getMiniAppAppointments = (companyId: string, initData: string) =>
+  miniAppRequest<MiniAppAppointments>(companyId, 'appointments', { initData });
+
+export const cancelMiniAppAppointment = (companyId: string, initData: string, appointmentId: string) =>
+  miniAppRequest<unknown>(companyId, 'appointments/cancel', { initData, appointmentId });
+
+export const rescheduleMiniAppAppointment = (
+  companyId: string,
+  input: { initData: string; appointmentId: string; date: string; time: string },
+) => miniAppRequest<unknown>(companyId, 'appointments/reschedule', input);
 
 async function refreshSession(): Promise<Session> {
   if (!refreshPromise) {
@@ -292,7 +307,7 @@ export const uploadEmployeeWorkExample = (
 export const deleteEmployeeWorkExample = (companyId: string, employeeId: string, workId: string) =>
   request<void>(`/companies/${companyId}/employees/${employeeId}/work-examples/${workId}`, { method: 'DELETE' });
 
-export const getWorkExampleImageUrl = (workId: string) => `${apiUrl}/work-examples/${workId}/image`;
+export const getWorkExampleImageUrl = (workId: string, thumbnail = true) => `${apiUrl}/work-examples/${workId}/image${thumbnail ? '?variant=thumb' : ''}`;
 
 export const getSchedule = (companyId: string, employeeId: string) =>
   request<ScheduleRule[]>(

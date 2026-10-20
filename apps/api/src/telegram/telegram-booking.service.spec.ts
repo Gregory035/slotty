@@ -87,6 +87,7 @@ describe('TelegramBookingService', () => {
       encryption,
       telegramApi,
       config,
+      { store: jest.fn(), remove: jest.fn() } as any,
     );
   });
 

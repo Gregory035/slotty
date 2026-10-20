@@ -32,6 +32,7 @@ import { decodeUuid, encodeUuid } from './callback-data.util';
 import { TelegramApiService } from './telegram-api.service';
 import { WaitlistService } from '../waitlist/waitlist.service';
 import { TokenEncryptionService } from './token-encryption.service';
+import { WorkImageStorageService } from '../employees/work-image-storage.service';
 
 interface UpdateContext {
   chatId: number;
@@ -52,6 +53,7 @@ export class TelegramBookingService {
     private readonly encryption: TokenEncryptionService,
     private readonly telegramApi: TelegramApiService,
     private readonly config: ConfigService,
+    private readonly workImages: WorkImageStorageService,
   ) {}
 
   async handleWebhook(
@@ -1032,9 +1034,13 @@ export class TelegramBookingService {
       select: { id: true, customerId: true, employeeId: true },
     });
     if (!appointment) throw new NotFoundException('Appointment not found');
+    const existing = await this.prisma.workExample.findUnique({
+      where: { appointmentId_companyId: { appointmentId, companyId } },
+      select: { storageKey: true, thumbnailKey: true },
+    });
     await this.prisma.workExample.upsert({
       where: { appointmentId_companyId: { appointmentId, companyId } },
-      update: { imageData: null, mimeType: null, publishedAt: null, uploadRequestedAt: new Date(), source: WorkExampleSource.CUSTOMER },
+      update: { imageData: null, storageKey: null, thumbnailKey: null, mimeType: null, publishedAt: null, uploadRequestedAt: new Date(), source: WorkExampleSource.CUSTOMER },
       create: {
         companyId,
         employeeId: appointment.employeeId,
@@ -1044,6 +1050,7 @@ export class TelegramBookingService {
         uploadRequestedAt: new Date(),
       },
     });
+    await this.workImages.remove(existing?.storageKey, existing?.thumbnailKey);
     await this.telegramApi.sendMessage(token, context.chatId, 'Отправьте одним сообщением фотографию результата. Она появится в примерах работ этого специалиста.');
   }
 
@@ -1058,19 +1065,26 @@ export class TelegramBookingService {
         companyId,
         source: WorkExampleSource.CUSTOMER,
         imageData: null,
+        storageKey: null,
         uploadRequestedAt: { gte: new Date(Date.now() - 2 * 60 * 60 * 1000) },
         customer: { telegramId: BigInt(context.user.id) },
       },
       orderBy: { uploadRequestedAt: 'desc' },
-      select: { id: true },
+      select: { id: true, companyId: true },
     });
     if (!work) return false;
     const photo = await this.telegramApi.downloadPhoto(token, fileId);
     if (photo.buffer.length > 5 * 1024 * 1024) throw new BadRequestException('Photo is too large');
-    await this.prisma.workExample.update({
-      where: { id: work.id },
-      data: { imageData: Uint8Array.from(photo.buffer), mimeType: photo.mimeType, publishedAt: new Date(), uploadRequestedAt: null },
-    });
+    const stored = await this.workImages.store(work.companyId, photo.buffer);
+    try {
+      await this.prisma.workExample.update({
+        where: { id: work.id },
+        data: { imageData: null, storageKey: stored.storageKey, thumbnailKey: stored.thumbnailKey, mimeType: stored.mimeType, publishedAt: new Date(), uploadRequestedAt: null },
+      });
+    } catch (error) {
+      await this.workImages.remove(stored.storageKey, stored.thumbnailKey);
+      throw error;
+    }
     await this.telegramApi.sendMessage(token, context.chatId, 'Фото результата опубликовано ✅', new InlineKeyboard().text('Мои записи', 'm'));
     return true;
   }

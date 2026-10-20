@@ -7,6 +7,7 @@ import { EmployeeResponseDto } from './dto/employee-response.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
 import { AssignEmployeeServiceDto } from './dto/assign-service.dto';
 import { EntitlementsService } from '../billing/entitlements.service';
+import { WorkImageStorageService } from './work-image-storage.service';
 
 const servicesInclude = {
   services: {
@@ -32,6 +33,7 @@ export class EmployeesService {
     private readonly prisma: PrismaService,
     private readonly services: ServicesService,
     private readonly entitlements: EntitlementsService,
+    private readonly workImages: WorkImageStorageService,
   ) {}
 
   async create(
@@ -204,7 +206,7 @@ export class EmployeesService {
   async listWorkExamples(companyId: string, employeeId: string, actorId: string) {
     await this.assertPortfolioAccess(companyId, employeeId, actorId);
     return this.prisma.workExample.findMany({
-      where: { companyId, employeeId, publishedAt: { not: null }, imageData: { not: null } },
+      where: { companyId, employeeId, publishedAt: { not: null }, OR: [{ storageKey: { not: null } }, { imageData: { not: null } }] },
       select: { id: true, caption: true, source: true, publishedAt: true, createdAt: true },
       orderBy: [{ publishedAt: 'desc' }, { createdAt: 'desc' }],
     });
@@ -222,36 +224,51 @@ export class EmployeesService {
     if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.mimetype) || file.size > 5 * 1024 * 1024) {
       throw new BadRequestException('Поддерживаются JPG, PNG или WebP до 5 МБ');
     }
-    const work = await this.prisma.workExample.create({
-      data: {
-        companyId,
-        employeeId,
-        source: WorkExampleSource.EMPLOYEE,
-        caption: caption?.trim() || null,
-        imageData: Uint8Array.from(file.buffer),
-        mimeType: file.mimetype,
-        publishedAt: new Date(),
-      },
-      select: { id: true, caption: true, source: true, publishedAt: true, createdAt: true },
-    });
+    let stored: Awaited<ReturnType<WorkImageStorageService['store']>>;
+    try { stored = await this.workImages.store(companyId, file.buffer); }
+    catch { throw new BadRequestException('Не удалось обработать изображение'); }
+    let work;
+    try {
+      work = await this.prisma.workExample.create({
+        data: {
+          companyId,
+          employeeId,
+          source: WorkExampleSource.EMPLOYEE,
+          caption: caption?.trim() || null,
+          storageKey: stored.storageKey,
+          thumbnailKey: stored.thumbnailKey,
+          mimeType: stored.mimeType,
+          publishedAt: new Date(),
+        },
+        select: { id: true, caption: true, source: true, publishedAt: true, createdAt: true },
+      });
+    } catch (error) {
+      await this.workImages.remove(stored.storageKey, stored.thumbnailKey);
+      throw error;
+    }
     await this.prisma.auditLog.create({ data: { companyId, actorId, action: 'employee.work_published', entityType: 'WorkExample', entityId: work.id, metadata: { employeeId } } });
     return work;
   }
 
   async deleteWorkExample(companyId: string, employeeId: string, workId: string, actorId: string): Promise<void> {
     await this.assertPortfolioAccess(companyId, employeeId, actorId);
+    const work = await this.prisma.workExample.findFirst({ where: { id: workId, companyId, employeeId }, select: { storageKey: true, thumbnailKey: true } });
     const deleted = await this.prisma.workExample.deleteMany({ where: { id: workId, companyId, employeeId } });
     if (!deleted.count) throw new NotFoundException('Work example not found');
+    await this.workImages.remove(work?.storageKey, work?.thumbnailKey);
     await this.prisma.auditLog.create({ data: { companyId, actorId, action: 'employee.work_deleted', entityType: 'WorkExample', entityId: workId, metadata: { employeeId } } });
   }
 
-  async getPublishedWorkImage(id: string) {
+  async getPublishedWorkImage(id: string, thumbnail = false) {
     const work = await this.prisma.workExample.findFirst({
-      where: { id, publishedAt: { not: null }, imageData: { not: null }, employee: { deletedAt: null, isActive: true } },
-      select: { imageData: true, mimeType: true, updatedAt: true },
+      where: { id, publishedAt: { not: null }, OR: [{ storageKey: { not: null } }, { imageData: { not: null } }], employee: { deletedAt: null, isActive: true } },
+      select: { imageData: true, mimeType: true, storageKey: true, thumbnailKey: true, updatedAt: true },
     });
-    if (!work?.imageData || !work.mimeType) throw new NotFoundException('Work image not found');
-    return work;
+    if (!work?.mimeType) throw new NotFoundException('Work image not found');
+    const key = thumbnail ? work.thumbnailKey ?? work.storageKey : work.storageKey;
+    if (key) return { imageData: await this.workImages.read(key), mimeType: work.mimeType, updatedAt: work.updatedAt };
+    if (!work.imageData) throw new NotFoundException('Work image not found');
+    return { imageData: Buffer.from(work.imageData), mimeType: work.mimeType, updatedAt: work.updatedAt };
   }
 
   private async assertPortfolioAccess(companyId: string, employeeId: string, actorId: string): Promise<void> {

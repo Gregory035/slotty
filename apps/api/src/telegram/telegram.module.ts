@@ -12,6 +12,7 @@ import { TelegramUpdateWorker } from './telegram-update.worker';
 import { WaitlistModule } from '../waitlist/waitlist.module';
 import { TelegramMiniAppController } from './telegram-miniapp.controller';
 import { TelegramMiniAppService } from './telegram-miniapp.service';
+import { EmployeesModule } from '../employees/employees.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { TelegramMiniAppService } from './telegram-miniapp.service';
     AppointmentsModule,
     TelegramClientModule,
     WaitlistModule,
+    EmployeesModule,
   ],
   controllers: [BotsController, TelegramWebhookController, TelegramMiniAppController],
   providers: [

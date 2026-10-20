@@ -1,7 +1,7 @@
 import { Body, Controller, Param, ParseUUIDPipe, Post } from '@nestjs/common';
 import { ApiExcludeController } from '@nestjs/swagger';
 import { RateLimits } from '../rate-limit/rate-limit.decorator';
-import { MiniAppAvailabilityDto, MiniAppBookingDto, MiniAppSessionDto } from './dto/mini-app.dto';
+import { MiniAppAppointmentDto, MiniAppAvailabilityDto, MiniAppBookingDto, MiniAppFunnelEventDto, MiniAppRescheduleDto, MiniAppSessionDto } from './dto/mini-app.dto';
 import { TelegramMiniAppService } from './telegram-miniapp.service';
 
 @ApiExcludeController()
@@ -36,5 +36,25 @@ export class TelegramMiniAppController {
     @Body() input: MiniAppBookingDto,
   ) {
     return this.miniApp.createBooking(companyId, input);
+  }
+
+  @Post('event')
+  event(@Param('companyId', ParseUUIDPipe) companyId: string, @Body() input: MiniAppFunnelEventDto) {
+    return this.miniApp.recordFunnelEvent(companyId, input.initData, input.step);
+  }
+
+  @Post('appointments')
+  appointments(@Param('companyId', ParseUUIDPipe) companyId: string, @Body() input: MiniAppSessionDto) {
+    return this.miniApp.listAppointments(companyId, input.initData);
+  }
+
+  @Post('appointments/cancel')
+  cancel(@Param('companyId', ParseUUIDPipe) companyId: string, @Body() input: MiniAppAppointmentDto) {
+    return this.miniApp.cancelAppointment(companyId, input);
+  }
+
+  @Post('appointments/reschedule')
+  reschedule(@Param('companyId', ParseUUIDPipe) companyId: string, @Body() input: MiniAppRescheduleDto) {
+    return this.miniApp.rescheduleAppointment(companyId, input);
   }
 }

@@ -226,6 +226,8 @@ export interface MiniAppSession {
     currency: string;
     logoUrl: string | null;
     maxBookingHorizonDays: number;
+    cancellationNoticeMinutes: number;
+    allowAnyEmployee: boolean;
   };
   services: MiniAppService[];
 }
@@ -233,10 +235,27 @@ export interface MiniAppSession {
 export interface MiniAppAvailability {
   date: string;
   timezone: string;
-  employeeId: string;
+  employeeId: string | null;
   serviceId: string;
   durationMinutes: number;
-  slots: Array<{ startsAt: string; endsAt: string }>;
+  slots: Array<{ startsAt: string; endsAt: string; employeeId?: string }>;
+}
+
+export interface MiniAppAppointment {
+  id: string;
+  serviceId: string;
+  employeeId: string;
+  serviceName: string;
+  employeeName: string;
+  startsAt: string;
+  endsAt: string;
+  status: 'PENDING' | 'CONFIRMED' | 'COMPLETED' | 'CANCELLED_BY_CUSTOMER' | 'CANCELLED_BY_COMPANY' | 'NO_SHOW';
+  price: string;
+}
+
+export interface MiniAppAppointments {
+  upcoming: MiniAppAppointment[];
+  history: MiniAppAppointment[];
 }
 
 export interface MiniAppBookingResult {

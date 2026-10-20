@@ -18,6 +18,8 @@ rollback() {
 }
 trap rollback INT TERM HUP EXIT
 
+echo "Creating pre-deployment backup"
+docker compose -f docker-compose.production.yml run --rm backup
 docker compose $compose_files pull api api-migrate web
 docker compose $compose_files run --rm api-migrate
 docker compose $compose_files up -d --no-build api web

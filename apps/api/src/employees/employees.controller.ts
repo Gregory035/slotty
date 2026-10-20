@@ -9,6 +9,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   Res,
   UploadedFile,
   UseInterceptors,
@@ -161,8 +162,8 @@ export class PublicWorkExamplesController {
   constructor(private readonly employees: EmployeesService) {}
 
   @Get(':id/image')
-  async image(@Param('id', ParseUUIDPipe) id: string, @Res() response: { setHeader(name: string, value: string): void; send(body: Buffer): void }) {
-    const image = await this.employees.getPublishedWorkImage(id);
+  async image(@Param('id', ParseUUIDPipe) id: string, @Query('variant') variant: string | undefined, @Res() response: { setHeader(name: string, value: string): void; send(body: Buffer): void }) {
+    const image = await this.employees.getPublishedWorkImage(id, variant === 'thumb');
     response.setHeader('Content-Type', image.mimeType!);
     response.setHeader('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
     response.send(Buffer.from(image.imageData!));

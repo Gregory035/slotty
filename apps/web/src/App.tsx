@@ -7,9 +7,9 @@ import { LandingPage } from './views/LandingPage';
 import { OnlineBookingPage } from './views/OnlineBookingPage';
 import { TelegramBookingPage } from './views/TelegramBookingPage';
 import { NotFoundPage } from './views/NotFoundPage';
-import { TelegramMiniAppPage } from './views/TelegramMiniAppPage';
 
 const WorkspaceApp = lazy(() => import('./WorkspaceApp').then((module) => ({ default: module.WorkspaceApp })));
+const TelegramMiniAppPage = lazy(() => import('./views/TelegramMiniAppPage').then((module) => ({ default: module.TelegramMiniAppPage })));
 
 export function App() {
   const location = useLocation();
@@ -24,7 +24,7 @@ export function App() {
       <Route path="/" element={<LandingPage />} />
       <Route path="/online-zapis" element={<OnlineBookingPage />} />
       <Route path="/zapis-cherez-telegram" element={<TelegramBookingPage />} />
-      <Route path="/miniapp/:companyId" element={<TelegramMiniAppPage />} />
+      <Route path="/miniapp/:companyId" element={<WorkspaceFallback><TelegramMiniAppPage /></WorkspaceFallback>} />
       <Route path="/app/*" element={<WorkspaceFallback><WorkspaceApp /></WorkspaceFallback>} />
       <Route path="/companies/:companyId/:section/*" element={<WorkspaceFallback><WorkspaceApp /></WorkspaceFallback>} />
       <Route path="*" element={<NotFoundPage />} />

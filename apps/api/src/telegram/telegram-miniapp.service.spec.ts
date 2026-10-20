@@ -17,12 +17,16 @@ describe('TelegramMiniAppService', () => {
     prisma = {
       bot: { findFirst: jest.fn().mockResolvedValue({ tokenEncrypted: 'encrypted' }) },
       company: { findFirst: jest.fn().mockResolvedValue({
-        name: 'Studio', description: null, timezone: 'Europe/Moscow', currency: 'RUB', logoUrl: null, maxBookingHorizonDays: 14,
+        name: 'Studio', description: null, timezone: 'Europe/Moscow', currency: 'RUB', logoUrl: null, maxBookingHorizonDays: 14, allowAnyEmployee: true, cancellationNoticeMinutes: 0,
       }) },
       service: { findMany: jest.fn().mockResolvedValue([{
         id: serviceId, name: 'Стрижка', description: null, durationMinutes: 60, price: { toFixed: () => '2500.00' }, category: null, photoUrl: null,
         employees: [{ employee: { id: employeeId, firstName: 'Елена', lastName: null, photoUrl: null, description: null, color: '#4F46E5', workExamples: [], appointments: [] } }],
       }]) },
+      bookingFunnelEvent: { create: jest.fn().mockResolvedValue({}) },
+      employeeService: { findMany: jest.fn().mockResolvedValue([{ employeeId }]) },
+      customer: { findUnique: jest.fn().mockResolvedValue(null) },
+      appointment: { findMany: jest.fn().mockResolvedValue([]), findFirst: jest.fn() },
     };
     scheduling = { getAvailability: jest.fn().mockResolvedValue({ slots: [] }) };
     appointments = { createFromTelegram: jest.fn().mockResolvedValue({ appointmentId: 'appointment-id' }) };
@@ -40,6 +44,7 @@ describe('TelegramMiniAppService', () => {
       employees: [expect.objectContaining({ id: employeeId, name: 'Елена' })],
     })]);
     expect(encryption.decrypt).toHaveBeenCalledWith('encrypted');
+    expect(prisma.bookingFunnelEvent.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ step: 'STARTED' }) }));
   });
 
   it('rejects a forged Telegram user before scheduling or booking', async () => {
@@ -57,6 +62,22 @@ describe('TelegramMiniAppService', () => {
     expect(appointments.createFromTelegram).toHaveBeenCalledWith(companyId, {
       telegramId: 42, firstName: 'Ivan', lastName: 'Petrov', username: 'ivan',
     }, employeeId, serviceId, '2030-01-10', '12:00');
+    expect(prisma.bookingFunnelEvent.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ step: 'BOOKED' }) }));
+  });
+
+  it('merges availability from all assigned employees', async () => {
+    const secondEmployeeId = '3e4dfb39-b5dc-40df-8ec0-467eae98e40d';
+    prisma.employeeService.findMany.mockResolvedValue([{ employeeId }, { employeeId: secondEmployeeId }]);
+    scheduling.getAvailability
+      .mockResolvedValueOnce({ timezone: 'Europe/Moscow', employeeId, serviceId, durationMinutes: 60, slots: [{ startsAt: '2030-01-10T09:00:00.000Z', endsAt: '2030-01-10T10:00:00.000Z' }] })
+      .mockResolvedValueOnce({ timezone: 'Europe/Moscow', employeeId: secondEmployeeId, serviceId, durationMinutes: 60, slots: [{ startsAt: '2030-01-10T08:00:00.000Z', endsAt: '2030-01-10T09:00:00.000Z' }] });
+
+    const result = await miniApp.getAvailability(companyId, { initData: signedInitData(), serviceId, date: '2030-01-10' });
+
+    expect(result.slots).toEqual([
+      expect.objectContaining({ employeeId: secondEmployeeId }),
+      expect.objectContaining({ employeeId }),
+    ]);
   });
 
   function signedInitData() {

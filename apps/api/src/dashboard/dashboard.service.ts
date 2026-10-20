@@ -61,6 +61,7 @@ export class DashboardService {
       hasAppointment,
       telegramUpdates,
       telegramBookings,
+      miniAppFunnelEvents,
       subscription,
       failedNotifications,
       deadEvents,
@@ -147,6 +148,10 @@ export class DashboardService {
         where: { companyId, source: AppointmentSource.TELEGRAM, createdAt: { gte: periodStart, lt: periodEnd } },
         select: { customer: { select: { telegramId: true } } },
       }),
+      this.prisma.bookingFunnelEvent.findMany({
+        where: { companyId, createdAt: { gte: periodStart, lt: periodEnd } },
+        select: { visitorKey: true, step: true },
+      }),
       this.prisma.subscription.findFirst({
         where: { companyId },
         orderBy: { createdAt: 'desc' },
@@ -222,6 +227,7 @@ export class DashboardService {
         new Set(priorCompletedCustomers.map((item) => item.customerId)),
         telegramUpdates,
         telegramBookings,
+        miniAppFunnelEvents,
         fromDate,
         toDate,
         company.timezone,
@@ -242,6 +248,7 @@ export class DashboardService {
     priorCompletedCustomerIds: Set<string>,
     telegramUpdates: Array<{ payload: unknown }>,
     telegramBookings: Array<{ customer: { telegramId: bigint | null } }>,
+    miniAppFunnelEvents: Array<{ visitorKey: string; step: string }>,
     from: string,
     to: string,
     timezone: string,
@@ -328,11 +335,20 @@ export class DashboardService {
       if (callback.startsWith('d:')) funnelUsers.dateSelected.add(userId);
       if (callback.startsWith('t:')) funnelUsers.timeSelected.add(userId);
     }
+    for (const event of miniAppFunnelEvents) {
+      if (event.step === 'STARTED') funnelUsers.started.add(event.visitorKey);
+      if (event.step === 'SERVICE_SELECTED') funnelUsers.serviceSelected.add(event.visitorKey);
+      if (event.step === 'DATE_SELECTED') funnelUsers.dateSelected.add(event.visitorKey);
+      if (event.step === 'TIME_SELECTED') funnelUsers.timeSelected.add(event.visitorKey);
+    }
     const bookedUsers = new Set(
       telegramBookings
         .map((item) => item.customer.telegramId?.toString())
         .filter((id): id is string => Boolean(id)),
     );
+    for (const event of miniAppFunnelEvents) {
+      if (event.step === 'BOOKED') bookedUsers.add(event.visitorKey);
+    }
     const selectedService = new Set(
       [...funnelUsers.serviceSelected].filter((id) => funnelUsers.started.has(id)),
     );

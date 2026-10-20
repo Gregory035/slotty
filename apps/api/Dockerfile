@@ -17,7 +17,8 @@ USER node
 CMD ["npx", "prisma", "migrate", "deploy", "--schema=apps/api/prisma/schema.prisma"]
 
 FROM dependencies AS production-dependencies
-RUN npm prune --omit=dev --omit=optional && npm cache clean --force
+# sharp ships its platform binary as an optional dependency; production must keep it.
+RUN npm prune --omit=dev && npm cache clean --force
 
 FROM node:22-alpine AS runtime
 ENV NODE_ENV=production
@@ -26,7 +27,8 @@ COPY --from=production-dependencies --chown=node:node /app/node_modules ./node_m
 COPY --from=build --chown=node:node /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=build --chown=node:node /app/apps/api/dist ./apps/api/dist
 COPY --from=build --chown=node:node /app/apps/api/package.json ./apps/api/package.json
-RUN apk upgrade --no-cache && rm -rf \
+RUN mkdir -p /data/work-examples && chown -R node:node /data && \
+  apk upgrade --no-cache && rm -rf \
   /usr/local/lib/node_modules/npm \
   /usr/local/bin/npm \
   /usr/local/bin/npx \
