@@ -29,7 +29,7 @@ services:
   backup:
     image: postgres:17-alpine
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-telegram_business}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-telegram_business}?schema=public
+      DATABASE_URL: postgresql://${POSTGRES_USER:-telegram_business}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-telegram_business}
       BACKUP_DIR: /backups
       BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
     volumes:
