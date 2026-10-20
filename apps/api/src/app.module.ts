@@ -21,6 +21,7 @@ import { BillingModule } from './billing/billing.module';
 import { ObservabilityModule } from './observability/observability.module';
 import { ReviewsModule } from './reviews/reviews.module';
 import { WaitlistModule } from './waitlist/waitlist.module';
+import { SystemStatusModule } from './system-status/system-status.module';
 
 @Module({
   imports: [
@@ -49,6 +50,7 @@ import { WaitlistModule } from './waitlist/waitlist.module';
     NotificationsModule,
     AuditModule,
     TelegramModule,
+    SystemStatusModule,
   ],
 })
 export class AppModule {}

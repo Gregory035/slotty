@@ -18,6 +18,7 @@ test('public landing opens the registration flow without browser errors', async 
   await page.getByRole('link', { name: /Начать бесплатно/ }).first().click();
   await expect(page).toHaveURL(/\/app\?mode=register$/);
   await expect(page.getByRole('heading', { name: 'Создайте аккаунт' })).toBeVisible();
+  await expectNoHorizontalOverflow(page);
   expect(errors).toEqual([]);
 });
 
@@ -39,7 +40,13 @@ test('owner can register, create a company and refresh the private dashboard', a
 
     await expect(page).toHaveURL(/\/companies\/[0-9a-f-]+\/dashboard$/);
     await expect(page.getByRole('heading', { name: 'Добрый день' })).toBeVisible();
+    await expectNoHorizontalOverflow(page);
     const privateUrl = page.url();
+    const companyUrl = new URL(page.url());
+    await page.goto(`${companyUrl.origin}${companyUrl.pathname.replace(/\/dashboard$/, '/system')}`);
+    await expect(page.getByRole('heading', { name: 'Состояние системы' })).toBeVisible();
+    await expectNoHorizontalOverflow(page);
+    await page.goto(privateUrl);
     await page.reload();
     await expect(page).toHaveURL(privateUrl);
     await expect(page.getByRole('heading', { name: 'Добрый день' })).toBeVisible();
@@ -72,17 +79,26 @@ test('Telegram Mini App books, lists, cancels and repeats a visit', async ({ pag
     const occupiedStartsAt = new Date(`${tomorrow}T${occupiedTime}:00+03:00`);
     const blockingCustomer = await prisma.customer.create({ data: { companyId: fixture.companyId, firstName: 'Race' } });
     const blockingAppointment = await prisma.appointment.create({ data: { companyId: fixture.companyId, customerId: blockingCustomer.id, employeeId: fixture.employeeId, serviceId: fixture.serviceId, startsAt: occupiedStartsAt, endsAt: new Date(occupiedStartsAt.getTime() + 30 * 60_000), priceSnapshot: 1500, durationMinutesSnapshot: 30, source: 'DASHBOARD' } });
-    await page.getByRole('button', { name: 'Подтвердить запись' }).click();
+    await page.getByRole('button', { name: 'Добавить в визит' }).click();
+    await page.getByRole('button', { name: 'Подтвердить визит' }).click();
     await expect(page.getByRole('alert')).toBeVisible();
     await prisma.appointment.delete({ where: { id: blockingAppointment.id } });
     await prisma.customer.delete({ where: { id: blockingCustomer.id } });
-    await page.locator('.miniapp-slots button').first().click();
-    await page.getByRole('button', { name: 'Подтвердить запись' }).click();
+    await page.getByRole('button', { name: 'Добавить ещё услугу' }).click();
+    await page.getByRole('button', { name: /Вторая услуга/ }).click();
+    await page.getByRole('button', { name: 'Выбрать время' }).click();
+    await page.locator('input[type="date"]').fill(tomorrow);
+    await page.locator('.miniapp-slots button').nth(2).click();
+    await page.getByRole('button', { name: 'Добавить в визит' }).click();
+    await page.getByRole('button', { name: 'Подтвердить визит' }).click();
     await expect(page.getByRole('heading', { name: 'До встречи!' })).toBeVisible();
+    await expect(page.getByText('2 услуги в визите')).toBeVisible();
     await page.getByRole('button', { name: 'Мои записи' }).click();
     await expect(page.getByRole('heading', { name: 'Мои записи' })).toBeVisible();
     await expect(page.getByText('Тестовая услуга')).toBeVisible();
-    await page.getByRole('button', { name: 'Перенести' }).click();
+    await expect(page.getByText('Вторая услуга')).toBeVisible();
+    await expectNoHorizontalOverflow(page);
+    await page.getByRole('button', { name: 'Перенести' }).first().click();
     const dayAfterTomorrow = isoDate(new Date(Date.now() + 2 * 86_400_000));
     await page.locator('input[type="date"]').fill(dayAfterTomorrow);
     await page.locator('.miniapp-slots button').first().click();
@@ -90,10 +106,10 @@ test('Telegram Mini App books, lists, cancels and repeats a visit', async ({ pag
     await expect(page.getByRole('heading', { name: 'Запись перенесена' })).toBeVisible();
     await page.getByRole('button', { name: 'Мои записи' }).click();
     page.once('dialog', (dialog) => dialog.accept());
-    await page.getByRole('button', { name: 'Отменить' }).click();
+    await page.getByRole('button', { name: 'Отменить' }).first().click();
     await page.getByRole('button', { name: 'История' }).click();
     await expect(page.getByText('Отменена вами')).toBeVisible();
-    await page.getByRole('button', { name: 'Повторить' }).click();
+    await page.getByRole('button', { name: 'Повторить' }).first().click();
     await expect(page.getByRole('heading', { name: 'Выберите время' })).toBeVisible();
   } finally {
     await prisma.company.deleteMany({ where: { id: fixture.companyId } });
@@ -143,10 +159,19 @@ async function createMiniAppFixture(suffix: string) {
   });
   const employee = company.employees[0]!;
   const service = company.services[0]!;
+  const secondEmployee = await prisma.employee.create({ data: { companyId: company.id, firstName: 'Мария', color: '#B45309' } });
+  const secondService = await prisma.service.create({ data: { companyId: company.id, name: 'Вторая услуга', durationMinutes: 30, price: 900 } });
   await prisma.employeeService.create({ data: { companyId: company.id, employeeId: employee.id, serviceId: service.id } });
+  await prisma.employeeService.create({ data: { companyId: company.id, employeeId: secondEmployee.id, serviceId: secondService.id } });
   await prisma.scheduleRule.createMany({ data: Array.from({ length: 7 }, (_, index) => ({ companyId: company.id, employeeId: employee.id, weekday: index + 1, startTime: '09:00', endTime: '21:00' })) });
+  await prisma.scheduleRule.createMany({ data: Array.from({ length: 7 }, (_, index) => ({ companyId: company.id, employeeId: secondEmployee.id, weekday: index + 1, startTime: '09:00', endTime: '21:00' })) });
   await prisma.bot.create({ data: { companyId: company.id, telegramBotId: BigInt(`8${Date.now()}`), username: `test_${Date.now()}_bot`, tokenEncrypted: encryptBotToken(botToken), webhookSecret: randomBytes(24).toString('hex'), status: 'ACTIVE' } });
   return { companyId: company.id, employeeId: employee.id, serviceId: service.id, botToken };
+}
+
+async function expectNoHorizontalOverflow(page: Page) {
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  expect(overflow).toBeLessThanOrEqual(1);
 }
 
 function encryptBotToken(token: string) {

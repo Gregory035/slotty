@@ -104,6 +104,40 @@ describe('BillingService payment reconciliation', () => {
     expect(tx.subscription.update).not.toHaveBeenCalled();
   });
 
+  it('starts a seven-day grace period when renewal fails after access expires', async () => {
+    const { service, tx } = setup();
+    jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({ ...provider, status: 'canceled' }),
+    } as Response);
+
+    await service.syncPayment(companyId, payment.id);
+
+    const change = tx.subscription.updateMany.mock.calls[0]?.[0] as {
+      data: { status: SubscriptionStatus; graceEndsAt: Date };
+    };
+    expect(change.data.status).toBe(SubscriptionStatus.PAST_DUE);
+    expect(change.data.graceEndsAt.getTime()).toBeGreaterThan(Date.now() + 6 * 86_400_000);
+  });
+
+  it('disables renewal and schedules cancellation at the paid period end', async () => {
+    const currentPeriodEndsAt = new Date(Date.now() + 10 * 86_400_000);
+    const prisma = {
+      subscription: {
+        findFirst: jest.fn().mockResolvedValue({ id: payment.subscriptionId, companyId, currentPeriodEndsAt }),
+        update: jest.fn().mockResolvedValue({ autoRenewEnabled: false, cancelAtPeriodEnd: true, currentPeriodEndsAt }),
+      },
+    };
+    const service = new BillingService(prisma as never, { get: jest.fn() } as never);
+
+    await expect(service.cancelAtPeriodEnd(companyId)).resolves.toEqual({
+      autoRenewEnabled: false, cancelAtPeriodEnd: true, currentPeriodEndsAt,
+    });
+    expect(prisma.subscription.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: { autoRenewEnabled: false, cancelAtPeriodEnd: true },
+    }));
+  });
+
   it('creates one automatic payment for a period that is about to end', async () => {
     const periodEnd = new Date(Date.now() + 60_000);
     const subscription = {

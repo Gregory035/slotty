@@ -271,6 +271,29 @@ export interface MiniAppBookingResult {
   timezone: string;
 }
 
+export interface SystemStatus {
+  checkedAt: string;
+  integrations: {
+    passwordRecovery: boolean;
+    errorTracking: boolean;
+    workExamplesStorage: boolean;
+    paymentProvider: boolean;
+    offsiteBackup: boolean;
+  };
+  bot: { username: string; status: 'ACTIVE' | 'DISABLED' | 'ERROR'; webhookConfigured: boolean; errorMessage: string | null; updatedAt: string } | null;
+  queues: {
+    notifications: Record<string, number>;
+    outbox: Record<string, number>;
+    telegram: Record<string, number>;
+  };
+  billing: {
+    subscription: { plan: string; status: string; autoRenewEnabled: boolean; cancelAtPeriodEnd: boolean; currentPeriodEndsAt: string | null; graceEndsAt: string | null } | null;
+    paymentsLast30Days: Record<string, number>;
+    lastPayment: { status: string; amount: string; currency: string; createdAt: string; paidAt: string | null; receiptStatus: string | null } | null;
+  };
+  backup: { state: 'running' | 'success' | 'failed'; startedAt: string; finishedAt?: string; file?: string; remote?: boolean } | null;
+}
+
 export interface CursorPage<T> {
   items: T[];
   nextCursor: string | null;
@@ -444,4 +467,5 @@ export type Section =
   | 'members'
   | 'billing'
   | 'settings'
-  | 'audit';
+  | 'audit'
+  | 'system';

@@ -21,6 +21,7 @@ import {
   Scissors,
   Search,
   Settings,
+  ServerCog,
   Star,
   Sun,
   UsersRound,
@@ -47,6 +48,7 @@ const navigation: Array<{ id: Section; label: string; icon: typeof LayoutDashboa
   { id: 'billing', label: 'Тариф', icon: CircleDollarSign },
   { id: 'settings', label: 'Настройки', icon: Settings },
   { id: 'audit', label: 'Журнал', icon: ClipboardList },
+  { id: 'system', label: 'Система', icon: ServerCog },
 ];
 
 export function AppShell({
@@ -86,7 +88,7 @@ export function AppShell({
   const sectionTitle = navigation.find((item) => item.id === section)?.label ?? 'Обзор';
   const visibleNavigation = navigation.filter((item) => {
     if (activeCompany.role === 'EMPLOYEE') return ['calendar', 'appointments', 'schedule'].includes(item.id);
-    if (activeCompany.role === 'ADMIN') return item.id !== 'billing';
+    if (activeCompany.role === 'ADMIN') return item.id !== 'billing' && item.id !== 'system';
     return true;
   });
 

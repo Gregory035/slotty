@@ -193,6 +193,47 @@ export class AppointmentsService {
     actorId: string,
     idempotencyKey?: string,
   ): Promise<AppointmentResponseDto[]> {
+    return this.createVisit(companyId, input, AppointmentSource.DASHBOARD, actorId, idempotencyKey);
+  }
+
+  async createVisitFromTelegram(
+    companyId: string,
+    customerInput: TelegramCustomerInput,
+    items: Array<{ serviceId: string; employeeId: string; date: string; time: string }>,
+    idempotencyKey: string,
+  ): Promise<AppointmentResponseDto[]> {
+    const company = await this.prisma.company.findFirst({
+      where: { id: companyId, deletedAt: null }, select: { timezone: true },
+    });
+    if (!company) throw new NotFoundException('Company not found');
+    const customer = await this.prisma.customer.upsert({
+      where: { companyId_telegramId: { companyId, telegramId: BigInt(customerInput.telegramId) } },
+      update: {
+        username: customerInput.username, firstName: this.telegramCustomerName(customerInput),
+        lastName: customerInput.lastName, lastActivityAt: new Date(),
+      },
+      create: {
+        companyId, telegramId: BigInt(customerInput.telegramId), username: customerInput.username,
+        firstName: this.telegramCustomerName(customerInput), lastName: customerInput.lastName,
+      },
+    });
+    return this.createVisit(companyId, {
+      customerId: customer.id,
+      items: items.map((item) => ({
+        serviceId: item.serviceId,
+        employeeId: item.employeeId,
+        startsAt: localDateTimeToUtc(item.date, item.time, company.timezone).toISOString(),
+      })),
+    }, AppointmentSource.TELEGRAM, undefined, `telegram-visit:${idempotencyKey}`);
+  }
+
+  private async createVisit(
+    companyId: string,
+    input: CreateVisitDto,
+    source: AppointmentSource,
+    actorId?: string,
+    idempotencyKey?: string,
+  ): Promise<AppointmentResponseDto[]> {
     if (!idempotencyKey || idempotencyKey.length > 128) {
       throw new BadRequestException('Idempotency key is required (maximum 128 characters)');
     }
@@ -307,7 +348,7 @@ export class AppointmentsService {
               const appointment = await tx.appointment.create({ data: {
                 companyId, customerId: customer.id, employeeId: item.employeeId, serviceId: item.serviceId,
                 visitId, recurrenceId, startsAt: item.startsAt, endsAt: item.endsAt,
-                status: AppointmentStatus.CONFIRMED, source: AppointmentSource.DASHBOARD,
+                status: AppointmentStatus.CONFIRMED, source,
                 notes: input.notes?.trim() || null, priceSnapshot,
                 depositAmountSnapshot: depositAmount,
                 depositStatus: depositAmount.gt(0) ? 'PENDING' : 'NOT_REQUIRED',

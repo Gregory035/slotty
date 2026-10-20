@@ -11,7 +11,7 @@ import { AppointmentsService, TelegramCustomerInput } from '../appointments/appo
 import { PrismaService } from '../database/prisma.service';
 import { SchedulingService } from '../scheduling/scheduling.service';
 import { localDateTimeToUtc } from '../scheduling/time-zone.util';
-import { MiniAppAppointmentDto, MiniAppAvailabilityDto, MiniAppBookingDto, MiniAppRescheduleDto } from './dto/mini-app.dto';
+import { MiniAppAppointmentDto, MiniAppAvailabilityDto, MiniAppBookingDto, MiniAppRescheduleDto, MiniAppVisitBookingDto } from './dto/mini-app.dto';
 import { TokenEncryptionService } from './token-encryption.service';
 
 interface TelegramMiniAppUser {
@@ -163,6 +163,15 @@ export class TelegramMiniAppService {
       input.serviceId,
       input.date,
       input.time,
+    );
+    await this.recordEvent(companyId, user.id, BookingFunnelStep.BOOKED);
+    return result;
+  }
+
+  async createVisit(companyId: string, input: MiniAppVisitBookingDto) {
+    const user = await this.authenticate(companyId, input.initData);
+    const result = await this.appointments.createVisitFromTelegram(
+      companyId, this.customerInput(user), input.items, input.requestId,
     );
     await this.recordEvent(companyId, user.id, BookingFunnelStep.BOOKED);
     return result;

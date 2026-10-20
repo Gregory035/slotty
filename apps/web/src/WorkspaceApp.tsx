@@ -24,8 +24,9 @@ const MembersView = lazy(() => import('./views/MembersView').then((module) => ({
 const BillingView = lazy(() => import('./views/BillingView').then((module) => ({ default: module.BillingView })));
 const SettingsView = lazy(() => import('./views/SettingsView').then((module) => ({ default: module.SettingsView })));
 const AuditView = lazy(() => import('./views/AuditView').then((module) => ({ default: module.AuditView })));
+const SystemStatusView = lazy(() => import('./views/SystemStatusView').then((module) => ({ default: module.SystemStatusView })));
 
-const sections: Section[] = ['dashboard', 'analytics', 'calendar', 'appointments', 'customers', 'reviews', 'services', 'employees', 'schedule', 'bot', 'members', 'billing', 'settings', 'audit'];
+const sections: Section[] = ['dashboard', 'analytics', 'calendar', 'appointments', 'customers', 'reviews', 'services', 'employees', 'schedule', 'bot', 'members', 'billing', 'settings', 'audit', 'system'];
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 30_000 } } });
 
 export function WorkspaceApp() {
@@ -95,7 +96,7 @@ function CompanyWorkspace({ companies }: { companies: Company[] }) {
   const allowed = allowedSections(company);
   if (!allowed.includes(section)) return <Navigate replace to={`/companies/${company.id}/${allowed[0]}`} />;
   const content: Record<Section, ReactNode> = {
-    dashboard: <OverviewView company={company} />, analytics: <AnalyticsView company={company} />, calendar: <CalendarView company={company} />, appointments: <AppointmentsView company={company} />, customers: <CustomersView company={company} />, reviews: <ReviewsView company={company} />, services: <ServicesView company={company} />, employees: <EmployeesView company={company} />, schedule: <ScheduleView company={company} />, bot: <BotView company={company} />, members: <MembersView company={company} />, billing: <BillingView company={company} />, settings: <SettingsView company={company} />, audit: <AuditView company={company} />,
+    dashboard: <OverviewView company={company} />, analytics: <AnalyticsView company={company} />, calendar: <CalendarView company={company} />, appointments: <AppointmentsView company={company} />, customers: <CustomersView company={company} />, reviews: <ReviewsView company={company} />, services: <ServicesView company={company} />, employees: <EmployeesView company={company} />, schedule: <ScheduleView company={company} />, bot: <BotView company={company} />, members: <MembersView company={company} />, billing: <BillingView company={company} />, settings: <SettingsView company={company} />, audit: <AuditView company={company} />, system: <SystemStatusView company={company} />,
   };
   return <AppShell companies={companies} activeCompany={company} section={section}><SubscriptionExpiryNotice company={company} /><Suspense fallback={<LoadingBlock />}>{content[section]}</Suspense></AppShell>;
 }
@@ -114,5 +115,5 @@ function SubscriptionExpiryNotice({ company }: { company: Company }) {
 function allowedSections(company: Company): Section[] {
   if (company.role === 'EMPLOYEE') return ['calendar', 'appointments', 'schedule'];
   const common: Section[] = ['dashboard', 'analytics', 'calendar', 'appointments', 'customers', 'reviews', 'services', 'employees', 'schedule', 'bot', 'members', 'settings', 'audit'];
-  return company.role === 'OWNER' ? [...common, 'billing'] : common;
+  return company.role === 'OWNER' ? [...common, 'billing', 'system'] : common;
 }

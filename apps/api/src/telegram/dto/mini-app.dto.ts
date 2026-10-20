@@ -1,4 +1,5 @@
-import { IsEnum, IsOptional, IsString, IsUUID, Matches, MaxLength } from 'class-validator';
+import { Type } from 'class-transformer';
+import { ArrayMaxSize, ArrayMinSize, IsArray, IsEnum, IsOptional, IsString, IsUUID, Matches, MaxLength, ValidateNested } from 'class-validator';
 import { BookingFunnelStep } from '@prisma/client';
 import { DATE_PATTERN } from '../../scheduling/time-zone.util';
 
@@ -32,6 +33,32 @@ export class MiniAppBookingDto extends MiniAppSessionDto {
 
   @Matches(/^([01]\d|2[0-3]):[0-5]\d$/)
   time: string;
+}
+
+export class MiniAppVisitItemDto {
+  @IsUUID()
+  serviceId: string;
+
+  @IsUUID()
+  employeeId: string;
+
+  @Matches(DATE_PATTERN)
+  date: string;
+
+  @Matches(/^([01]\d|2[0-3]):[0-5]\d$/)
+  time: string;
+}
+
+export class MiniAppVisitBookingDto extends MiniAppSessionDto {
+  @IsUUID()
+  requestId: string;
+
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(5)
+  @ValidateNested({ each: true })
+  @Type(() => MiniAppVisitItemDto)
+  items: MiniAppVisitItemDto[];
 }
 
 export class MiniAppAppointmentDto extends MiniAppSessionDto {

@@ -1,7 +1,7 @@
 import { Body, Controller, Param, ParseUUIDPipe, Post } from '@nestjs/common';
 import { ApiExcludeController } from '@nestjs/swagger';
 import { RateLimits } from '../rate-limit/rate-limit.decorator';
-import { MiniAppAppointmentDto, MiniAppAvailabilityDto, MiniAppBookingDto, MiniAppFunnelEventDto, MiniAppRescheduleDto, MiniAppSessionDto } from './dto/mini-app.dto';
+import { MiniAppAppointmentDto, MiniAppAvailabilityDto, MiniAppBookingDto, MiniAppFunnelEventDto, MiniAppRescheduleDto, MiniAppSessionDto, MiniAppVisitBookingDto } from './dto/mini-app.dto';
 import { TelegramMiniAppService } from './telegram-miniapp.service';
 
 @ApiExcludeController()
@@ -36,6 +36,14 @@ export class TelegramMiniAppController {
     @Body() input: MiniAppBookingDto,
   ) {
     return this.miniApp.createBooking(companyId, input);
+  }
+
+  @Post('book-visit')
+  bookVisit(
+    @Param('companyId', ParseUUIDPipe) companyId: string,
+    @Body() input: MiniAppVisitBookingDto,
+  ) {
+    return this.miniApp.createVisit(companyId, input);
   }
 
   @Post('event')

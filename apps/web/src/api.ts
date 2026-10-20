@@ -23,6 +23,7 @@ import type {
   MiniAppAppointments,
   MiniAppBookingResult,
   MiniAppSession,
+  SystemStatus,
 } from './types';
 
 const apiUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:3000/api';
@@ -90,8 +91,8 @@ async function publicRequest<T>(
 
 async function miniAppRequest<T>(
   companyId: string,
-  path: 'session' | 'availability' | 'book' | 'event' | 'appointments' | 'appointments/cancel' | 'appointments/reschedule',
-  input: Record<string, string>,
+  path: 'session' | 'availability' | 'book' | 'book-visit' | 'event' | 'appointments' | 'appointments/cancel' | 'appointments/reschedule',
+  input: unknown,
 ): Promise<T> {
   const response = await fetchResponse(`${apiUrl}/telegram/miniapp/${companyId}/${path}`, {
     method: 'POST',
@@ -114,6 +115,11 @@ export const createMiniAppBooking = (
   companyId: string,
   input: { initData: string; serviceId: string; employeeId: string; date: string; time: string },
 ) => miniAppRequest<MiniAppBookingResult>(companyId, 'book', input);
+
+export const createMiniAppVisit = (
+  companyId: string,
+  input: { initData: string; requestId: string; items: Array<{ serviceId: string; employeeId: string; date: string; time: string }> },
+) => miniAppRequest<MiniAppBookingResult[]>(companyId, 'book-visit', input);
 
 export const trackMiniAppEvent = (companyId: string, initData: string, step: 'SERVICE_SELECTED' | 'TIME_SELECTED') =>
   miniAppRequest<{ ok: true }>(companyId, 'event', { initData, step });
@@ -217,6 +223,9 @@ export async function logout(): Promise<void> {
 }
 
 export const getCompanies = () => request<Company[]>('/companies');
+
+export const getSystemStatus = (companyId: string) =>
+  request<SystemStatus>(`/companies/${companyId}/system-status`);
 
 export const createCompany = (input: {
   name: string;

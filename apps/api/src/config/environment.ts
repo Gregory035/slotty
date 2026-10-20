@@ -76,6 +76,8 @@ const environmentSchema = z.object({
   RESEND_API_KEY: optionalString,
   PASSWORD_RESET_FROM_EMAIL: optionalString,
   PASSWORD_RESET_TTL_MINUTES: z.coerce.number().int().min(5).max(1440).default(30),
+  BACKUP_STATUS_FILE: z.string().min(1).default('/backups/latest-status.json'),
+  BACKUP_REMOTE_CONFIGURED: z.enum(['true', 'false']).default('false'),
 });
 
 export type Environment = z.infer<typeof environmentSchema>;

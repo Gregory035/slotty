@@ -1,0 +1,29 @@
+name: Production uptime
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check public pages and API
+        shell: bash
+        run: |
+          set -euo pipefail
+          for url in \
+            https://slotty23.ru/ \
+            https://slotty23.ru/online-zapis \
+            https://slotty23.ru/zapis-cherez-telegram \
+            https://slotty23.ru/api/health/ready
+          do
+            curl --fail --silent --show-error --location \
+              --retry 2 --retry-all-errors --max-time 15 \
+              --output /dev/null "$url"
+          done

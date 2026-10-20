@@ -26,6 +26,7 @@ export enum CompanyPermission {
   BILLING_MANAGE = 'billing:manage',
   AUDIT_READ = 'audit:read',
   NOTIFICATIONS_READ = 'notifications:read',
+  SYSTEM_READ = 'system:read',
 }
 
 const ownerPermissions = Object.values(CompanyPermission);

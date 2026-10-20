@@ -14,6 +14,28 @@ cleanup() {
 trap cleanup EXIT INT TERM HUP
 timestamp=$(date -u +%Y%m%dT%H%M%SZ)
 backup_file="$BACKUP_DIR/slotty-$timestamp.dump"
+status_file="$BACKUP_DIR/latest-status.json"
+status_tmp="$status_file.tmp"
+started_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+write_status() {
+  state="$1"
+  finished_at="${2:-}"
+  remote=false
+  if [ -n "${BACKUP_REMOTE:-}" ]; then remote=true; fi
+  if [ -n "$finished_at" ]; then
+    printf '{"state":"%s","startedAt":"%s","finishedAt":"%s","file":"%s","remote":%s}\n' "$state" "$started_at" "$finished_at" "$(basename "$backup_file")" "$remote" > "$status_tmp"
+  else
+    printf '{"state":"%s","startedAt":"%s","file":"%s","remote":%s}\n' "$state" "$started_at" "$(basename "$backup_file")" "$remote" > "$status_tmp"
+  fi
+  mv "$status_tmp" "$status_file"
+}
+
+failed() {
+  write_status failed "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+}
+trap 'failed; cleanup' EXIT INT TERM HUP
+write_status running
 
 pg_dump --format=custom --no-owner --no-acl --dbname="$DATABASE_URL" --file="$backup_file"
 sha256sum "$backup_file" > "$backup_file.sha256"
@@ -38,4 +60,6 @@ if [ -n "${BACKUP_REMOTE:-}" ]; then
   # shellcheck disable=SC2086
   rclone $rclone_args size "$BACKUP_REMOTE/$(basename "$backup_file")" >/dev/null
 fi
+write_status success "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+trap cleanup EXIT INT TERM HUP
 echo "$backup_file"
