@@ -74,8 +74,8 @@ jobs:
           VPS_USER: ${{ secrets.VPS_USER }}
           VPS_APP_DIR: ${{ secrets.VPS_APP_DIR }}
           PUBLIC_HEALTH_URL: ${{ vars.PUBLIC_HEALTH_URL }}
-          GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
-          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          GHCR_USERNAME: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           printf '%s' "$GHCR_TOKEN" | ssh "$VPS_USER@$VPS_HOST" "docker login ghcr.io -u '$GHCR_USERNAME' --password-stdin"
           scp docker-compose.production.yml docker-compose.deploy.yml "$VPS_USER@$VPS_HOST:$VPS_APP_DIR/"
