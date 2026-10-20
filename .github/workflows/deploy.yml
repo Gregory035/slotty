@@ -26,6 +26,9 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Normalize container repository
+        id: images
+        run: echo "repository=${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
       - name: Validate public SEO origin
         env:
           WEB_URL: ${{ vars.WEB_URL }}
@@ -36,21 +39,21 @@ jobs:
           file: apps/api/Dockerfile
           target: runtime
           push: true
-          tags: ghcr.io/${{ github.repository }}/api:${{ github.sha }}
+          tags: ghcr.io/${{ steps.images.outputs.repository }}/api:${{ github.sha }}
       - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8
         with:
           context: .
           file: apps/api/Dockerfile
           target: release
           push: true
-          tags: ghcr.io/${{ github.repository }}/api-release:${{ github.sha }}
+          tags: ghcr.io/${{ steps.images.outputs.repository }}/api-release:${{ github.sha }}
       - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8
         with:
           context: .
           file: apps/web/Dockerfile
           target: runtime
           push: true
-          tags: ghcr.io/${{ github.repository }}/web:${{ github.sha }}
+          tags: ghcr.io/${{ steps.images.outputs.repository }}/web:${{ github.sha }}
           build-args: |
             VITE_SITE_URL=${{ vars.WEB_URL }}
             VITE_GA_MEASUREMENT_ID=${{ vars.VITE_GA_MEASUREMENT_ID }}
@@ -77,4 +80,4 @@ jobs:
           printf '%s' "$GHCR_TOKEN" | ssh "$VPS_USER@$VPS_HOST" "docker login ghcr.io -u '$GHCR_USERNAME' --password-stdin"
           scp docker-compose.production.yml docker-compose.deploy.yml "$VPS_USER@$VPS_HOST:$VPS_APP_DIR/"
           scp scripts/deploy.sh scripts/backup.sh "$VPS_USER@$VPS_HOST:$VPS_APP_DIR/scripts/"
-          ssh "$VPS_USER@$VPS_HOST" "cd '$VPS_APP_DIR' && GHCR_REPOSITORY='${{ github.repository }}' IMAGE_TAG='${{ github.sha }}' PUBLIC_HEALTH_URL='$PUBLIC_HEALTH_URL' sh scripts/deploy.sh"
+          ssh "$VPS_USER@$VPS_HOST" "cd '$VPS_APP_DIR' && GHCR_REPOSITORY='${{ steps.images.outputs.repository }}' IMAGE_TAG='${{ github.sha }}' PUBLIC_HEALTH_URL='$PUBLIC_HEALTH_URL' sh scripts/deploy.sh"
