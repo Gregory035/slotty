@@ -19,6 +19,11 @@ rollback() {
 }
 trap rollback INT TERM HUP EXIT
 
+echo "Removing unused Docker data before pulling release images"
+docker container prune -f
+docker image prune -af
+docker builder prune -af
+
 echo "Creating pre-deployment backup"
 docker compose $compose_files pull backup api api-migrate web
 docker compose $compose_files run --rm backup
@@ -31,6 +36,8 @@ while [ "$attempt" -le 30 ]; do
     && curl --fail --silent --show-error "$PUBLIC_HEALTH_URL/" >/dev/null; then
     printf '%s\n' "$IMAGE_TAG" > .last-successful-image
     trap - INT TERM HUP EXIT
+    docker container prune -f
+    docker image prune -af
     echo "Deployment $IMAGE_TAG is ready"
     exit 0
   fi
