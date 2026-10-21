@@ -6,7 +6,7 @@
 
 | Группа | Маршруты | Индексация |
 | --- | --- | --- |
-| Маркетинг | `/`, `/online-zapis`, `/zapis-cherez-telegram` | `index,follow`, canonical, sitemap |
+| Маркетинг | `/`, `/online-zapis`, `/zapis-cherez-telegram`, `/dlya-mastera`, `/dlya-salona` | `index,follow`, canonical, sitemap |
 | Вход и регистрация | `/app`, `/app?mode=register` | `noindex,nofollow`, без canonical и аналитического pageview |
 | Кабинет | `/companies/:companyId/:section` | авторизация + `noindex,nofollow`, без sitemap |
 | Неизвестные URL | любые остальные | HTTP 404 + `noindex,nofollow` |
@@ -35,7 +35,7 @@
 - PNG-превью 1200×630 создано из существующей визуальной системы Slotty.
 - Главная получает `WebSite` и `SoftwareApplication`; вложенные страницы — видимые breadcrumbs и `BreadcrumbList`.
 - FAQ видимый, без FAQ JSON-LD и обещаний расширенного сниппета.
-- В sitemap ровно три абсолютных canonical URL без параметров и `lastmod`.
+- В sitemap только абсолютные canonical URL публичных страниц, без параметров и `lastmod`.
 - Preview-сборка целиком `noindex` и не создаёт sitemap.
 - Query-параметры не попадают в canonical.
 - Nginx нормализует завершающий слеш постоянным редиректом и отдаёт `X-Robots-Tag` для кабинета и 404.

@@ -14,7 +14,7 @@ export class MetricsService {
     name: 'CLS' | 'INP' | 'LCP';
     value: number;
     rating: 'good' | 'needs-improvement' | 'poor';
-    path: '/' | '/online-zapis' | '/zapis-cherez-telegram';
+    path: '/' | '/online-zapis' | '/zapis-cherez-telegram' | '/dlya-mastera' | '/dlya-salona';
     navigationType?: string;
   }): Promise<void> {
     await this.prisma.webVitalSample.create({ data: input });

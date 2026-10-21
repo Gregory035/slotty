@@ -7,6 +7,8 @@ const port = Number(process.env.PORT || 18082);
 const redirects = new Map([
   ['/online-zapis/', '/online-zapis'],
   ['/zapis-cherez-telegram/', '/zapis-cherez-telegram'],
+  ['/dlya-mastera/', '/dlya-mastera'],
+  ['/dlya-salona/', '/dlya-salona'],
   ['/privacy/', '/privacy'],
   ['/terms/', '/terms'],
   ['/personal-data/', '/personal-data'],
@@ -16,6 +18,8 @@ const documents = new Map([
   ['/', ['index.html', 200, false]],
   ['/online-zapis', ['online-zapis/index.html', 200, false]],
   ['/zapis-cherez-telegram', ['zapis-cherez-telegram/index.html', 200, false]],
+  ['/dlya-mastera', ['dlya-mastera/index.html', 200, false]],
+  ['/dlya-salona', ['dlya-salona/index.html', 200, false]],
   ['/privacy', ['privacy/index.html', 200, false]],
   ['/terms', ['terms/index.html', 200, false]],
   ['/personal-data', ['personal-data/index.html', 200, false]],

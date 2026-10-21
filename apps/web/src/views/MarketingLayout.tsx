@@ -7,10 +7,10 @@ export function MarketingLayout({ children }: { children: ReactNode }) {
   return <div className="landing-page">
     <header className="landing-nav">
       <Link className="brand-home" to="/" aria-label="Slotty — главная"><Brand /></Link>
-      <nav className="landing-links" aria-label="Основная навигация"><a href="/#demo">Демо</a><a href="/#features">Возможности</a><a href="/#pricing">Тарифы</a><Link to="/zapis-cherez-telegram">Telegram</Link></nav>
+      <nav className="landing-links" aria-label="Основная навигация"><Link to="/online-zapis">Возможности</Link><Link to="/dlya-mastera">Для мастера</Link><Link to="/dlya-salona">Для салона</Link><Link to="/zapis-cherez-telegram">Telegram</Link></nav>
       <Link className="secondary-button landing-login" to="/app" onClick={() => trackEvent('landing_login')}>Войти</Link>
     </header>
     <main>{children}</main>
-    <footer className="landing-footer"><Link className="brand-home" to="/" aria-label="Slotty — главная"><Brand /></Link><span>© {new Date().getFullYear()} Slotty</span><Link to="/online-zapis">Онлайн-запись</Link><Link to="/zapis-cherez-telegram">Telegram</Link><Link to="/privacy">Конфиденциальность</Link><Link to="/terms">Условия</Link><Link to="/app" onClick={() => trackEvent('landing_login')}>Войти</Link></footer>
+    <footer className="landing-footer"><Link className="brand-home" to="/" aria-label="Slotty — главная"><Brand /></Link><span>© {new Date().getFullYear()} Slotty</span><Link to="/online-zapis">Онлайн-запись</Link><Link to="/dlya-mastera">Для мастера</Link><Link to="/dlya-salona">Для салона</Link><Link to="/zapis-cherez-telegram">Telegram</Link><Link to="/privacy">Конфиденциальность</Link><Link to="/terms">Условия</Link><Link to="/app" onClick={() => trackEvent('landing_login')}>Войти</Link></footer>
   </div>;
 }

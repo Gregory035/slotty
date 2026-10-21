@@ -1,5 +1,5 @@
 export interface SeoPageDefinition {
-  path: '/' | '/online-zapis' | '/zapis-cherez-telegram' | '/privacy' | '/terms' | '/personal-data';
+  path: '/' | '/online-zapis' | '/zapis-cherez-telegram' | '/dlya-mastera' | '/dlya-salona' | '/privacy' | '/terms' | '/personal-data';
   title: string;
   description: string;
   ogImage: string;
@@ -9,6 +9,8 @@ export const seoPages: readonly SeoPageDefinition[] = [
   { path: '/', title: 'Slotty — онлайн-запись клиентов через Telegram', description: 'Slotty: клиенты выбирают услугу, специалиста и время в Telegram Mini App. Бизнес управляет записями и расписанием в одной панели.', ogImage: '/og/slotty-online-booking.png' },
   { path: '/online-zapis', title: 'Сервис онлайн-записи клиентов для бизнеса | Slotty', description: 'Онлайн-запись клиентов без ручного согласования: услуги, сотрудники, свободные слоты, напоминания, лист ожидания, отзывы и аналитика в Slotty.', ogImage: '/og/slotty-online-booking.png' },
   { path: '/zapis-cherez-telegram', title: 'Запись клиентов через Telegram — Slotty', description: 'Клиент открывает Mini App из Telegram-бота, выбирает услугу, специалиста и время. Запись сразу появляется в расписании Slotty.', ogImage: '/og/slotty-telegram-booking.png' },
+  { path: '/dlya-mastera', title: 'Онлайн-запись для частного мастера — Slotty', description: 'Онлайн-запись клиентов для частного мастера: услуги, свободное время, напоминания, отзывы и фото работ в Telegram Mini App и панели Slotty.', ogImage: '/og/slotty-online-booking.png' },
+  { path: '/dlya-salona', title: 'Система онлайн-записи для салона и студии — Slotty', description: 'Общее расписание салона, графики сотрудников, запись через Telegram, напоминания, лист ожидания и аналитика команды в Slotty.', ogImage: '/og/slotty-online-booking.png' },
   { path: '/privacy', title: 'Политика конфиденциальности — Slotty', description: 'Какие данные обрабатывает Slotty, для чего они используются, как защищаются и как пользователь может управлять ими.', ogImage: '/og/slotty-online-booking.png' },
   { path: '/terms', title: 'Условия использования — Slotty', description: 'Правила работы с сервисом онлайн-записи Slotty, обязанности пользователя, оплата и допустимое использование.', ogImage: '/og/slotty-online-booking.png' },
   { path: '/personal-data', title: 'Согласие на обработку данных — Slotty', description: 'Условия обработки данных при регистрации, работе с расписанием и записи через Telegram Mini App.', ogImage: '/og/slotty-online-booking.png' },
@@ -39,6 +41,8 @@ export function structuredDataForPath(pathname: string, origin: string): object[
   const breadcrumbNames: Record<string, string> = {
     '/online-zapis': 'Онлайн-запись',
     '/zapis-cherez-telegram': 'Запись через Telegram',
+    '/dlya-mastera': 'Для частного мастера',
+    '/dlya-salona': 'Для салона и студии',
     '/privacy': 'Политика конфиденциальности',
     '/terms': 'Условия использования',
     '/personal-data': 'Согласие на обработку данных',

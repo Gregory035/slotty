@@ -3,7 +3,7 @@ import { IsIn, IsNumber, IsOptional, IsString, Max, MaxLength, Min } from 'class
 import { RateLimits } from '../rate-limit/rate-limit.decorator';
 import { MetricsService } from './metrics.service';
 
-const publicPaths = ['/', '/online-zapis', '/zapis-cherez-telegram'] as const;
+const publicPaths = ['/', '/online-zapis', '/zapis-cherez-telegram', '/dlya-mastera', '/dlya-salona'] as const;
 
 class WebVitalDto {
   @IsIn(['CLS', 'INP', 'LCP'])

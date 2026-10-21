@@ -16,6 +16,8 @@
 curl -I https://DOMAIN/
 curl -I https://DOMAIN/online-zapis
 curl -I https://DOMAIN/zapis-cherez-telegram
+curl -I https://DOMAIN/dlya-mastera
+curl -I https://DOMAIN/dlya-salona
 curl -I https://DOMAIN/app
 curl -I https://DOMAIN/ne-sushchestvuet
 curl -I https://DOMAIN/online-zapis/
@@ -25,11 +27,11 @@ curl https://DOMAIN/sitemap.xml
 
 Ожидания:
 
-- три публичные страницы — 200, корректный canonical в исходном HTML;
+- индексируемые публичные страницы — 200, корректный canonical в исходном HTML;
 - `/app` — 200 и `X-Robots-Tag: noindex, nofollow`;
 - неизвестная страница — 404 и `X-Robots-Tag: noindex, nofollow`;
 - URL с завершающим слешем — 308 на canonical-вариант;
-- sitemap содержит только три публичных URL и не содержит localhost, ID, параметров или `lastmod`.
+- sitemap содержит только публичные canonical URL и не содержит localhost, ID, параметров или `lastmod`.
 
 ## 3. Google Search Console
 
@@ -37,7 +39,7 @@ curl https://DOMAIN/sitemap.xml
 
 - Создать Domain property и подтвердить владение через DNS.
 - Отправить `https://DOMAIN/sitemap.xml`.
-- Через URL Inspection проверить `/`, `/online-zapis`, `/zapis-cherez-telegram`.
+- Через URL Inspection проверить `/`, `/online-zapis`, `/zapis-cherez-telegram`, `/dlya-mastera` и `/dlya-salona`.
 - Убедиться, что Google выбрал заявленный canonical и видит prerender-текст.
 - Проверить, что `/app` и тестовый неизвестный URL не индексируются.
 - Еженедельно смотреть Pages, Core Web Vitals, запросы, показы, клики, CTR и конверсии.
@@ -50,7 +52,7 @@ curl https://DOMAIN/sitemap.xml
 
 - Добавить HTTPS-сайт и подтвердить права.
 - Добавить `https://DOMAIN/sitemap.xml` в «Индексирование → Файлы Sitemap».
-- Проверить три публичных URL через «Проверка URL» и мониторинг важных страниц.
+- Проверить основные публичные URL через «Проверка URL» и мониторинг важных страниц.
 - Проверить диагностические сообщения, исключённые страницы, выбранный canonical и обход мобильным роботом.
 - Следить за запросами, показами, кликами, CTR и долей брендового/небрендового трафика.
 

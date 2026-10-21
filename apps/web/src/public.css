@@ -245,6 +245,8 @@ a { color:inherit; }
 [data-theme='dark'] .capability-grid svg { color:var(--accent); }
 .capability-grid h3 { margin:38px 0 8px; font-size:17px; }
 .capability-grid p { margin:0; color:var(--muted); font-size:13px; line-height:1.6; }
+.marketing-card-link { display:inline-flex; align-items:center; gap:7px; margin-top:22px; font-size:12px; font-weight:700; text-decoration:none; }
+.marketing-card-link:hover { gap:10px; }
 .capability-grid-four { grid-template-columns:repeat(4,minmax(0,1fr)); }
 .marketing-flow,.telegram-process { display:grid; grid-template-columns:.8fr 1.2fr; gap:60px; padding:80px 0; border-top:1px solid var(--line); }
 .marketing-flow ol,.telegram-process ol { margin:0; padding:0; border-top:1px solid var(--line); list-style:none; }

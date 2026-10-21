@@ -8,6 +8,7 @@ import { OnlineBookingPage } from './views/OnlineBookingPage';
 import { TelegramBookingPage } from './views/TelegramBookingPage';
 import { NotFoundPage } from './views/NotFoundPage';
 import { LegalPage } from './views/LegalPage';
+import { MasterBookingPage, SalonBookingPage } from './views/AudiencePages';
 
 const WorkspaceApp = lazy(() => import('./WorkspaceApp').then((module) => ({ default: module.WorkspaceApp })));
 const TelegramMiniAppPage = lazy(() => import('./views/TelegramMiniAppPage').then((module) => ({ default: module.TelegramMiniAppPage })));
@@ -26,6 +27,8 @@ export function App() {
       <Route path="/" element={<LandingPage />} />
       <Route path="/online-zapis" element={<OnlineBookingPage />} />
       <Route path="/zapis-cherez-telegram" element={<TelegramBookingPage />} />
+      <Route path="/dlya-mastera" element={<MasterBookingPage />} />
+      <Route path="/dlya-salona" element={<SalonBookingPage />} />
       <Route path="/privacy" element={<LegalPage document="privacy" />} />
       <Route path="/terms" element={<LegalPage document="terms" />} />
       <Route path="/personal-data" element={<LegalPage document="consent" />} />

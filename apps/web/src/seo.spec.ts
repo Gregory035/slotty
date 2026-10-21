@@ -4,7 +4,7 @@ import { isPublicPath, normalizePath, seoPages } from './seo';
 describe('SEO route policy', () => {
   it('has unique metadata for every indexable public route', () => {
     expect(seoPages.map((page) => page.path)).toEqual([
-      '/', '/online-zapis', '/zapis-cherez-telegram', '/privacy', '/terms', '/personal-data',
+      '/', '/online-zapis', '/zapis-cherez-telegram', '/dlya-mastera', '/dlya-salona', '/privacy', '/terms', '/personal-data',
     ]);
     expect(new Set(seoPages.map((page) => page.title)).size).toBe(seoPages.length);
     expect(new Set(seoPages.map((page) => page.description)).size).toBe(seoPages.length);

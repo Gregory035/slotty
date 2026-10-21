@@ -1,7 +1,7 @@
 import type { Metric } from 'web-vitals';
 import { analyticsConsent } from './analytics';
 
-const publicPaths = new Set(['/', '/online-zapis', '/zapis-cherez-telegram']);
+const publicPaths = new Set(['/', '/online-zapis', '/zapis-cherez-telegram', '/dlya-mastera', '/dlya-salona']);
 let initialized = false;
 
 export function initializeWebVitals(): void {
