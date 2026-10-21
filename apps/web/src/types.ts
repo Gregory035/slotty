@@ -23,6 +23,8 @@ export interface Company {
   currency: string;
   language: string;
   logoUrl: string | null;
+  publicSlug: string | null;
+  publicBookingEnabled: boolean;
   role: 'OWNER' | 'ADMIN' | 'EMPLOYEE';
   employeeId: string | null;
   minBookingNoticeMinutes: number;
@@ -42,6 +44,36 @@ export interface Company {
   trialEndsAt: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface PublicCompany {
+  name: string;
+  description: string | null;
+  phone: string | null;
+  email: string | null;
+  address: string | null;
+  timezone: string;
+  currency: string;
+  logoUrl: string | null;
+  publicSlug: string;
+  botUsername: string | null;
+  services: Array<{
+    id: string;
+    name: string;
+    description: string | null;
+    durationMinutes: number;
+    price: string;
+    category: string | null;
+    employees: Array<{
+      id: string;
+      name: string;
+      photoUrl: string | null;
+      description: string | null;
+      rating: number;
+      reviews: Array<{ rating: number; comment: string | null; createdAt: string; customerName: string }>;
+      workExamples: Array<{ id: string; caption: string | null }>;
+    }>;
+  }>;
 }
 
 export interface Service {

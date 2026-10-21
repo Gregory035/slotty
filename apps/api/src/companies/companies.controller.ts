@@ -94,3 +94,14 @@ export class CompaniesController {
     return this.companies.softDelete(companyId, membership.userId);
   }
 }
+
+@ApiTags('public-companies')
+@Controller('public/companies')
+export class PublicCompaniesController {
+  constructor(private readonly companies: CompaniesService) {}
+
+  @Get(':slug')
+  publicPage(@Param('slug') slug: string) {
+    return this.companies.findPublicBySlug(slug);
+  }
+}

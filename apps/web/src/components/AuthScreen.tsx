@@ -116,7 +116,7 @@ export function AuthScreen() {
         {mode === 'login' && <button type="button" className="auth-link-button" onClick={() => switchMode('forgot')}>Забыли пароль?</button>}
         {(mode === 'forgot' || mode === 'reset') && <Link className="auth-link-button" to="/app" onClick={() => { setMode('login'); setError(null); setNotice(null); }}>Вернуться ко входу</Link>}
 
-        {mode !== 'reset' && <p className="auth-legal">Продолжая, вы соглашаетесь с правилами сервиса и обработкой данных.</p>}
+        {mode !== 'reset' && <p className="auth-legal">Продолжая, вы принимаете <Link to="/terms">условия использования</Link>, <Link to="/privacy">политику конфиденциальности</Link> и <Link to="/personal-data">согласие на обработку данных</Link>.</p>}
       </section>
 
       <aside className="auth-product-preview" aria-hidden="true">

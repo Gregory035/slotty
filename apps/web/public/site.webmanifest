@@ -1,0 +1,25 @@
+{
+  "name": "Slotty",
+  "short_name": "Slotty",
+  "description": "Онлайн-запись, расписание и клиенты в одной панели",
+  "lang": "ru",
+  "start_url": "/app",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#10130F",
+  "theme_color": "#10130F",
+  "icons": [
+    {
+      "src": "/brand/slotty-icon-dark.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/slotty-favicon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

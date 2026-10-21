@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { isPublicPath, normalizePath, seoPages } from './seo';
 
 describe('SEO route policy', () => {
-  it('has unique metadata for exactly the public marketing routes', () => {
-    expect(seoPages.map((page) => page.path)).toEqual(['/', '/online-zapis', '/zapis-cherez-telegram']);
+  it('has unique metadata for every indexable public route', () => {
+    expect(seoPages.map((page) => page.path)).toEqual([
+      '/', '/online-zapis', '/zapis-cherez-telegram', '/privacy', '/terms', '/personal-data',
+    ]);
     expect(new Set(seoPages.map((page) => page.title)).size).toBe(seoPages.length);
     expect(new Set(seoPages.map((page) => page.description)).size).toBe(seoPages.length);
   });

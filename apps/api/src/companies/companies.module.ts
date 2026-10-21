@@ -1,12 +1,12 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
-import { CompaniesController } from './companies.controller';
+import { CompaniesController, PublicCompaniesController } from './companies.controller';
 import { CompaniesService } from './companies.service';
 import { CompanyAccessGuard } from './guards/company-access.guard';
 
 @Module({
   imports: [AuthModule],
-  controllers: [CompaniesController],
+  controllers: [CompaniesController, PublicCompaniesController],
   providers: [CompaniesService, CompanyAccessGuard],
   exports: [CompaniesService, CompanyAccessGuard],
 })

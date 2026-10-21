@@ -22,6 +22,7 @@ import { ObservabilityModule } from './observability/observability.module';
 import { ReviewsModule } from './reviews/reviews.module';
 import { WaitlistModule } from './waitlist/waitlist.module';
 import { SystemStatusModule } from './system-status/system-status.module';
+import { PushModule } from './push/push.module';
 
 @Module({
   imports: [
@@ -46,6 +47,7 @@ import { SystemStatusModule } from './system-status/system-status.module';
     CustomersModule,
     ReviewsModule,
     WaitlistModule,
+    PushModule,
     DashboardModule,
     NotificationsModule,
     AuditModule,

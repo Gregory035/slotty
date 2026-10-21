@@ -1,10 +1,21 @@
 import { PartialType } from '@nestjs/swagger';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
-import { IsBoolean, IsInt, IsOptional, Max, Min } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
+import { IsBoolean, IsInt, IsOptional, Matches, Max, Min } from 'class-validator';
 import { CreateCompanyDto } from './create-company.dto';
 
 export class UpdateCompanyDto extends PartialType(CreateCompanyDto) {
+  @ApiPropertyOptional({ description: 'Публичный адрес компании', example: 'studio-liniya' })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) => typeof value === 'string' ? value.trim().toLowerCase() : value)
+  @Matches(/^[a-z0-9](?:[a-z0-9-]{1,62}[a-z0-9])?$/, { message: 'publicSlug must contain 3-64 latin letters, numbers or hyphens' })
+  publicSlug?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  publicBookingEnabled?: boolean;
+
   @ApiPropertyOptional({ minimum: 0, maximum: 43200 })
   @IsOptional()
   @Type(() => Number)

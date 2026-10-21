@@ -6,9 +6,10 @@ import { AuthModule } from '../auth/auth.module';
 import { CompaniesModule } from '../companies/companies.module';
 import { NotificationsController } from './notifications.controller';
 import { WaitlistModule } from '../waitlist/waitlist.module';
+import { PushModule } from '../push/push.module';
 
 @Module({
-  imports: [TelegramClientModule, AuthModule, CompaniesModule, WaitlistModule],
+  imports: [TelegramClientModule, AuthModule, CompaniesModule, WaitlistModule, PushModule],
   controllers: [NotificationsController],
   providers: [OutboxWorker, NotificationWorker],
   exports: [OutboxWorker, NotificationWorker],

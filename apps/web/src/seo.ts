@@ -1,5 +1,5 @@
 export interface SeoPageDefinition {
-  path: '/' | '/online-zapis' | '/zapis-cherez-telegram';
+  path: '/' | '/online-zapis' | '/zapis-cherez-telegram' | '/privacy' | '/terms' | '/personal-data';
   title: string;
   description: string;
   ogImage: string;
@@ -9,6 +9,9 @@ export const seoPages: readonly SeoPageDefinition[] = [
   { path: '/', title: 'Slotty — онлайн-запись клиентов через Telegram', description: 'Slotty: клиенты выбирают услугу, специалиста и время в Telegram Mini App. Бизнес управляет записями и расписанием в одной панели.', ogImage: '/og/slotty-online-booking.png' },
   { path: '/online-zapis', title: 'Сервис онлайн-записи клиентов для бизнеса | Slotty', description: 'Онлайн-запись клиентов без ручного согласования: услуги, сотрудники, свободные слоты, напоминания, лист ожидания, отзывы и аналитика в Slotty.', ogImage: '/og/slotty-online-booking.png' },
   { path: '/zapis-cherez-telegram', title: 'Запись клиентов через Telegram — Slotty', description: 'Клиент открывает Mini App из Telegram-бота, выбирает услугу, специалиста и время. Запись сразу появляется в расписании Slotty.', ogImage: '/og/slotty-telegram-booking.png' },
+  { path: '/privacy', title: 'Политика конфиденциальности — Slotty', description: 'Какие данные обрабатывает Slotty, для чего они используются, как защищаются и как пользователь может управлять ими.', ogImage: '/og/slotty-online-booking.png' },
+  { path: '/terms', title: 'Условия использования — Slotty', description: 'Правила работы с сервисом онлайн-записи Slotty, обязанности пользователя, оплата и допустимое использование.', ogImage: '/og/slotty-online-booking.png' },
+  { path: '/personal-data', title: 'Согласие на обработку данных — Slotty', description: 'Условия обработки данных при регистрации, работе с расписанием и записи через Telegram Mini App.', ogImage: '/og/slotty-online-booking.png' },
 ] as const;
 
 export function normalizePath(pathname: string): string {
@@ -33,12 +36,19 @@ export function structuredDataForPath(pathname: string, origin: string): object[
     ];
   }
   const current = seoPage(normalizedPath);
+  const breadcrumbNames: Record<string, string> = {
+    '/online-zapis': 'Онлайн-запись',
+    '/zapis-cherez-telegram': 'Запись через Telegram',
+    '/privacy': 'Политика конфиденциальности',
+    '/terms': 'Условия использования',
+    '/personal-data': 'Согласие на обработку данных',
+  };
   return current ? [{
     '@context': 'https://schema.org',
     '@type': 'BreadcrumbList',
     itemListElement: [
       { '@type': 'ListItem', position: 1, name: 'Главная', item: `${origin}/` },
-      { '@type': 'ListItem', position: 2, name: normalizedPath === '/online-zapis' ? 'Онлайн-запись' : 'Запись через Telegram', item: `${origin}${normalizedPath}` },
+      { '@type': 'ListItem', position: 2, name: breadcrumbNames[normalizedPath] ?? 'Документ', item: `${origin}${normalizedPath}` },
     ],
   }] : [];
 }
@@ -83,7 +93,7 @@ export function syncSeo(pathname: string) {
   const indexingEnabled = import.meta.env.VITE_SEO_INDEXING_ENABLED === 'true';
   const configuredOrigin = (import.meta.env.VITE_SITE_URL ?? '').replace(/\/$/, '');
   const canonical = page && indexingEnabled && configuredOrigin ? `${configuredOrigin}${page.path}` : null;
-  const isPrivate = pathname.startsWith('/app') || pathname.startsWith('/companies/') || pathname.startsWith('/miniapp/');
+  const isPrivate = pathname.startsWith('/app') || pathname.startsWith('/companies/') || pathname.startsWith('/miniapp/') || pathname.startsWith('/company/');
   const title = page?.title ?? (isPrivate ? 'Slotty — рабочее пространство' : 'Страница не найдена — Slotty');
   const description = page?.description ?? (isPrivate ? 'Рабочее пространство Slotty.' : 'Запрошенная страница не найдена.');
 

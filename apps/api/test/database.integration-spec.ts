@@ -77,9 +77,9 @@ describe('database tenant and booking constraints', () => {
         idempotencyKey: randomUUID(),
       },
     });
-    const results = await Promise.allSettled([create(), create()]);
+    const results = await Promise.allSettled(Array.from({ length: 25 }, () => create()));
     expect(results.filter((item) => item.status === 'fulfilled')).toHaveLength(1);
-    expect(results.filter((item) => item.status === 'rejected')).toHaveLength(1);
+    expect(results.filter((item) => item.status === 'rejected')).toHaveLength(24);
   });
 
   it('rolls back appointment and outbox together', async () => {

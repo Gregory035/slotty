@@ -7,12 +7,18 @@ const port = Number(process.env.PORT || 18082);
 const redirects = new Map([
   ['/online-zapis/', '/online-zapis'],
   ['/zapis-cherez-telegram/', '/zapis-cherez-telegram'],
+  ['/privacy/', '/privacy'],
+  ['/terms/', '/terms'],
+  ['/personal-data/', '/personal-data'],
   ['/app/', '/app'],
 ]);
 const documents = new Map([
   ['/', ['index.html', 200, false]],
   ['/online-zapis', ['online-zapis/index.html', 200, false]],
   ['/zapis-cherez-telegram', ['zapis-cherez-telegram/index.html', 200, false]],
+  ['/privacy', ['privacy/index.html', 200, false]],
+  ['/terms', ['terms/index.html', 200, false]],
+  ['/personal-data', ['personal-data/index.html', 200, false]],
   ['/app', ['private.html', 200, true]],
 ]);
 
@@ -24,14 +30,14 @@ createServer(async (request, response) => {
     return;
   }
 
-  const privateRoute = /^\/(?:companies\/[^/]+\/[^/]+|miniapp\/[0-9a-fA-F-]+)$/.test(url.pathname);
+  const privateRoute = /^\/(?:companies\/[^/]+\/[^/]+|miniapp\/[0-9a-fA-F-]+|company\/[a-z0-9-]+)$/.test(url.pathname);
   const document = privateRoute ? ['private.html', 200, true] : documents.get(url.pathname);
   if (document) {
     await send(response, document[0], document[1], document[2]);
     return;
   }
 
-  if (url.pathname === '/robots.txt' || url.pathname === '/sitemap.xml' || url.pathname === '/theme.v1.js' || url.pathname.startsWith('/assets/') || url.pathname.startsWith('/fonts/') || url.pathname.startsWith('/og/') || url.pathname.startsWith('/brand/') || url.pathname === '/slotty-favicon.png') {
+  if (url.pathname === '/robots.txt' || url.pathname === '/sitemap.xml' || url.pathname === '/site.webmanifest' || url.pathname === '/sw.js' || url.pathname === '/theme.v1.js' || url.pathname.startsWith('/assets/') || url.pathname.startsWith('/fonts/') || url.pathname.startsWith('/og/') || url.pathname.startsWith('/brand/') || url.pathname === '/slotty-favicon.png') {
     const relative = decodeURIComponent(url.pathname.slice(1));
     const file = resolve(dist, relative);
     if (file.startsWith(`${dist}${sep}`) && await isFile(file)) {
@@ -56,5 +62,5 @@ async function isFile(file) {
 }
 
 function contentType(file) {
-  return ({ '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.xml': 'application/xml; charset=utf-8', '.txt': 'text/plain; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.woff2': 'font/woff2' })[extname(file)] || 'application/octet-stream';
+  return ({ '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.xml': 'application/xml; charset=utf-8', '.txt': 'text/plain; charset=utf-8', '.webmanifest': 'application/manifest+json', '.svg': 'image/svg+xml', '.png': 'image/png', '.woff2': 'font/woff2' })[extname(file)] || 'application/octet-stream';
 }

@@ -349,3 +349,66 @@ a { color:inherit; }
 }
 
 @media (prefers-reduced-motion:reduce) { html { scroll-behavior:auto; } *,*::before,*::after { scroll-behavior:auto!important; transition-duration:.01ms!important; animation-duration:.01ms!important; animation-iteration-count:1!important; } [data-reveal].reveal-ready { opacity:1!important; transform:none!important; } }
+
+.legal-page { width:min(920px,calc(100% - 48px)); margin:0 auto; padding:70px 0 110px; }
+.legal-page h1 { max-width:780px; margin:12px 0 20px; font-size:clamp(42px,6vw,74px); letter-spacing:-.065em; line-height:1; }
+.legal-intro { max-width:720px; color:var(--muted); font-size:16px; line-height:1.65; }
+.legal-date { margin:28px 0 52px; color:var(--faint); font-family:'IBM Plex Mono',monospace; font-size:11px; }
+.legal-page>section { display:grid; grid-template-columns:54px 1fr; gap:20px; padding:28px 0; border-top:1px solid var(--line); }
+.legal-page>section>span { color:var(--faint); font-family:'IBM Plex Mono',monospace; font-size:10px; }
+.legal-page>section h2 { margin:0 0 9px; font-size:20px; }
+.legal-page>section p { max-width:730px; margin:0; color:var(--muted); font-size:14px; line-height:1.75; }
+
+.public-company-page { min-height:100vh; color:var(--text); background:var(--page-bg); }
+.public-company-page>header,.public-company-page>footer,.public-company-page>main { width:min(1120px,calc(100% - 40px)); margin:0 auto; }
+.public-company-page>header { height:78px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--line); }
+.public-company-page>header>a { color:inherit; text-decoration:none; }
+.public-company-page>header>span,.public-company-page>footer>span { color:var(--faint); font-size:11px; }
+.public-company-hero { display:grid; grid-template-columns:180px 1fr; gap:42px; padding:72px 0; }
+.public-company-hero>div { width:180px; height:180px; display:grid; place-items:center; overflow:hidden; border:1px solid var(--line); border-radius:var(--card-radius); background:var(--surface); font-size:48px; font-weight:700; }
+.public-company-hero>div img { width:100%; height:100%; object-fit:cover; }
+.public-company-hero article>p:first-child,.public-section-title>p { margin:0 0 10px; color:var(--accent-ink); font-family:'IBM Plex Mono',monospace; font-size:10px; text-transform:uppercase; letter-spacing:.08em; }
+.public-company-hero h1 { margin:0; font-size:clamp(42px,7vw,76px); letter-spacing:-.065em; line-height:1; }
+.public-company-hero article>p:not(:first-child) { max-width:680px; color:var(--muted); line-height:1.65; }
+.public-company-hero ul { display:flex; flex-wrap:wrap; gap:16px; margin:20px 0; padding:0; color:var(--muted); list-style:none; }
+.public-company-hero li { display:flex; align-items:center; gap:7px; }
+.public-company-hero .primary-button { width:max-content; margin-top:8px; text-decoration:none; }
+.public-company-section { padding:72px 0; border-top:1px solid var(--line); }
+.public-section-title h2 { margin:0 0 36px; font-size:clamp(30px,5vw,48px); letter-spacing:-.055em; }
+.public-service-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
+.public-service-grid article,.public-employee-list>article { padding:24px; border:1px solid var(--line); border-radius:var(--card-radius); background:var(--surface); }
+.public-service-grid article>span { color:var(--faint); font-size:10px; text-transform:uppercase; }
+.public-service-grid h3 { margin:24px 0 8px; font-size:18px; }
+.public-service-grid p,.public-employee-list>article>p { color:var(--muted); font-size:13px; line-height:1.55; }
+.public-service-grid footer { display:flex; align-items:center; justify-content:space-between; margin-top:30px; }
+.public-service-grid footer span { display:flex; align-items:center; gap:6px; color:var(--faint); font-size:12px; }
+.public-employee-list { display:grid; gap:14px; }
+.public-employee-head { display:flex; align-items:center; gap:14px; }
+.public-employee-head>img,.public-employee-head>span { width:54px; height:54px; display:grid; place-items:center; border-radius:50%; background:var(--line); object-fit:cover; font-weight:700; }
+.public-employee-head h3,.public-employee-head p { margin:0; }
+.public-employee-head p { display:flex; align-items:center; gap:5px; margin-top:5px; color:var(--accent-ink); font-size:12px; }
+.public-work-carousel { display:flex; gap:10px; margin-top:20px; overflow-x:auto; scroll-snap-type:x mandatory; }
+.public-work-carousel figure { flex:0 0 180px; margin:0; scroll-snap-align:start; }
+.public-work-carousel img { width:180px; height:180px; display:block; border-radius:calc(var(--card-radius) - 3px); object-fit:cover; }
+.public-work-carousel figcaption { margin-top:6px; color:var(--muted); font-size:11px; }
+.public-review-list { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; margin-top:20px; }
+.public-review-list blockquote { margin:0; padding:15px; border:1px solid var(--line); border-radius:calc(var(--card-radius) - 3px); }
+.public-review-list blockquote span { color:var(--accent-ink); }
+.public-review-list blockquote p { margin:8px 0; color:var(--muted); font-size:12px; line-height:1.5; }
+.public-review-list cite { color:var(--faint); font-size:11px; font-style:normal; }
+.public-company-page>footer { display:flex; align-items:center; gap:18px; padding:28px 0; border-top:1px solid var(--line); }
+.public-company-page>footer>span { margin-right:auto; }
+.public-company-state { min-height:100vh; display:grid; place-content:center; justify-items:start; width:min(560px,calc(100% - 40px)); margin:auto; }
+.public-company-state h1 { margin:30px 0 10px; font-size:42px; }
+.public-company-state p { margin:0 0 24px; color:var(--muted); }
+
+@media (max-width:760px) {
+  .legal-page { width:calc(100% - 30px); padding:46px 0 80px; }
+  .legal-page>section { grid-template-columns:34px 1fr; gap:10px; }
+  .public-company-hero { grid-template-columns:1fr; gap:24px; padding:44px 0 58px; }
+  .public-company-hero>div { width:92px; height:92px; font-size:30px; }
+  .public-service-grid,.public-review-list { grid-template-columns:1fr; }
+  .public-company-section { padding:54px 0; }
+  .public-company-page>footer { flex-wrap:wrap; }
+  .public-company-page>footer>span { width:100%; order:2; }
+}

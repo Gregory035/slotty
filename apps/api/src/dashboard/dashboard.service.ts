@@ -235,6 +235,53 @@ export class DashboardService {
     };
   }
 
+  async exportCsv(companyId: string, query: DashboardQuery): Promise<string> {
+    const company = await this.prisma.company.findFirst({
+      where: { id: companyId, deletedAt: null },
+      select: { timezone: true, currency: true },
+    });
+    if (!company) throw new NotFoundException('Company not found');
+    const today = dateInTimeZone(new Date(), company.timezone);
+    const from = query.from ?? today;
+    const to = query.to ?? today;
+    parseDateOnly(from);
+    parseDateOnly(to);
+    if (from > to) throw new BadRequestException('from must not be after to');
+    if (dateOnlyToUtc(to).getTime() - dateOnlyToUtc(from).getTime() > 366 * 86_400_000) {
+      throw new BadRequestException('Analytics period must not exceed 366 days');
+    }
+    const rows = await this.prisma.appointment.findMany({
+      where: {
+        companyId,
+        startsAt: {
+          gte: localDateTimeToUtc(from, '00:00', company.timezone),
+          lt: localDateTimeToUtc(addDays(to, 1), '00:00', company.timezone),
+        },
+      },
+      include: { customer: true, employee: true, service: true },
+      orderBy: [{ startsAt: 'asc' }, { id: 'asc' }],
+      take: 25_000,
+    });
+    const header = ['Дата', 'Время', 'Клиент', 'Телефон', 'Услуга', 'Специалист', 'Статус', 'Источник', 'Стоимость', 'Валюта'];
+    const lines = rows.map((row) => {
+      const date = dateInTimeZone(row.startsAt, company.timezone);
+      const time = new Intl.DateTimeFormat('ru-RU', { timeZone: company.timezone, hour: '2-digit', minute: '2-digit' }).format(row.startsAt);
+      return [
+        date,
+        time,
+        this.customerName(row.customer),
+        row.customer.phone ?? '',
+        row.service.name,
+        [row.employee.firstName, row.employee.lastName].filter(Boolean).join(' '),
+        row.status,
+        row.source,
+        row.priceSnapshot.toFixed(2),
+        company.currency.trim(),
+      ].map((value) => this.csvCell(String(value))).join(';');
+    });
+    return `\uFEFF${header.join(';')}\n${lines.join('\n')}\n`;
+  }
+
   private analytics(
     appointments: Array<{
       startsAt: Date;
@@ -401,6 +448,11 @@ export class DashboardService {
     if (names.length) return names.join(' ');
     if (customer.username) return `@${customer.username.replace(/^@/, '')}`;
     return customer.phone ?? 'Клиент Telegram';
+  }
+
+  private csvCell(value: string): string {
+    const safe = /^[=+\-@]/u.test(value) ? `'${value}` : value;
+    return `"${safe.replaceAll('"', '""')}"`;
   }
 
   private capacity(

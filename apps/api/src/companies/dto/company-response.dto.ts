@@ -36,6 +36,12 @@ export class CompanyResponseDto {
   @ApiPropertyOptional({ nullable: true })
   logoUrl: string | null;
 
+  @ApiPropertyOptional({ nullable: true })
+  publicSlug: string | null;
+
+  @ApiProperty()
+  publicBookingEnabled: boolean;
+
   @ApiProperty()
   minBookingNoticeMinutes: number;
 

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { BarChart3, CircleDollarSign, UserRoundCheck, UsersRound } from 'lucide-react';
-import { getDashboard } from '../api';
+import { BarChart3, CircleDollarSign, Download, UserRoundCheck, UsersRound } from 'lucide-react';
+import { exportBusinessCsv, getDashboard } from '../api';
 import type { Company } from '../types';
 import { formatMoney } from '../utils';
 import { ErrorBlock, LoadingBlock, SectionHeader } from '../components/ui';
@@ -15,6 +15,7 @@ function isoDate(offset = 0) {
 
 export function AnalyticsView({ company }: { company: Company }) {
   const [range, setRange] = useState<7 | 30 | 90>(30);
+  const [exporting, setExporting] = useState(false);
   const dates = useMemo(() => ({ from: isoDate(-(range - 1)), to: isoDate() }), [range]);
   const dashboard = useQuery({
     queryKey: ['dashboard', company.id, dates.from, dates.to],
@@ -28,7 +29,7 @@ export function AnalyticsView({ company }: { company: Company }) {
   const totalSources = analytics.sources.telegram + analytics.sources.dashboard || 1;
 
   return <>
-    <SectionHeader eyebrow="Показатели" title="Аналитика" description="Стоимость оказанных услуг, загрузка и качество записей без ручных таблиц." action={<div className="filter-pills analytics-range">{([7, 30, 90] as const).map((item) => <button key={item} className={range === item ? 'active' : ''} onClick={() => setRange(item)}>{item} дн.</button>)}</div>} />
+    <SectionHeader eyebrow="Показатели" title="Аналитика" description="Стоимость оказанных услуг, загрузка и качество записей без ручных таблиц." action={<div className="analytics-header-actions"><div className="filter-pills analytics-range">{([7, 30, 90] as const).map((item) => <button key={item} className={range === item ? 'active' : ''} onClick={() => setRange(item)}>{item} дн.</button>)}</div><button className="secondary-button" disabled={exporting} onClick={() => void downloadReport()}><Download size={16} />{exporting ? 'Готовим…' : 'Экспорт'}</button></div>} />
     <section className="analytics-kpi-grid">
       <Insight icon={CircleDollarSign} label="Стоимость услуг" value={formatMoney(analytics.summary.actualRevenue, data.currency)} detail={`Средний чек ${formatMoney(analytics.summary.averageCheck, data.currency)}`} />
       <Insight icon={BarChart3} label="Загрузка" value={`${data.occupancy.percent}%`} detail={`${analytics.summary.completed} завершено из ${analytics.summary.appointments}`} />
@@ -51,12 +52,31 @@ export function AnalyticsView({ company }: { company: Company }) {
     </section>
     <section className="panel funnel-panel"><div><p className="eyebrow">Telegram · уникальные пользователи за период</p><h2>Воронка записи</h2><span>Конверсия в запись: <strong>{analytics.funnel.conversion}%</strong></span></div><div className="funnel-steps">{[
       ['Начал', analytics.funnel.started], ['Выбрал услугу', analytics.funnel.serviceSelected], ['Выбрал дату', analytics.funnel.dateSelected], ['Выбрал время', analytics.funnel.timeSelected], ['Записался', analytics.funnel.booked],
-    ].map(([label, value]) => <article key={String(label)}><strong>{value}</strong><span>{label}</span></article>)}</div></section>
+    ].map(([label, value], index, items) => <article key={String(label)}><strong>{value}</strong><span>{label}</span>{index > 0 && <small>{conversion(Number(items[index - 1]![1]), Number(value))}% с прошлого шага</small>}</article>)}</div></section>
     <section className="analytics-tables">
       <Leaderboard title="Услуги" rows={analytics.services} currency={data.currency} />
       <Leaderboard title="Сотрудники" rows={analytics.employees} currency={data.currency} />
     </section>
   </>;
+
+  async function downloadReport() {
+    setExporting(true);
+    try {
+      const blob = await exportBusinessCsv(company.id, dates.from, dates.to);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `slotty-report-${dates.from}-${dates.to}.csv`;
+      link.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } finally {
+      setExporting(false);
+    }
+  }
+}
+
+function conversion(previous: number, current: number) {
+  return previous ? Math.round((current / previous) * 100) : 0;
 }
 
 function Insight({ icon: Icon, label, value, detail }: { icon: typeof BarChart3; label: string; value: string; detail: string }) {

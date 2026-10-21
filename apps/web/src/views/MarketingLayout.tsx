@@ -11,6 +11,6 @@ export function MarketingLayout({ children }: { children: ReactNode }) {
       <Link className="secondary-button landing-login" to="/app" onClick={() => trackEvent('landing_login')}>Войти</Link>
     </header>
     <main>{children}</main>
-    <footer className="landing-footer"><Link className="brand-home" to="/" aria-label="Slotty — главная"><Brand /></Link><span>© {new Date().getFullYear()} Slotty</span><Link to="/online-zapis">Онлайн-запись</Link><Link to="/zapis-cherez-telegram">Запись через Telegram</Link><Link to="/app" onClick={() => trackEvent('landing_login')}>Войти в панель</Link></footer>
+    <footer className="landing-footer"><Link className="brand-home" to="/" aria-label="Slotty — главная"><Brand /></Link><span>© {new Date().getFullYear()} Slotty</span><Link to="/online-zapis">Онлайн-запись</Link><Link to="/zapis-cherez-telegram">Telegram</Link><Link to="/privacy">Конфиденциальность</Link><Link to="/terms">Условия</Link><Link to="/app" onClick={() => trackEvent('landing_login')}>Войти</Link></footer>
   </div>;
 }

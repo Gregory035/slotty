@@ -76,6 +76,9 @@ const environmentSchema = z.object({
   RESEND_API_KEY: optionalString,
   PASSWORD_RESET_FROM_EMAIL: optionalString,
   PASSWORD_RESET_TTL_MINUTES: z.coerce.number().int().min(5).max(1440).default(30),
+  WEB_PUSH_PUBLIC_KEY: optionalString,
+  WEB_PUSH_PRIVATE_KEY: optionalString,
+  WEB_PUSH_SUBJECT: optionalString,
   BACKUP_STATUS_FILE: z.string().min(1).default('/backups/latest-status.json'),
   BACKUP_REMOTE_CONFIGURED: z.enum(['true', 'false']).default('false'),
 });
@@ -95,6 +98,11 @@ export function validateEnvironment(config: Record<string, unknown>): Environmen
     if (missing.length) {
       throw new Error(`Invalid environment configuration: ${missing.join(', ')} required for S3 storage`);
     }
+  }
+
+  const pushValues = [result.data.WEB_PUSH_PUBLIC_KEY, result.data.WEB_PUSH_PRIVATE_KEY, result.data.WEB_PUSH_SUBJECT];
+  if (pushValues.some(Boolean) && !pushValues.every(Boolean)) {
+    throw new Error('Invalid environment configuration: WEB_PUSH_PUBLIC_KEY, WEB_PUSH_PRIVATE_KEY and WEB_PUSH_SUBJECT must be configured together');
   }
 
   return result.data;

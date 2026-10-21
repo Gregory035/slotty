@@ -13,7 +13,9 @@ Slotty — SaaS для онлайн-записи через Telegram. Компа
 - ручная и Telegram-запись, idempotency key и защита от двойного бронирования;
 - клиентская база, заметки, blacklist и анонимизация;
 - отзывы, лист ожидания, напоминания и повторная запись;
-- dashboard, аналитика, audit log, метрики и health checks;
+- dashboard, воронка Telegram, CSV-отчёты, audit log, метрики и health checks;
+- устанавливаемое PWA, браузерные push-уведомления и публичные страницы компаний;
+- портфолио специалистов с S3-совместимым хранилищем фотографий;
 - Trial/Starter/Pro, YooKassa checkout/webhook и проверка статуса оплаты;
 - SEO лендинга: метатеги, robots, sitemap, микроразметка и подключаемые GA4/Яндекс Метрика.
 
@@ -74,6 +76,8 @@ npm run smoke:e2e
 ```
 
 Integration-тесты используют PostgreSQL/Redis. В CI Telegram не вызывается: клиент API покрыт mock-тестами.
+
+Проверка защиты от конкурентной записи и перенос фотографий описаны в [нагрузочных тестах](docs/load-testing.md) и [инструкции по S3](docs/storage-migration.md). Проверка новых публичных функций перед релизом — в [чек-листе](docs/product-release-checklist.md).
 
 ## Telegram webhook без VPS
 

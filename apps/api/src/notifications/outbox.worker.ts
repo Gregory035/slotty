@@ -10,6 +10,7 @@ import {
 import { PrismaService } from '../database/prisma.service';
 import { WaitlistService } from '../waitlist/waitlist.service';
 import { AdaptivePollingLoop } from '../common/adaptive-polling-loop';
+import { PushService } from '../push/push.service';
 
 const MAX_ATTEMPTS = 5;
 const STALE_PROCESSING_MS = 5 * 60_000;
@@ -25,6 +26,7 @@ export class OutboxWorker implements OnApplicationBootstrap, OnApplicationShutdo
   constructor(
     private readonly prisma: PrismaService,
     private readonly waitlist: WaitlistService,
+    private readonly push: PushService,
   ) {
     this.polling = new AdaptivePollingLoop(() => this.tick(), {
       activeDelayMs: 500,
@@ -99,6 +101,7 @@ export class OutboxWorker implements OnApplicationBootstrap, OnApplicationShutdo
     try {
       if (event.aggregateType === 'Appointment') {
         await this.createAppointmentNotifications(event);
+        await this.sendAppointmentPush(event);
         if (event.type === 'appointment.cancelled') {
           await this.waitlist.offerForCancelledAppointment(event.companyId, event.aggregateId);
         }
@@ -124,6 +127,37 @@ export class OutboxWorker implements OnApplicationBootstrap, OnApplicationShutdo
       });
       this.logger.warn(`Outbox event ${event.id} failed: ${lastError}`);
     }
+  }
+
+  private async sendAppointmentPush(event: OutboxEvent): Promise<void> {
+    if (!['appointment.created', 'appointment.rescheduled', 'appointment.cancelled'].includes(event.type)) return;
+    const appointment = await this.prisma.appointment.findFirst({
+      where: { id: event.aggregateId, companyId: event.companyId },
+      select: {
+        startsAt: true,
+        service: { select: { name: true } },
+        company: { select: { timezone: true } },
+      },
+    });
+    if (!appointment) return;
+    const when = new Intl.DateTimeFormat('ru-RU', {
+      timeZone: appointment.company.timezone,
+      day: 'numeric',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(appointment.startsAt);
+    const copy = event.type === 'appointment.created'
+      ? { title: 'Новая запись', action: 'Записан новый визит' }
+      : event.type === 'appointment.rescheduled'
+        ? { title: 'Запись перенесена', action: 'Новое время визита' }
+        : { title: 'Запись отменена', action: 'Отменён визит' };
+    await this.push.sendToCompany(event.companyId, {
+      title: copy.title,
+      body: `${copy.action}: ${appointment.service.name}, ${when}`,
+      url: `/companies/${event.companyId}/appointments`,
+      tag: `appointment-${event.aggregateId}`,
+    });
   }
 
   private async createAppointmentNotifications(event: OutboxEvent): Promise<void> {

@@ -15,6 +15,7 @@
     "smoke:catalog": "node scripts/smoke-catalog.mjs",
     "smoke:companies": "node scripts/smoke-companies.mjs",
     "smoke:scheduling": "node scripts/smoke-scheduling.mjs",
+    "load:booking": "node scripts/load-booking.mjs",
     "smoke:e2e": "npm run smoke:auth && npm run smoke:companies && npm run smoke:catalog && npm run smoke:booking",
     "test": "npm run test --workspaces --if-present",
     "test:e2e:web": "playwright test",
@@ -23,7 +24,8 @@
     "typecheck": "npm run typecheck --workspaces --if-present",
     "db:generate": "prisma generate --schema=apps/api/prisma/schema.prisma",
     "db:migrate": "prisma migrate dev --schema=apps/api/prisma/schema.prisma",
-    "db:studio": "prisma studio --schema=apps/api/prisma/schema.prisma"
+    "db:studio": "prisma studio --schema=apps/api/prisma/schema.prisma",
+    "migrate:work-images": "node scripts/migrate-work-images-to-s3.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

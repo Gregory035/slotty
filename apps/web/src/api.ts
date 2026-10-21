@@ -24,6 +24,7 @@ import type {
   MiniAppBookingResult,
   MiniAppSession,
   SystemStatus,
+  PublicCompany,
 } from './types';
 
 const apiUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:3000/api';
@@ -223,6 +224,9 @@ export async function logout(): Promise<void> {
 }
 
 export const getCompanies = () => request<Company[]>('/companies');
+
+export const getPublicCompany = (slug: string) =>
+  publicRequest<PublicCompany>(`/public/companies/${encodeURIComponent(slug)}`);
 
 export const getSystemStatus = (companyId: string) =>
   request<SystemStatus>(`/companies/${companyId}/system-status`);
@@ -486,6 +490,9 @@ export const getDashboard = (companyId: string, from?: string, to?: string) => {
   );
 };
 
+export const exportBusinessCsv = (companyId: string, from: string, to: string) =>
+  requestBlob(`/companies/${companyId}/dashboard/export.csv?${new URLSearchParams({ from, to })}`);
+
 export const getCustomers = (companyId: string, search = '', cursor?: string) => {
   const params = new URLSearchParams({ limit: '25' });
   if (search) params.set('search', search);
@@ -589,7 +596,8 @@ export const updateCompany = (
   input: Partial<Pick<Company,
     | 'name' | 'description' | 'phone' | 'email' | 'address' | 'timezone'
     | 'currency' | 'language' | 'minBookingNoticeMinutes' | 'maxBookingHorizonDays'
-    | 'slotStepMinutes' | 'cancellationNoticeMinutes' | 'allowAnyEmployee' | 'rebookingDelayDays'>>,
+    | 'slotStepMinutes' | 'cancellationNoticeMinutes' | 'allowAnyEmployee' | 'rebookingDelayDays'
+    | 'publicSlug' | 'publicBookingEnabled'>>,
 ) => request<Company>(`/companies/${companyId}`, { method: 'PATCH', body: JSON.stringify(input) });
 
 export const getEntitlements = (companyId: string) =>
@@ -627,3 +635,18 @@ export const getAuditLogs = (companyId: string, cursor?: string) => {
   if (cursor) params.set('cursor', cursor);
   return request<CursorPage<AuditLog>>(`/companies/${companyId}/audit-logs?${params}`);
 };
+
+export const getPushConfig = () =>
+  request<{ enabled: boolean; publicKey: string | null }>('/push/config');
+
+export const savePushSubscription = (subscription: PushSubscriptionJSON) =>
+  request<void>('/push/subscriptions', {
+    method: 'POST',
+    body: JSON.stringify(subscription),
+  });
+
+export const deletePushSubscription = (endpoint: string) =>
+  request<void>('/push/subscriptions', {
+    method: 'DELETE',
+    body: JSON.stringify({ endpoint }),
+  });

@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -112,7 +113,15 @@ export class CompaniesService {
       this.assertTimezone(input.timezone);
     }
 
+    const normalizedSlug = input.publicSlug?.trim().toLowerCase();
     const company = await this.prisma.$transaction(async (tx) => {
+      if (normalizedSlug) {
+        const occupied = await tx.company.findFirst({
+          where: { publicSlug: normalizedSlug, id: { not: companyId } },
+          select: { id: true },
+        });
+        if (occupied) throw new ConflictException('Этот публичный адрес уже занят');
+      }
       const changed = await tx.company.update({
         where: { id: companyId },
         data: {
@@ -140,6 +149,8 @@ export class CompaniesService {
           ...(input.cancellationNoticeMinutes !== undefined ? { cancellationNoticeMinutes: input.cancellationNoticeMinutes } : {}),
           ...(input.allowAnyEmployee !== undefined ? { allowAnyEmployee: input.allowAnyEmployee } : {}),
           ...(input.rebookingDelayDays !== undefined ? { rebookingDelayDays: input.rebookingDelayDays } : {}),
+          ...(input.publicSlug !== undefined ? { publicSlug: normalizedSlug || null } : {}),
+          ...(input.publicBookingEnabled !== undefined ? { publicBookingEnabled: input.publicBookingEnabled } : {}),
         },
         include: {
           subscriptions: { orderBy: { createdAt: 'desc' }, take: 1 },
@@ -161,6 +172,98 @@ export class CompaniesService {
     });
 
     return this.toResponse(company, role, company.subscriptions[0] ?? null);
+  }
+
+  async findPublicBySlug(slug: string) {
+    const company = await this.prisma.company.findFirst({
+      where: {
+        publicSlug: slug.trim().toLowerCase(),
+        publicBookingEnabled: true,
+        deletedAt: null,
+      },
+      select: {
+        name: true,
+        description: true,
+        phone: true,
+        email: true,
+        address: true,
+        timezone: true,
+        currency: true,
+        logoUrl: true,
+        publicSlug: true,
+        bots: {
+          where: { status: 'ACTIVE' },
+          select: { username: true },
+          take: 1,
+        },
+        services: {
+          where: { isActive: true, deletedAt: null },
+          select: {
+            id: true,
+            name: true,
+            description: true,
+            durationMinutes: true,
+            price: true,
+            category: true,
+            employees: {
+              where: { employee: { isActive: true, deletedAt: null } },
+              select: {
+                employee: {
+                  select: {
+                    id: true,
+                    firstName: true,
+                    lastName: true,
+                    photoUrl: true,
+                    description: true,
+                    workExamples: {
+                      where: { publishedAt: { not: null }, OR: [{ storageKey: { not: null } }, { imageData: { not: null } }] },
+                      select: { id: true, caption: true },
+                      orderBy: { publishedAt: 'desc' },
+                      take: 8,
+                    },
+                    appointments: {
+                      where: { review: { isNot: null } },
+                      select: { review: { select: { rating: true, comment: true, createdAt: true, customer: { select: { firstName: true } } } } },
+                      orderBy: { startsAt: 'desc' },
+                      take: 20,
+                    },
+                  },
+                },
+              },
+            },
+          },
+          orderBy: [{ category: 'asc' }, { name: 'asc' }],
+        },
+      },
+    });
+    if (!company) throw new NotFoundException('Public company page not found');
+    return {
+      ...company,
+      currency: company.currency.trim(),
+      botUsername: company.bots[0]?.username ?? null,
+      bots: undefined,
+      services: company.services.map((service) => ({
+        ...service,
+        price: service.price.toFixed(2),
+        employees: service.employees.map(({ employee }) => {
+          const reviews = employee.appointments.flatMap(({ review }) => review ? [{
+            rating: review.rating,
+            comment: review.comment,
+            createdAt: review.createdAt,
+            customerName: review.customer.firstName,
+          }] : []);
+          return {
+            id: employee.id,
+            name: [employee.firstName, employee.lastName].filter(Boolean).join(' '),
+            photoUrl: employee.photoUrl,
+            description: employee.description,
+            rating: reviews.length ? Number((reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length).toFixed(1)) : 0,
+            reviews,
+            workExamples: employee.workExamples,
+          };
+        }),
+      })),
+    };
   }
 
   findMembership(userId: string, companyId: string) {
@@ -208,6 +311,8 @@ export class CompaniesService {
       currency: string;
       language: string;
       logoUrl: string | null;
+      publicSlug: string | null;
+      publicBookingEnabled: boolean;
       minBookingNoticeMinutes: number;
       maxBookingHorizonDays: number;
       slotStepMinutes: number;
@@ -236,6 +341,8 @@ export class CompaniesService {
       currency: company.currency,
       language: company.language,
       logoUrl: company.logoUrl,
+      publicSlug: company.publicSlug,
+      publicBookingEnabled: company.publicBookingEnabled,
       minBookingNoticeMinutes: company.minBookingNoticeMinutes,
       maxBookingHorizonDays: company.maxBookingHorizonDays,
       slotStepMinutes: company.slotStepMinutes,

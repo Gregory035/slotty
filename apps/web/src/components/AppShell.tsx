@@ -9,6 +9,7 @@ import {
   CircleDollarSign,
   ClipboardList,
   Command,
+  Download,
   Clock3,
   ContactRound,
   LayoutDashboard,
@@ -28,10 +29,11 @@ import {
   X,
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
-import { logout } from '../api';
+import { deletePushSubscription, getPushConfig, logout, savePushSubscription } from '../api';
 import { useAppStore } from '../store';
 import type { Company, Section } from '../types';
 import { Brand } from './Brand';
+import { useToast } from './ToastProvider';
 
 const navigation: Array<{ id: Section; label: string; icon: typeof LayoutDashboard }> = [
   { id: 'dashboard', label: 'Обзор', icon: LayoutDashboard },
@@ -64,6 +66,7 @@ export function AppShell({
 }) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const { notify } = useToast();
   const {
     session,
     sidebarOpen,
@@ -76,9 +79,24 @@ export function AppShell({
   } = useAppStore();
   const { themeMode, setThemeMode } = useAppStore();
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [installPrompt, setInstallPrompt] = useState<InstallPromptEvent | null>(null);
+  const [pushActive, setPushActive] = useState(false);
+  const [pushBusy, setPushBusy] = useState(false);
   const daysLeft = trialDays(activeCompany.trialEndsAt);
 
   async function signOut() {
+    if ('serviceWorker' in navigator && 'PushManager' in window) {
+      try {
+        const registration = await navigator.serviceWorker.ready;
+        const subscription = await registration.pushManager.getSubscription();
+        if (subscription) {
+          await deletePushSubscription(subscription.endpoint);
+          await subscription.unsubscribe();
+        }
+      } catch {
+        // Logout must remain available if the browser push service is offline.
+      }
+    }
     await logout();
     queryClient.clear();
     setSession(null);
@@ -115,6 +133,74 @@ export function AppShell({
     window.addEventListener('keydown', handleKeydown);
     return () => window.removeEventListener('keydown', handleKeydown);
   }, []);
+
+  useEffect(() => {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+    void navigator.serviceWorker.ready
+      .then((registration) => registration.pushManager.getSubscription())
+      .then((subscription) => setPushActive(Boolean(subscription)))
+      .catch(() => setPushActive(false));
+  }, []);
+
+  useEffect(() => {
+    const capture = (event: Event) => {
+      event.preventDefault();
+      setInstallPrompt(event as InstallPromptEvent);
+    };
+    window.addEventListener('beforeinstallprompt', capture);
+    return () => window.removeEventListener('beforeinstallprompt', capture);
+  }, []);
+
+  async function installApp() {
+    if (installPrompt) {
+      await installPrompt.prompt();
+      await installPrompt.userChoice;
+      setInstallPrompt(null);
+      return;
+    }
+    window.alert('На iPhone откройте меню «Поделиться» и выберите «На экран Домой».');
+  }
+
+  async function togglePush() {
+    if (pushBusy) return;
+    if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
+      notify('Этот браузер не поддерживает push-уведомления', 'error');
+      return;
+    }
+    setPushBusy(true);
+    try {
+      const registration = await navigator.serviceWorker.ready;
+      const existing = await registration.pushManager.getSubscription();
+      if (existing) {
+        await deletePushSubscription(existing.endpoint);
+        await existing.unsubscribe();
+        setPushActive(false);
+        notify('Push-уведомления выключены');
+        return;
+      }
+      const config = await getPushConfig();
+      if (!config.enabled || !config.publicKey) {
+        notify('Push-уведомления пока не настроены на сервере', 'error');
+        return;
+      }
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') {
+        notify('Разрешение на уведомления не предоставлено', 'error');
+        return;
+      }
+      const subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: decodeVapidKey(config.publicKey),
+      });
+      await savePushSubscription(subscription.toJSON());
+      setPushActive(true);
+      notify('Push-уведомления включены');
+    } catch {
+      notify('Не удалось изменить настройки уведомлений', 'error');
+    } finally {
+      setPushBusy(false);
+    }
+  }
 
   useEffect(() => {
     if (!sidebarOpen) return;
@@ -211,8 +297,15 @@ export function AppShell({
             <strong className="topbar-title">{sectionTitle}</strong>
           </div>
           <div className="topbar-actions">
+            {(installPrompt || isIosBrowser()) && !isStandalone() && <button className="icon-button topbar-icon" onClick={() => void installApp()} title="Установить Slotty" aria-label="Установить Slotty"><Download size={18} /></button>}
             <button className="command-trigger" onClick={() => setPaletteOpen(true)} aria-label="Открыть поиск и команды"><Search size={16} /><span>Поиск</span><kbd>⌘ K</kbd></button>
-            <button className="icon-button topbar-icon" aria-label="Уведомления"><Bell size={18} /></button>
+            <button
+              className={`icon-button topbar-icon ${pushActive ? 'active' : ''}`}
+              onClick={() => void togglePush()}
+              aria-label={pushActive ? 'Выключить push-уведомления' : 'Включить push-уведомления'}
+              title={pushActive ? 'Push-уведомления включены' : 'Включить push-уведомления'}
+              disabled={pushBusy}
+            ><Bell size={18} /></button>
             <div className="theme-switch" aria-label="Тема интерфейса">
               <button className={themeMode === 'light' ? 'active' : ''} onClick={() => setThemeMode('light')} aria-label="Светлая тема"><Sun size={15} /></button>
               <button className={themeMode === 'dark' ? 'active' : ''} onClick={() => setThemeMode('dark')} aria-label="Тёмная тема"><Moon size={15} /></button>
@@ -227,6 +320,27 @@ export function AppShell({
       {paletteOpen && <CommandPalette close={() => setPaletteOpen(false)} openSection={openSection} setThemeMode={setThemeMode} />}
     </div>
   );
+}
+
+interface InstallPromptEvent extends Event {
+  prompt(): Promise<void>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
+}
+
+function isIosBrowser() {
+  return /iPhone|iPad|iPod/u.test(navigator.userAgent);
+}
+
+function isStandalone() {
+  return window.matchMedia('(display-mode: standalone)').matches || (navigator as Navigator & { standalone?: boolean }).standalone === true;
+}
+
+function decodeVapidKey(value: string): Uint8Array<ArrayBuffer> {
+  const padded = `${value}${'='.repeat((4 - value.length % 4) % 4)}`;
+  const binary = atob(padded.replace(/-/gu, '+').replace(/_/gu, '/'));
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+  return bytes;
 }
 
 function CommandPalette({ close, openSection, setThemeMode }: { close: () => void; openSection: (section: Section) => void; setThemeMode: (mode: 'light' | 'dark' | 'system') => void }) {

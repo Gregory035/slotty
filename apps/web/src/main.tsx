@@ -18,8 +18,37 @@ const application = (
   </StrictMode>
 );
 
-const root = document.getElementById('root')!;
-if (root.hasChildNodes()) hydrateRoot(root, application);
-else createRoot(root).render(application);
+async function bootstrap() {
+  if (window.location.pathname.startsWith('/miniapp/')) await loadTelegramSdk();
+  const root = document.getElementById('root')!;
+  if (root.hasChildNodes()) hydrateRoot(root, application);
+  else createRoot(root).render(application);
+  initializeWebVitals();
+  if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      void navigator.serviceWorker.register('/sw.js');
+    });
+  }
+}
 
-initializeWebVitals();
+async function loadTelegramSdk(): Promise<void> {
+  if ((window as Window & { Telegram?: unknown }).Telegram) return;
+  await new Promise<void>((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timeout);
+      resolve();
+    };
+    const script = document.createElement('script');
+    script.src = 'https://telegram.org/js/telegram-web-app.js';
+    script.async = true;
+    script.onload = finish;
+    script.onerror = finish;
+    const timeout = window.setTimeout(finish, 5000);
+    document.head.append(script);
+  });
+}
+
+void bootstrap();

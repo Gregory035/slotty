@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Save } from 'lucide-react';
+import { Copy, ExternalLink, Save } from 'lucide-react';
 import { updateCompany } from '../api';
 import { useToast } from '../components/ToastProvider';
 import { SectionHeader } from '../components/ui';
@@ -10,6 +10,7 @@ import { errorMessage } from '../utils';
 export function SettingsView({ company }: { company: Company }) {
   const [form, setForm] = useState({
     name: company.name,
+    description: company.description ?? '',
     phone: company.phone ?? '',
     email: company.email ?? '',
     address: company.address ?? '',
@@ -21,6 +22,8 @@ export function SettingsView({ company }: { company: Company }) {
     cancellationNoticeMinutes: company.cancellationNoticeMinutes,
     allowAnyEmployee: company.allowAnyEmployee,
     rebookingDelayDays: company.rebookingDelayDays,
+    publicSlug: company.publicSlug ?? '',
+    publicBookingEnabled: company.publicBookingEnabled,
   });
   const queryClient = useQueryClient();
   const { notify } = useToast();
@@ -34,9 +37,10 @@ export function SettingsView({ company }: { company: Company }) {
     <>
       <SectionHeader eyebrow="Компания" title="Настройки" description="Контакты, часовой пояс и правила онлайн-записи." />
       <form className="panel settings-form" onSubmit={(event) => { event.preventDefault(); mutation.mutate(); }}>
-        <section><h2>Профиль</h2><div className="form-grid-2"><label>Название<input required maxLength={160} value={form.name} onChange={(event) => set('name', event.target.value)} /></label><label>Телефон<input value={form.phone} onChange={(event) => set('phone', event.target.value)} /></label><label>Email<input type="email" value={form.email} onChange={(event) => set('email', event.target.value)} /></label><label>Адрес<input value={form.address} onChange={(event) => set('address', event.target.value)} /></label><label>Часовой пояс<input required value={form.timezone} onChange={(event) => set('timezone', event.target.value)} /></label><label>Валюта<input required maxLength={3} value={form.currency} onChange={(event) => set('currency', event.target.value.toUpperCase())} /></label></div></section>
+        <section><h2>Профиль</h2><div className="form-grid-2"><label>Название<input required maxLength={160} value={form.name} onChange={(event) => set('name', event.target.value)} /></label><label>Телефон<input value={form.phone} onChange={(event) => set('phone', event.target.value)} /></label><label>Email<input type="email" value={form.email} onChange={(event) => set('email', event.target.value)} /></label><label>Адрес<input value={form.address} onChange={(event) => set('address', event.target.value)} /></label><label className="form-grid-wide">Описание<textarea rows={4} maxLength={1000} value={form.description} onChange={(event) => set('description', event.target.value)} /></label><label>Часовой пояс<input required value={form.timezone} onChange={(event) => set('timezone', event.target.value)} /></label><label>Валюта<input required maxLength={3} value={form.currency} onChange={(event) => set('currency', event.target.value.toUpperCase())} /></label></div></section>
         <section><h2>Онлайн-запись</h2><div className="form-grid-2"><NumberField label="Минимум до записи, мин" value={form.minBookingNoticeMinutes} setValue={(value) => set('minBookingNoticeMinutes', value)} min={0} /><NumberField label="Горизонт записи, дней" value={form.maxBookingHorizonDays} setValue={(value) => set('maxBookingHorizonDays', value)} min={1} /><NumberField label="Шаг слотов, мин" value={form.slotStepMinutes} setValue={(value) => set('slotStepMinutes', value)} min={5} /><NumberField label="Отмена не позднее, мин" value={form.cancellationNoticeMinutes} setValue={(value) => set('cancellationNoticeMinutes', value)} min={0} /></div><label className="toggle-field"><input type="checkbox" checked={form.allowAnyEmployee} onChange={(event) => set('allowAnyEmployee', event.target.checked)} /><span>Разрешить запись без выбора конкретного сотрудника</span></label></section>
         <section><h2>Удержание клиентов</h2><div className="form-grid-2"><NumberField label="Повторная запись через, дней" value={form.rebookingDelayDays} setValue={(value) => set('rebookingDelayDays', value)} min={1} /></div><p className="muted-text">После завершённой услуги Slotty предложит клиенту повторить запись в Telegram.</p></section>
+        <section><h2>Публичная страница</h2><div className="form-grid-2"><label>Адрес страницы<div className="public-slug-field"><span>{window.location.host}/company/</span><input minLength={3} maxLength={64} pattern="[a-z0-9][a-z0-9-]{1,62}[a-z0-9]" value={form.publicSlug} onChange={(event) => set('publicSlug', event.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))} /></div></label></div><label className="toggle-field"><input type="checkbox" checked={form.publicBookingEnabled} disabled={!form.publicSlug} onChange={(event) => set('publicBookingEnabled', event.target.checked)} /><span>Опубликовать страницу компании</span></label>{company.publicSlug && company.publicBookingEnabled && <div className="public-page-actions"><a className="secondary-button" href={`/company/${company.publicSlug}`} target="_blank" rel="noreferrer"><ExternalLink size={16} /> Открыть</a><button type="button" className="secondary-button" onClick={() => { void navigator.clipboard.writeText(`${window.location.origin}/company/${company.publicSlug}`); notify('Ссылка скопирована'); }}><Copy size={16} /> Копировать ссылку</button></div>}<p className="muted-text">На странице видны только данные профиля, активные услуги, специалисты, опубликованные работы и отзывы.</p></section>
         <div className="settings-actions"><button className="primary-button" disabled={mutation.isPending}><Save size={17} /> Сохранить</button></div>
       </form>
     </>

@@ -22,6 +22,33 @@ test('public landing opens the registration flow without browser errors', async 
   expect(errors).toEqual([]);
 });
 
+test('public company page shows services and remains usable on mobile', async ({ page }) => {
+  const slug = `e2e-studio-${Date.now()}`;
+  const company = await prisma.company.create({
+    data: {
+      name: 'Студия E2E',
+      description: 'Тестовая публичная страница',
+      publicSlug: slug,
+      publicBookingEnabled: true,
+      services: { create: { name: 'Консультация', durationMinutes: 45, price: 1800 } },
+      employees: { create: { firstName: 'Елена', description: 'Специалист студии' } },
+    },
+    include: { services: true, employees: true },
+  });
+  await prisma.employeeService.create({
+    data: { companyId: company.id, employeeId: company.employees[0]!.id, serviceId: company.services[0]!.id },
+  });
+  try {
+    await page.goto(`/company/${slug}`);
+    await expect(page.getByRole('heading', { level: 1, name: 'Студия E2E' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Консультация' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Елена' })).toBeVisible();
+    await expectNoHorizontalOverflow(page);
+  } finally {
+    await prisma.company.delete({ where: { id: company.id } });
+  }
+});
+
 test('owner can register, create a company and refresh the private dashboard', async ({ page }, testInfo) => {
   const errors = collectPageErrors(page);
   const email = `playwright-${testInfo.project.name}-${Date.now()}@example.com`;
