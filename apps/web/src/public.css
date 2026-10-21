@@ -232,7 +232,7 @@ a { color:inherit; }
 [data-reveal='right'].reveal-ready { transform:translate3d(24px,12px,0); }
 [data-reveal].reveal-ready.is-visible { opacity:1; transform:none; }
 .landing-footer { display:flex; align-items:center; gap:18px; padding:28px 0; border-top:1px solid var(--line); }
-.landing-footer>span { margin-right:auto; color:var(--faint); font-size:10px; }
+.landing-footer>span { margin-right:auto; color:var(--muted); font-size:11px; }
 .marketing-hero { padding:72px 0 90px; }
 .breadcrumbs { display:flex; align-items:center; gap:8px; margin-bottom:50px; color:var(--faint); font-size:11px; }
 .breadcrumbs a:hover { color:var(--text); }
