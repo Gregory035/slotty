@@ -109,6 +109,7 @@ test('Telegram Mini App books, lists, cancels and repeats a visit', async ({ pag
     const blockingCustomer = await prisma.customer.create({ data: { companyId: fixture.companyId, firstName: 'Race' } });
     const blockingAppointment = await prisma.appointment.create({ data: { companyId: fixture.companyId, customerId: blockingCustomer.id, employeeId: fixture.employeeId, serviceId: fixture.serviceId, startsAt: occupiedStartsAt, endsAt: new Date(occupiedStartsAt.getTime() + 30 * 60_000), priceSnapshot: 1500, durationMinutesSnapshot: 30, source: 'DASHBOARD' } });
     await page.getByRole('button', { name: 'Добавить в визит' }).click();
+    await page.getByRole('checkbox', { name: /Согласен на обработку данных/ }).check();
     await page.getByRole('button', { name: 'Подтвердить визит' }).click();
     await expect(page.getByRole('alert')).toBeVisible();
     await prisma.appointment.delete({ where: { id: blockingAppointment.id } });
