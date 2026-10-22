@@ -29,6 +29,8 @@ try {
       password: 'smoke-password-123',
       firstName: 'Smoke',
       lastName: 'Test',
+      legalAccepted: true,
+      legalVersion: '2026-10-21',
     }),
   });
 

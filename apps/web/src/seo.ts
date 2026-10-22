@@ -1,5 +1,5 @@
 export interface SeoPageDefinition {
-  path: '/' | '/online-zapis' | '/zapis-cherez-telegram' | '/dlya-mastera' | '/dlya-salona' | '/privacy' | '/terms' | '/personal-data';
+  path: '/' | '/online-zapis' | '/zapis-cherez-telegram' | '/dlya-mastera' | '/dlya-salona' | '/privacy' | '/terms' | '/personal-data' | '/offer' | '/cookies' | '/data-processing';
   title: string;
   description: string;
   ogImage: string;
@@ -14,6 +14,9 @@ export const seoPages: readonly SeoPageDefinition[] = [
   { path: '/privacy', title: 'Политика конфиденциальности — Slotty', description: 'Какие данные обрабатывает Slotty, для чего они используются, как защищаются и как пользователь может управлять ими.', ogImage: '/og/slotty-online-booking.png' },
   { path: '/terms', title: 'Условия использования — Slotty', description: 'Правила работы с сервисом онлайн-записи Slotty, обязанности пользователя, оплата и допустимое использование.', ogImage: '/og/slotty-online-booking.png' },
   { path: '/personal-data', title: 'Согласие на обработку данных — Slotty', description: 'Условия обработки данных при регистрации, работе с расписанием и записи через Telegram Mini App.', ogImage: '/og/slotty-online-booking.png' },
+  { path: '/offer', title: 'Публичная оферта на подписку — Slotty', description: 'Условия оплаты, активации, автопродления, отмены и возврата подписки Slotty.', ogImage: '/og/slotty-online-booking.png' },
+  { path: '/cookies', title: 'Политика cookie — Slotty', description: 'Какие cookie использует Slotty, зачем нужна аналитика и как управлять согласием.', ogImage: '/og/slotty-online-booking.png' },
+  { path: '/data-processing', title: 'Поручение на обработку данных — Slotty', description: 'Роли компании и Slotty, меры защиты и правила обработки данных клиентов.', ogImage: '/og/slotty-online-booking.png' },
 ] as const;
 
 export function normalizePath(pathname: string): string {
@@ -46,6 +49,9 @@ export function structuredDataForPath(pathname: string, origin: string): object[
     '/privacy': 'Политика конфиденциальности',
     '/terms': 'Условия использования',
     '/personal-data': 'Согласие на обработку данных',
+    '/offer': 'Публичная оферта',
+    '/cookies': 'Политика cookie',
+    '/data-processing': 'Обработка данных',
   };
   return current ? [{
     '@context': 'https://schema.org',

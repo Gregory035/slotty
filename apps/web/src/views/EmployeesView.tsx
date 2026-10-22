@@ -19,6 +19,7 @@ import {
 } from '../api';
 import type { Company, Employee, ScheduleExceptionType } from '../types';
 import { errorMessage } from '../utils';
+import { LEGAL_DOCUMENT_VERSION } from '../legal';
 import { EmptyState, ErrorBlock, LoadingBlock, Modal, SectionHeader } from '../components/ui';
 
 const days = [
@@ -113,7 +114,7 @@ function PortfolioModal({ company, employee, onClose }: { company: Company; empl
   const queryKey = ['employee-work-examples', company.id, employee.id];
   const works = useQuery({ queryKey, queryFn: () => getEmployeeWorkExamples(company.id, employee.id) });
   const uploadMutation = useMutation({
-    mutationFn: (input: { photo: File; caption?: string }) => uploadEmployeeWorkExample(company.id, employee.id, input),
+    mutationFn: (input: { photo: File; caption?: string; publicationConsentConfirmed: true; consentVersion: string }) => uploadEmployeeWorkExample(company.id, employee.id, input),
     onSuccess: async () => { setError(null); await queryClient.invalidateQueries({ queryKey }); },
     onError: (caught) => setError(errorMessage(caught)),
   });
@@ -128,7 +129,7 @@ function PortfolioModal({ company, employee, onClose }: { company: Company; empl
     const form = new FormData(event.currentTarget);
     const photo = form.get('photo');
     if (!(photo instanceof File) || !photo.size) return setError('Выберите фотографию');
-    uploadMutation.mutate({ photo, caption: String(form.get('caption') || '') || undefined }, { onSuccess: () => event.currentTarget.reset() });
+    uploadMutation.mutate({ photo, caption: String(form.get('caption') || '') || undefined, publicationConsentConfirmed: true, consentVersion: LEGAL_DOCUMENT_VERSION }, { onSuccess: () => event.currentTarget.reset() });
   }
 
   return <Modal open title={`Работы · ${employee.firstName}`} description="Добавляйте реальные примеры работ. Согласие человека на публикацию мастер получает самостоятельно." onClose={onClose}>
@@ -136,10 +137,11 @@ function PortfolioModal({ company, employee, onClose }: { company: Company; empl
       <form className="portfolio-upload" onSubmit={submit}>
         <label className="portfolio-file"><ImagePlus size={18} /><span>Фото работы<small>JPG, PNG или WebP до 5 МБ</small></span><input name="photo" type="file" accept="image/jpeg,image/png,image/webp" required /></label>
         <label>Подпись<input name="caption" maxLength={300} placeholder="Например: окрашивание и укладка" /></label>
+        <label className="legal-checkbox portfolio-consent"><input name="publicationConsentConfirmed" type="checkbox" required /><span>Подтверждаю, что получил разрешение изображённых лиц и право на публичное размещение фото.</span></label>
         <button className="primary-button" disabled={uploadMutation.isPending}>{uploadMutation.isPending ? 'Загружаем…' : 'Опубликовать'}</button>
       </form>
       {error && <p className="form-error">{error}</p>}
-      {works.isLoading ? <LoadingBlock /> : works.error ? <ErrorBlock message="Не удалось загрузить работы" /> : works.data?.length ? <div className="portfolio-grid">{works.data.map((work) => <figure key={work.id}><img src={getWorkExampleImageUrl(work.id)} alt={work.caption || `Работа ${employee.firstName}`} loading="lazy" /><figcaption><span>{work.caption || (work.source === 'CUSTOMER' ? 'Результат клиента' : 'Работа мастера')}</span><button className="icon-button danger" aria-label="Удалить фото" onClick={() => deleteMutation.mutate(work.id)}><Trash2 size={15} /></button></figcaption></figure>)}</div> : <EmptyState title="Работ пока нет" description="Первое фото появится здесь и в карточке специалиста в Telegram." />}
+      {works.isLoading ? <LoadingBlock /> : works.error ? <ErrorBlock message="Не удалось загрузить работы" /> : works.data?.length ? <div className="portfolio-grid">{works.data.map((work) => <figure key={work.id}><img src={getWorkExampleImageUrl(work.id)} alt={work.caption || `Работа ${employee.firstName}`} loading="lazy" /><figcaption><span>{work.caption || (work.source === 'CUSTOMER' ? 'Результат клиента' : 'Работа мастера')}<small>{work.consentConfirmedAt ? `Публикация подтверждена ${new Intl.DateTimeFormat('ru-RU', { dateStyle: 'short' }).format(new Date(work.consentConfirmedAt))}` : 'Подтверждение не зафиксировано'}</small></span><button className="icon-button danger" aria-label="Удалить фото" onClick={() => deleteMutation.mutate(work.id)}><Trash2 size={15} /></button></figcaption></figure>)}</div> : <EmptyState title="Работ пока нет" description="Первое фото появится здесь и в карточке специалиста в Telegram." />}
     </div>
   </Modal>;
 }

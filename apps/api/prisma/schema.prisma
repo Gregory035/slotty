@@ -327,6 +327,10 @@ model WorkExample {
   thumbnailKey      String?
   uploadRequestedAt DateTime?
   publishedAt       DateTime?
+  consentConfirmedAt DateTime?
+  consentVersion     String?           @db.VarChar(32)
+  consentSource      String?           @db.VarChar(32)
+  consentConfirmedBy String?           @db.Uuid
   company           Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
   employee          Employee          @relation(fields: [employeeId, companyId], references: [id, companyId], onDelete: Cascade)
   appointment       Appointment?      @relation(fields: [appointmentId, companyId], references: [id, companyId], onDelete: Cascade)
@@ -337,6 +341,24 @@ model WorkExample {
   @@unique([appointmentId, companyId])
   @@index([companyId, employeeId, publishedAt])
   @@index([customerId, uploadRequestedAt])
+}
+
+model LegalAcceptance {
+  id          String                @id @default(uuid()) @db.Uuid
+  userId      String?               @db.Uuid
+  companyId   String?               @db.Uuid
+  customerId  String?               @db.Uuid
+  telegramId  BigInt?
+  document    LegalDocument
+  version     String                @db.VarChar(32)
+  source      LegalAcceptanceSource
+  acceptedAt  DateTime              @default(now())
+  revokedAt   DateTime?
+  metadata    Json?
+
+  @@index([userId, document, acceptedAt])
+  @@index([companyId, customerId, document, acceptedAt])
+  @@index([companyId, telegramId, document, acceptedAt])
 }
 
 model Notification {
@@ -711,4 +733,19 @@ enum TelegramUpdateStatus {
 enum WorkExampleSource {
   CUSTOMER
   EMPLOYEE
+}
+
+enum LegalDocument {
+  TERMS
+  PRIVACY
+  PERSONAL_DATA
+  DATA_PROCESSING
+  OFFER
+}
+
+enum LegalAcceptanceSource {
+  WEB_REGISTRATION
+  COMPANY_ONBOARDING
+  TELEGRAM_MINI_APP
+  BILLING_CHECKOUT
 }

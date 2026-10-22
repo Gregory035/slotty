@@ -5,7 +5,7 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { AppointmentStatus, BookingFunnelStep, BotStatus } from '@prisma/client';
+import { AppointmentStatus, BookingFunnelStep, BotStatus, LegalAcceptanceSource, LegalDocument } from '@prisma/client';
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import { AppointmentsService, TelegramCustomerInput } from '../appointments/appointments.service';
 import { PrismaService } from '../database/prisma.service';
@@ -156,6 +156,7 @@ export class TelegramMiniAppService {
 
   async createBooking(companyId: string, input: MiniAppBookingDto) {
     const user = await this.authenticate(companyId, input.initData);
+    await this.recordBookingConsent(companyId, user.id, input.legalVersion);
     const result = await this.appointments.createFromTelegram(
       companyId,
       this.customerInput(user),
@@ -170,6 +171,7 @@ export class TelegramMiniAppService {
 
   async createVisit(companyId: string, input: MiniAppVisitBookingDto) {
     const user = await this.authenticate(companyId, input.initData);
+    await this.recordBookingConsent(companyId, user.id, input.legalVersion);
     const result = await this.appointments.createVisitFromTelegram(
       companyId, this.customerInput(user), input.items, input.requestId,
     );
@@ -248,6 +250,18 @@ export class TelegramMiniAppService {
   private async recordEvent(companyId: string, telegramId: number, step: BookingFunnelStep) {
     const visitorKey = createHash('sha256').update(`${companyId}:${telegramId}`).digest('hex');
     await this.prisma.bookingFunnelEvent.create({ data: { companyId, visitorKey, step } }).catch(() => undefined);
+  }
+
+  private async recordBookingConsent(companyId: string, telegramId: number, version: string) {
+    await this.prisma.legalAcceptance.createMany({
+      data: [LegalDocument.PRIVACY, LegalDocument.PERSONAL_DATA].map((document) => ({
+        companyId,
+        telegramId: BigInt(telegramId),
+        document,
+        version,
+        source: LegalAcceptanceSource.TELEGRAM_MINI_APP,
+      })),
+    });
   }
 
   private async authenticate(companyId: string, initData: string): Promise<TelegramMiniAppUser> {

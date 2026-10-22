@@ -114,12 +114,12 @@ export const getMiniAppAvailability = (
 
 export const createMiniAppBooking = (
   companyId: string,
-  input: { initData: string; serviceId: string; employeeId: string; date: string; time: string },
+  input: { initData: string; serviceId: string; employeeId: string; date: string; time: string; legalAccepted: true; legalVersion: string },
 ) => miniAppRequest<MiniAppBookingResult>(companyId, 'book', input);
 
 export const createMiniAppVisit = (
   companyId: string,
-  input: { initData: string; requestId: string; items: Array<{ serviceId: string; employeeId: string; date: string; time: string }> },
+  input: { initData: string; requestId: string; legalAccepted: true; legalVersion: string; items: Array<{ serviceId: string; employeeId: string; date: string; time: string }> },
 ) => miniAppRequest<MiniAppBookingResult[]>(companyId, 'book-visit', input);
 
 export const trackMiniAppEvent = (companyId: string, initData: string, step: 'SERVICE_SELECTED' | 'TIME_SELECTED') =>
@@ -191,6 +191,8 @@ export function register(input: {
   password: string;
   firstName: string;
   lastName?: string;
+  legalAccepted: true;
+  legalVersion: string;
 }): Promise<Session> {
   return publicRequest('/auth/register', {
     method: 'POST',
@@ -235,6 +237,8 @@ export const createCompany = (input: {
   name: string;
   timezone: string;
   currency: string;
+  dataProcessingAccepted: true;
+  legalVersion: string;
 }) =>
   request<Company>('/companies', {
     method: 'POST',
@@ -306,11 +310,13 @@ export const getEmployeeWorkExamples = (companyId: string, employeeId: string) =
 export const uploadEmployeeWorkExample = (
   companyId: string,
   employeeId: string,
-  input: { photo: File; caption?: string },
+  input: { photo: File; caption?: string; publicationConsentConfirmed: true; consentVersion: string },
 ) => {
   const body = new FormData();
   body.set('photo', input.photo);
   if (input.caption) body.set('caption', input.caption);
+  body.set('publicationConsentConfirmed', String(input.publicationConsentConfirmed));
+  body.set('consentVersion', input.consentVersion);
   return request<EmployeeWorkExample>(`/companies/${companyId}/employees/${employeeId}/work-examples`, {
     method: 'POST',
     body,
@@ -609,11 +615,11 @@ export const getPayments = (companyId: string, cursor?: string) => {
   return request<CursorPage<Payment>>(`/companies/${companyId}/billing/payments?${params}`);
 };
 
-export const createCheckout = (companyId: string, plan: 'STARTER' | 'PRO', autoRenew: boolean) =>
+export const createCheckout = (companyId: string, plan: 'STARTER' | 'PRO', autoRenew: boolean, offerAccepted: true, legalVersion: string) =>
   request<{ confirmationUrl: string }>(`/companies/${companyId}/billing/checkout`, {
     method: 'POST',
     headers: { 'idempotency-key': crypto.randomUUID() },
-    body: JSON.stringify({ plan, autoRenew }),
+    body: JSON.stringify({ plan, autoRenew, offerAccepted, legalVersion }),
   });
 
 export const syncPayment = (companyId: string, paymentId: string) =>

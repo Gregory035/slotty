@@ -59,10 +59,12 @@ test('owner can register, create a company and refresh the private dashboard', a
     await page.getByLabel('Фамилия').fill('Test');
     await page.getByLabel('Email').fill(email);
     await page.getByLabel('Пароль').fill('playwright-password-123');
+    await page.getByRole('checkbox', { name: /Я принимаю условия/ }).check();
     await page.getByRole('button', { name: 'Создать аккаунт' }).click();
 
     await expect(page.getByRole('heading', { name: 'Расскажите о вашем бизнесе' })).toBeVisible();
     await page.getByLabel('Название компании').fill('Playwright Studio');
+    await page.getByRole('checkbox', { name: /поручение на обработку данных/ }).check();
     await page.getByRole('button', { name: /Продолжить/ }).click();
 
     await expect(page).toHaveURL(/\/companies\/[0-9a-f-]+\/dashboard$/);

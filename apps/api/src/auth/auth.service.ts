@@ -3,7 +3,7 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
-import { Prisma, User } from '@prisma/client';
+import { LegalAcceptanceSource, LegalDocument, Prisma, User } from '@prisma/client';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../database/prisma.service';
@@ -46,11 +46,24 @@ export class AuthService {
     const passwordHash = await this.passwords.hash(input.password);
     let user: User;
     try {
-      user = await this.users.create({
-        email,
-        passwordHash,
-        firstName: input.firstName.trim(),
-        ...(input.lastName ? { lastName: input.lastName.trim() } : {}),
+      user = await this.prisma.$transaction(async (transaction) => {
+        const created = await transaction.user.create({
+          data: {
+            email,
+            passwordHash,
+            firstName: input.firstName.trim(),
+            ...(input.lastName ? { lastName: input.lastName.trim() } : {}),
+          },
+        });
+        await transaction.legalAcceptance.createMany({
+          data: [LegalDocument.TERMS, LegalDocument.PRIVACY, LegalDocument.PERSONAL_DATA].map((document) => ({
+            userId: created.id,
+            document,
+            version: input.legalVersion,
+            source: LegalAcceptanceSource.WEB_REGISTRATION,
+          })),
+        });
+        return created;
       });
     } catch (error) {
       if (

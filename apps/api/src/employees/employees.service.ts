@@ -207,7 +207,7 @@ export class EmployeesService {
     await this.assertPortfolioAccess(companyId, employeeId, actorId);
     return this.prisma.workExample.findMany({
       where: { companyId, employeeId, publishedAt: { not: null }, OR: [{ storageKey: { not: null } }, { imageData: { not: null } }] },
-      select: { id: true, caption: true, source: true, publishedAt: true, createdAt: true },
+      select: { id: true, caption: true, source: true, publishedAt: true, consentConfirmedAt: true, consentVersion: true, consentSource: true, createdAt: true },
       orderBy: [{ publishedAt: 'desc' }, { createdAt: 'desc' }],
     });
   }
@@ -218,6 +218,7 @@ export class EmployeesService {
     actorId: string,
     file: { buffer: Buffer; mimetype: string; size: number } | undefined,
     caption?: string,
+    consentVersion?: string,
   ) {
     await this.assertPortfolioAccess(companyId, employeeId, actorId);
     if (!file) throw new BadRequestException('Выберите фотографию');
@@ -239,8 +240,12 @@ export class EmployeesService {
           thumbnailKey: stored.thumbnailKey,
           mimeType: stored.mimeType,
           publishedAt: new Date(),
+          consentConfirmedAt: new Date(),
+          consentVersion,
+          consentSource: 'COMPANY_CONFIRMATION',
+          consentConfirmedBy: actorId,
         },
-        select: { id: true, caption: true, source: true, publishedAt: true, createdAt: true },
+        select: { id: true, caption: true, source: true, publishedAt: true, consentConfirmedAt: true, consentVersion: true, consentSource: true, createdAt: true },
       });
     } catch (error) {
       await this.workImages.remove(stored.storageKey, stored.thumbnailKey);

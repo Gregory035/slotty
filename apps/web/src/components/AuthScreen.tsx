@@ -6,6 +6,7 @@ import { login, register, requestPasswordReset, resetPassword } from '../api';
 import { useAppStore } from '../store';
 import { errorMessage } from '../utils';
 import { Brand } from './Brand';
+import { LEGAL_DOCUMENT_VERSION } from '../legal';
 
 export function AuthScreen() {
   const [searchParams] = useSearchParams();
@@ -65,6 +66,8 @@ export function AuthScreen() {
             password: String(form.get('password')),
             firstName: String(form.get('firstName')),
             lastName: String(form.get('lastName') || '') || undefined,
+            legalAccepted: true,
+            legalVersion: LEGAL_DOCUMENT_VERSION,
           });
       if (mode === 'register') trackEvent('registration_success');
       setSession(session);
@@ -105,6 +108,7 @@ export function AuthScreen() {
           {mode !== 'reset' && <label>Email<input name="email" required type="email" autoComplete="email" placeholder="owner@example.com" /></label>}
           {mode !== 'forgot' && <label>Пароль<input name="password" required type="password" minLength={8} maxLength={128} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} placeholder="Минимум 8 символов" /></label>}
           {mode === 'reset' && <label>Повторите пароль<input name="passwordConfirmation" required type="password" minLength={8} maxLength={128} autoComplete="new-password" placeholder="Повторите новый пароль" /></label>}
+          {mode === 'register' && <label className="legal-checkbox"><input name="legalAccepted" type="checkbox" required /><span>Я принимаю <Link to="/terms" target="_blank">условия</Link>, <Link to="/privacy" target="_blank">политику конфиденциальности</Link> и даю <Link to="/personal-data" target="_blank">согласие на обработку данных</Link>.</span></label>}
           {error && <p className="form-error">{error}</p>}
           {notice && <p className="form-notice">{notice}</p>}
           <button className="primary-button auth-submit" disabled={busy}>
@@ -116,7 +120,7 @@ export function AuthScreen() {
         {mode === 'login' && <button type="button" className="auth-link-button" onClick={() => switchMode('forgot')}>Забыли пароль?</button>}
         {(mode === 'forgot' || mode === 'reset') && <Link className="auth-link-button" to="/app" onClick={() => { setMode('login'); setError(null); setNotice(null); }}>Вернуться ко входу</Link>}
 
-        {mode !== 'reset' && <p className="auth-legal">Продолжая, вы принимаете <Link to="/terms">условия использования</Link>, <Link to="/privacy">политику конфиденциальности</Link> и <Link to="/personal-data">согласие на обработку данных</Link>.</p>}
+        {mode === 'login' && <p className="auth-legal">Работа с сервисом регулируется <Link to="/terms">условиями использования</Link> и <Link to="/privacy">политикой конфиденциальности</Link>.</p>}
       </section>
 
       <aside className="auth-product-preview" aria-hidden="true">

@@ -6,14 +6,17 @@ import { useToast } from '../components/ToastProvider';
 import { ErrorBlock, LoadingBlock, SectionHeader } from '../components/ui';
 import type { Company } from '../types';
 import { errorMessage, formatMoney } from '../utils';
+import { Link } from 'react-router-dom';
+import { LEGAL_DOCUMENT_VERSION } from '../legal';
 
 export function BillingView({ company }: { company: Company }) {
   const { notify } = useToast();
   const [renewAfterCheckout, setRenewAfterCheckout] = useState(true);
+  const [offerAccepted, setOfferAccepted] = useState(false);
   const billing = useQuery({ queryKey: ['billing', company.id], queryFn: () => getEntitlements(company.id) });
   const payments = useQuery({ queryKey: ['payments', company.id], queryFn: () => getPayments(company.id) });
   const checkout = useMutation({
-    mutationFn: (plan: 'STARTER' | 'PRO') => createCheckout(company.id, plan, renewAfterCheckout),
+    mutationFn: (plan: 'STARTER' | 'PRO') => createCheckout(company.id, plan, renewAfterCheckout, true, LEGAL_DOCUMENT_VERSION),
     onSuccess: ({ confirmationUrl }) => { window.location.assign(confirmationUrl); },
     onError: (caught) => notify(errorMessage(caught), 'error'),
   });
@@ -52,10 +55,11 @@ export function BillingView({ company }: { company: Company }) {
         description={`${planLabel[billing.data.plan]} · ${subscriptionStatusLabel[billing.data.status]}${periodEnd ? ` до ${formatDate(periodEnd)}` : ''}.`}
       />
       <div className="plan-grid">
-        <Plan name="Starter" price="990 ₽" features={['До 10 сотрудников', 'До 1000 записей в месяц', 'Стандартные уведомления']} active={billing.data.plan === 'STARTER'} pending={checkout.isPending} action={() => checkout.mutate('STARTER')} />
-        <Plan name="Pro" price="2490 ₽" features={['До 100 сотрудников', 'Расширенная аналитика', 'Кастомные уведомления']} active={billing.data.plan === 'PRO'} pending={checkout.isPending} action={() => checkout.mutate('PRO')} />
+        <Plan name="Starter" price="990 ₽" features={['До 10 сотрудников', 'До 1000 записей в месяц', 'Стандартные уведомления']} active={billing.data.plan === 'STARTER'} pending={checkout.isPending || !offerAccepted} action={() => checkout.mutate('STARTER')} />
+        <Plan name="Pro" price="2490 ₽" features={['До 100 сотрудников', 'Расширенная аналитика', 'Кастомные уведомления']} active={billing.data.plan === 'PRO'} pending={checkout.isPending || !offerAccepted} action={() => checkout.mutate('PRO')} />
       </div>
       <label className="checkout-renewal-option"><input type="checkbox" checked={renewAfterCheckout} onChange={(event) => setRenewAfterCheckout(event.target.checked)} /><span><strong>Автопродление после оплаты</strong><small>Можно отключить в любой момент. Доступ сохранится до конца оплаченного периода.</small></span></label>
+      <label className="checkout-renewal-option"><input type="checkbox" checked={offerAccepted} onChange={(event) => setOfferAccepted(event.target.checked)} /><span><strong>Принимаю условия оплаты</strong><small>Я принимаю <Link to="/offer" target="_blank">публичную оферту</Link>, включая порядок списаний, отмены автопродления и возвратов.</small></span></label>
       <article className="panel subscription-controls">
         <div><h2>Продление подписки</h2><p className="muted-text">{billing.data.cancelAtPeriodEnd ? `Отключится ${billing.data.currentPeriodEndsAt ? formatDate(billing.data.currentPeriodEndsAt) : 'в конце периода'}` : billing.data.autoRenewEnabled ? 'Следующий платёж пройдёт автоматически.' : 'Автоматическое продление выключено.'}</p></div>
         <div className="subscription-control-actions">

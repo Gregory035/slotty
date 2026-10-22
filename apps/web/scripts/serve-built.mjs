@@ -12,6 +12,9 @@ const redirects = new Map([
   ['/privacy/', '/privacy'],
   ['/terms/', '/terms'],
   ['/personal-data/', '/personal-data'],
+  ['/offer/', '/offer'],
+  ['/cookies/', '/cookies'],
+  ['/data-processing/', '/data-processing'],
   ['/app/', '/app'],
 ]);
 const documents = new Map([
@@ -23,6 +26,9 @@ const documents = new Map([
   ['/privacy', ['privacy/index.html', 200, false]],
   ['/terms', ['terms/index.html', 200, false]],
   ['/personal-data', ['personal-data/index.html', 200, false]],
+  ['/offer', ['offer/index.html', 200, false]],
+  ['/cookies', ['cookies/index.html', 200, false]],
+  ['/data-processing', ['data-processing/index.html', 200, false]],
   ['/app', ['private.html', 200, true]],
 ]);
 

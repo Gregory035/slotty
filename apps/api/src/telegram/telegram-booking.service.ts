@@ -196,6 +196,10 @@ export class TelegramBookingService {
       return;
     }
     if (parts[0] === 'wr' && parts.length === 2) {
+      await this.confirmWorkPhotoConsent(token, context, decodeUuid(parts[1]!));
+      return;
+    }
+    if (parts[0] === 'wc' && parts.length === 2) {
       await this.requestWorkPhoto(companyId, token, context, decodeUuid(parts[1]!));
       return;
     }
@@ -1040,7 +1044,7 @@ export class TelegramBookingService {
     });
     await this.prisma.workExample.upsert({
       where: { appointmentId_companyId: { appointmentId, companyId } },
-      update: { imageData: null, storageKey: null, thumbnailKey: null, mimeType: null, publishedAt: null, uploadRequestedAt: new Date(), source: WorkExampleSource.CUSTOMER },
+      update: { imageData: null, storageKey: null, thumbnailKey: null, mimeType: null, publishedAt: null, uploadRequestedAt: new Date(), source: WorkExampleSource.CUSTOMER, consentConfirmedAt: new Date(), consentVersion: '2026-10-21', consentSource: 'TELEGRAM_CUSTOMER' },
       create: {
         companyId,
         employeeId: appointment.employeeId,
@@ -1048,10 +1052,23 @@ export class TelegramBookingService {
         customerId: appointment.customerId,
         source: WorkExampleSource.CUSTOMER,
         uploadRequestedAt: new Date(),
+        consentConfirmedAt: new Date(),
+        consentVersion: '2026-10-21',
+        consentSource: 'TELEGRAM_CUSTOMER',
       },
     });
     await this.workImages.remove(existing?.storageKey, existing?.thumbnailKey);
     await this.telegramApi.sendMessage(token, context.chatId, 'Отправьте одним сообщением фотографию результата. Она появится в примерах работ этого специалиста.');
+  }
+
+  private async confirmWorkPhotoConsent(token: string, context: UpdateContext, appointmentId: string): Promise<void> {
+    const code = encodeUuid(appointmentId);
+    await this.telegramApi.sendMessage(
+      token,
+      context.chatId,
+      'Фото будет опубликовано в портфолио специалиста и станет доступно клиентам. Нажимая «Согласен», вы подтверждаете, что вправе публиковать это изображение и даёте согласие на его размещение.',
+      new InlineKeyboard().text('Согласен, отправить фото', `wc:${code}`).row().text('Отмена', 'm'),
+    );
   }
 
   private async savePendingWorkPhoto(

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { hasAnalyticsConfiguration, initializeAnalytics, setAnalyticsConsent, trackPageView } from '../analytics';
 import { initializeWebVitals } from '../web-vitals';
+import { Link } from 'react-router-dom';
 
 export function AnalyticsConsent() {
   const [visible, setVisible] = useState(false);
@@ -19,7 +20,7 @@ export function AnalyticsConsent() {
 
   return (
     <section className="analytics-consent" aria-label="Настройки аналитики">
-      <div><strong>Аналитика посещений</strong><p>Помогает улучшать Slotty. Без данных клиентов и записей.</p></div>
+      <div><strong>Аналитика посещений</strong><p>Помогает улучшать Slotty. Без данных клиентов и записей. <Link to="/cookies">Подробнее о cookie</Link>.</p></div>
       <div className="analytics-consent-actions"><button className="text-button" onClick={() => decide('denied')}>Только необходимое</button><button className="primary-button lime-button" onClick={() => decide('granted')}>Разрешить</button></div>
     </section>
   );

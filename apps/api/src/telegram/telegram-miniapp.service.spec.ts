@@ -27,6 +27,7 @@ describe('TelegramMiniAppService', () => {
       employeeService: { findMany: jest.fn().mockResolvedValue([{ employeeId }]) },
       customer: { findUnique: jest.fn().mockResolvedValue(null) },
       appointment: { findMany: jest.fn().mockResolvedValue([]), findFirst: jest.fn() },
+      legalAcceptance: { createMany: jest.fn().mockResolvedValue({ count: 2 }) },
     };
     scheduling = { getAvailability: jest.fn().mockResolvedValue({ slots: [] }) };
     appointments = { createFromTelegram: jest.fn().mockResolvedValue({ appointmentId: 'appointment-id' }) };
@@ -56,7 +57,7 @@ describe('TelegramMiniAppService', () => {
 
   it('uses the verified Telegram user when creating a booking', async () => {
     await miniApp.createBooking(companyId, {
-      initData: signedInitData(), serviceId, employeeId, date: '2030-01-10', time: '12:00',
+      initData: signedInitData(), serviceId, employeeId, date: '2030-01-10', time: '12:00', legalAccepted: true, legalVersion: '2026-10-21',
     });
 
     expect(appointments.createFromTelegram).toHaveBeenCalledWith(companyId, {

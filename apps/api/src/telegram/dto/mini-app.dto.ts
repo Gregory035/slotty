@@ -1,7 +1,8 @@
 import { Type } from 'class-transformer';
-import { ArrayMaxSize, ArrayMinSize, IsArray, IsEnum, IsOptional, IsString, IsUUID, Matches, MaxLength, ValidateNested } from 'class-validator';
+import { ArrayMaxSize, ArrayMinSize, Equals, IsArray, IsBoolean, IsEnum, IsOptional, IsString, IsUUID, Matches, MaxLength, ValidateNested } from 'class-validator';
 import { BookingFunnelStep } from '@prisma/client';
 import { DATE_PATTERN } from '../../scheduling/time-zone.util';
+import { LEGAL_DOCUMENT_VERSION } from '../../legal/legal.constants';
 
 export class MiniAppSessionDto {
   @IsString()
@@ -22,6 +23,14 @@ export class MiniAppAvailabilityDto extends MiniAppSessionDto {
 }
 
 export class MiniAppBookingDto extends MiniAppSessionDto {
+  @IsBoolean()
+  @Equals(true)
+  legalAccepted: true;
+
+  @IsString()
+  @Equals(LEGAL_DOCUMENT_VERSION)
+  legalVersion: string;
+
   @IsUUID()
   serviceId: string;
 
@@ -50,6 +59,14 @@ export class MiniAppVisitItemDto {
 }
 
 export class MiniAppVisitBookingDto extends MiniAppSessionDto {
+  @IsBoolean()
+  @Equals(true)
+  legalAccepted: true;
+
+  @IsString()
+  @Equals(LEGAL_DOCUMENT_VERSION)
+  legalVersion: string;
+
   @IsUUID()
   requestId: string;
 

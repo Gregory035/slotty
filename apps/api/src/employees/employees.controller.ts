@@ -141,7 +141,7 @@ export class EmployeesController {
     @UploadedFile() file: { buffer: Buffer; mimetype: string; size: number } | undefined,
     @Body() input: CreateWorkExampleDto,
   ) {
-    return this.employees.addWorkExample(companyId, employeeId, user.id, file, input.caption);
+    return this.employees.addWorkExample(companyId, employeeId, user.id, file, input.caption, input.consentVersion);
   }
 
   @Delete(':employeeId/work-examples/:workId')

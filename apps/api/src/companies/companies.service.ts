@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { CompanyRole, SubscriptionPlan, SubscriptionStatus } from '@prisma/client';
+import { CompanyRole, LegalAcceptanceSource, LegalDocument, SubscriptionPlan, SubscriptionStatus } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import { CompanyResponseDto } from './dto/company-response.dto';
 import { CreateCompanyDto } from './dto/create-company.dto';
@@ -42,6 +42,15 @@ export class CompaniesService {
           companyId: company.id,
           userId,
           role: CompanyRole.OWNER,
+        },
+      });
+      await transaction.legalAcceptance.create({
+        data: {
+          userId,
+          companyId: company.id,
+          document: LegalDocument.DATA_PROCESSING,
+          version: input.legalVersion,
+          source: LegalAcceptanceSource.COMPANY_ONBOARDING,
         },
       });
       const subscription = await transaction.subscription.create({

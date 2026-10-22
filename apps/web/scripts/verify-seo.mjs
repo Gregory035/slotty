@@ -5,7 +5,7 @@ import { resolve } from 'node:path';
 const dist = resolve(process.cwd(), 'dist');
 const enabled = process.env.SEO_INDEXING_ENABLED === 'true';
 const origin = (process.env.VITE_SITE_URL || process.env.SITE_URL || process.env.WEB_URL || '').replace(/\/$/, '');
-const routes = ['/', '/online-zapis', '/zapis-cherez-telegram', '/dlya-mastera', '/dlya-salona', '/privacy', '/terms', '/personal-data'];
+const routes = ['/', '/online-zapis', '/zapis-cherez-telegram', '/dlya-mastera', '/dlya-salona', '/privacy', '/terms', '/personal-data', '/offer', '/cookies', '/data-processing'];
 const documents = [];
 
 for (const route of routes) {

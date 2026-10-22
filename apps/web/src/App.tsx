@@ -32,6 +32,9 @@ export function App() {
       <Route path="/privacy" element={<LegalPage document="privacy" />} />
       <Route path="/terms" element={<LegalPage document="terms" />} />
       <Route path="/personal-data" element={<LegalPage document="consent" />} />
+      <Route path="/offer" element={<LegalPage document="offer" />} />
+      <Route path="/cookies" element={<LegalPage document="cookies" />} />
+      <Route path="/data-processing" element={<LegalPage document="processing" />} />
       <Route path="/company/:slug" element={<WorkspaceFallback><PublicCompanyPage /></WorkspaceFallback>} />
       <Route path="/miniapp/:companyId" element={<WorkspaceFallback><TelegramMiniAppPage /></WorkspaceFallback>} />
       <Route path="/app/*" element={<WorkspaceFallback><WorkspaceApp /></WorkspaceFallback>} />

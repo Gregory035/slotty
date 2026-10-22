@@ -5,6 +5,8 @@ import { createCompany } from '../api';
 import { useAppStore } from '../store';
 import { errorMessage } from '../utils';
 import { Brand } from './Brand';
+import { Link } from 'react-router-dom';
+import { LEGAL_DOCUMENT_VERSION } from '../legal';
 
 export function CompanyOnboarding() {
   const queryClient = useQueryClient();
@@ -27,6 +29,8 @@ export function CompanyOnboarding() {
       name: String(form.get('name')),
       timezone: String(form.get('timezone')),
       currency: String(form.get('currency')),
+      dataProcessingAccepted: true,
+      legalVersion: LEGAL_DOCUMENT_VERSION,
     });
   }
 
@@ -49,6 +53,7 @@ export function CompanyOnboarding() {
               <option value="Asia/Vladivostok">Владивосток</option>
             </select>
           </label>
+          <label className="legal-checkbox"><input name="dataProcessingAccepted" type="checkbox" required /><span>Я принимаю <Link to="/data-processing" target="_blank">поручение на обработку данных</Link> и подтверждаю полномочия на работу с данными клиентов.</span></label>
           <label>Валюта
             <select name="currency" defaultValue="RUB">
               <option value="RUB">Российский рубль · ₽</option>

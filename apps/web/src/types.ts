@@ -122,6 +122,9 @@ export interface EmployeeWorkExample {
   caption: string | null;
   source: 'CUSTOMER' | 'EMPLOYEE';
   publishedAt: string;
+  consentConfirmedAt: string | null;
+  consentVersion: string | null;
+  consentSource: string | null;
   createdAt: string;
 }
 

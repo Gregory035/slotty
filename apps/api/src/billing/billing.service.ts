@@ -8,6 +8,8 @@ import {
 import { ConfigService } from '@nestjs/config';
 import {
   PaymentStatus,
+  LegalAcceptanceSource,
+  LegalDocument,
   Prisma,
   SubscriptionPlan,
   SubscriptionStatus,
@@ -41,6 +43,8 @@ export class BillingService {
     companyId: string,
     plan: Exclude<SubscriptionPlan, 'TRIAL'>,
     autoRenew: boolean,
+    legalVersion: string,
+    userId: string,
     idempotencyKey?: string,
   ) {
     const shopId = this.config.get<string>('YOOKASSA_SHOP_ID');
@@ -54,6 +58,16 @@ export class BillingService {
       orderBy: { createdAt: 'desc' },
     });
     if (!subscription) throw new NotFoundException('Subscription not found');
+    await this.prisma.legalAcceptance.create({
+      data: {
+        userId,
+        companyId,
+        document: LegalDocument.OFFER,
+        version: legalVersion,
+        source: LegalAcceptanceSource.BILLING_CHECKOUT,
+        metadata: { plan, autoRenew },
+      },
+    });
     await this.prisma.subscription.update({
       where: { id_companyId: { id: subscription.id, companyId } },
       data: { autoRenewEnabled: autoRenew, cancelAtPeriodEnd: false },

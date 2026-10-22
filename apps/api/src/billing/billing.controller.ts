@@ -1,4 +1,4 @@
-import { Allow, IsBoolean, IsIn, IsOptional } from 'class-validator';
+import { Allow, Equals, IsBoolean, IsIn, IsOptional, IsString } from 'class-validator';
 import { Body, Controller, Get, Headers, Param, ParseUUIDPipe, Post, Query, UseGuards } from '@nestjs/common';
 import { SubscriptionPlan } from '@prisma/client';
 import { AccessTokenGuard } from '../auth/guards/access-token.guard';
@@ -7,6 +7,9 @@ import { RequirePermissions } from '../companies/decorators/require-permissions.
 import { CompanyAccessGuard } from '../companies/guards/company-access.guard';
 import { CursorQueryDto } from '../common/cursor-query.dto';
 import { RateLimits } from '../rate-limit/rate-limit.decorator';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { AuthenticatedUserDto } from '../auth/dto/auth-response.dto';
+import { LEGAL_DOCUMENT_VERSION } from '../legal/legal.constants';
 import { BillingService } from './billing.service';
 import { EntitlementsService } from './entitlements.service';
 
@@ -17,6 +20,14 @@ class CheckoutDto {
   @IsOptional()
   @IsBoolean()
   autoRenew?: boolean;
+
+  @IsBoolean()
+  @Equals(true)
+  offerAccepted: true;
+
+  @IsString()
+  @Equals(LEGAL_DOCUMENT_VERSION)
+  legalVersion: string;
 }
 
 class PaymentWebhookDto {
@@ -60,9 +71,10 @@ export class BillingController {
   checkout(
     @Param('companyId') companyId: string,
     @Body() input: CheckoutDto,
+    @CurrentUser() user: AuthenticatedUserDto,
     @Headers('idempotency-key') idempotencyKey?: string,
   ) {
-    return this.billing.createCheckout(companyId, input.plan, input.autoRenew ?? false, idempotencyKey);
+    return this.billing.createCheckout(companyId, input.plan, input.autoRenew ?? false, input.legalVersion, user.id, idempotencyKey);
   }
 
   @Post('auto-renew')

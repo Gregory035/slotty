@@ -26,6 +26,8 @@ async function register(email, firstName) {
       email,
       password: 'smoke-password-123',
       firstName,
+      legalAccepted: true,
+      legalVersion: '2026-10-21',
     }),
   });
   if (result.response.status !== 201) {
@@ -50,6 +52,8 @@ try {
       timezone: 'Europe/Moscow',
       currency: 'rub',
       language: 'RU',
+      dataProcessingAccepted: true,
+      legalVersion: '2026-10-21',
     }),
   });
   if (created.response.status !== 201 || created.body.role !== 'OWNER') {

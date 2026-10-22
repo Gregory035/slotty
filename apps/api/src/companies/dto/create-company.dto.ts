@@ -1,6 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import {
+  Equals,
+  IsBoolean,
   IsEmail,
   IsOptional,
   IsString,
@@ -8,8 +10,19 @@ import {
   MaxLength,
   MinLength,
 } from 'class-validator';
+import { LEGAL_DOCUMENT_VERSION } from '../../legal/legal.constants';
 
 export class CreateCompanyDto {
+  @ApiProperty({ example: true })
+  @IsBoolean()
+  @Equals(true)
+  dataProcessingAccepted: true;
+
+  @ApiProperty({ example: LEGAL_DOCUMENT_VERSION })
+  @IsString()
+  @Equals(LEGAL_DOCUMENT_VERSION)
+  legalVersion: string;
+
   @ApiProperty({ example: 'Студия «Линия»' })
   @IsString()
   @MinLength(1)

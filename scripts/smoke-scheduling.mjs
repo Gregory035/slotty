@@ -69,6 +69,8 @@ try {
         email: ownerEmail,
         password: 'smoke-password-123',
         firstName: 'Schedule owner',
+        legalAccepted: true,
+        legalVersion: '2026-10-21',
       }),
     }),
     201,
@@ -81,7 +83,7 @@ try {
       await request('/companies', {
         method: 'POST',
         headers,
-        body: JSON.stringify({ name, timezone: 'Europe/Moscow' }),
+        body: JSON.stringify({ name, timezone: 'Europe/Moscow', dataProcessingAccepted: true, legalVersion: '2026-10-21' }),
       }),
       201,
       'Company creation failed',

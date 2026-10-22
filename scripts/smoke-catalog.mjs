@@ -38,6 +38,8 @@ try {
       email: ownerEmail,
       password: 'smoke-password-123',
       firstName: 'Catalog owner',
+      legalAccepted: true,
+      legalVersion: '2026-10-21',
     }),
   });
   const owner = await expectStatus(registration, 201, 'Registration failed');
@@ -47,7 +49,7 @@ try {
     const result = await request('/companies', {
       method: 'POST',
       headers,
-      body: JSON.stringify({ name }),
+      body: JSON.stringify({ name, dataProcessingAccepted: true, legalVersion: '2026-10-21' }),
     });
     const company = await expectStatus(result, 201, 'Company creation failed');
     companyIds.push(company.id);
