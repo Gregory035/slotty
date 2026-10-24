@@ -4,6 +4,9 @@ import { CompanyRole } from '@prisma/client';
 import webpush, { type PushSubscription } from 'web-push';
 import { PrismaService } from '../database/prisma.service';
 import { SavePushSubscriptionDto } from './dto/push-subscription.dto';
+import { PushPreferenceDto, UpdatePushPreferenceDto } from './dto/push-preference.dto';
+
+export type BusinessPushEvent = 'appointment.created' | 'appointment.rescheduled' | 'appointment.cancelled';
 
 export interface BusinessPushPayload {
   title: string;
@@ -57,24 +60,85 @@ export class PushService {
     await this.prisma.webPushSubscription.deleteMany({ where: { userId, endpoint } });
   }
 
-  async sendToCompany(companyId: string, payload: BusinessPushPayload): Promise<void> {
-    if (!this.enabled) return;
+  async preferences(userId: string): Promise<PushPreferenceDto> {
+    const saved = await this.prisma.pushPreference.findUnique({ where: { userId } });
+    return {
+      appointmentCreated: saved?.appointmentCreated ?? true,
+      appointmentRescheduled: saved?.appointmentRescheduled ?? true,
+      appointmentCancelled: saved?.appointmentCancelled ?? true,
+    };
+  }
+
+  async updatePreferences(userId: string, input: UpdatePushPreferenceDto): Promise<PushPreferenceDto> {
+    const saved = await this.prisma.pushPreference.upsert({
+      where: { userId },
+      update: input,
+      create: { userId, ...input },
+    });
+    return {
+      appointmentCreated: saved.appointmentCreated,
+      appointmentRescheduled: saved.appointmentRescheduled,
+      appointmentCancelled: saved.appointmentCancelled,
+    };
+  }
+
+  async sendTest(userId: string): Promise<number> {
+    return this.sendToUsers({ userId }, {
+      title: 'Уведомления работают',
+      body: 'Slotty сможет сообщать о новых, перенесённых и отменённых записях.',
+      url: '/app',
+      tag: `push-test-${Date.now()}`,
+    });
+  }
+
+  async sendToCompany(
+    companyId: string,
+    payload: BusinessPushPayload,
+    options: { event: BusinessPushEvent; employeeId: string },
+  ): Promise<number> {
+    if (!this.enabled) return 0;
     const subscriptions = await this.prisma.webPushSubscription.findMany({
       where: {
         user: {
           memberships: {
-            some: { companyId, role: { in: [CompanyRole.OWNER, CompanyRole.ADMIN] } },
+            some: {
+              companyId,
+              OR: [
+                { role: { in: [CompanyRole.OWNER, CompanyRole.ADMIN] } },
+                { role: CompanyRole.EMPLOYEE, employeeId: options.employeeId },
+              ],
+            },
           },
         },
       },
+      include: { user: { select: { pushPreference: true } } },
     });
+    const preferenceKey = this.preferenceKey(options.event);
+    return this.deliver(subscriptions.filter((item) => item.user.pushPreference?.[preferenceKey] !== false), payload);
+  }
+
+  private async sendToUsers(where: { userId: string }, payload: BusinessPushPayload): Promise<number> {
+    if (!this.enabled) return 0;
+    const subscriptions = await this.prisma.webPushSubscription.findMany({ where });
+    return this.deliver(subscriptions, payload);
+  }
+
+  private async deliver(
+    subscriptions: Array<{ id: string; endpoint: string; p256dh: string; auth: string }>,
+    payload: BusinessPushPayload,
+  ): Promise<number> {
+    let delivered = 0;
     await Promise.all(subscriptions.map(async (item) => {
       const subscription: PushSubscription = {
         endpoint: item.endpoint,
         keys: { p256dh: item.p256dh, auth: item.auth },
       };
       try {
-        await webpush.sendNotification(subscription, JSON.stringify(payload), { TTL: 300 });
+        await webpush.sendNotification(subscription, JSON.stringify(payload), {
+          TTL: 300,
+          urgency: 'high',
+        });
+        delivered += 1;
       } catch (error) {
         const statusCode = this.statusCode(error);
         if (statusCode === 404 || statusCode === 410) {
@@ -84,6 +148,13 @@ export class PushService {
         this.logger.warn(`Push delivery failed (${statusCode ?? 'unknown'}): ${this.message(error)}`);
       }
     }));
+    return delivered;
+  }
+
+  private preferenceKey(event: BusinessPushEvent): keyof PushPreferenceDto {
+    if (event === 'appointment.created') return 'appointmentCreated';
+    if (event === 'appointment.rescheduled') return 'appointmentRescheduled';
+    return 'appointmentCancelled';
   }
 
   private statusCode(error: unknown): number | null {

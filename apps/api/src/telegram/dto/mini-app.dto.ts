@@ -1,5 +1,5 @@
-import { Type } from 'class-transformer';
-import { ArrayMaxSize, ArrayMinSize, Equals, IsArray, IsBoolean, IsEnum, IsOptional, IsString, IsUUID, Matches, MaxLength, ValidateNested } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
+import { ArrayMaxSize, ArrayMinSize, Equals, IsArray, IsBoolean, IsEnum, IsInt, IsOptional, IsString, IsUUID, Matches, Max, MaxLength, Min, ValidateNested } from 'class-validator';
 import { BookingFunnelStep } from '@prisma/client';
 import { DATE_PATTERN } from '../../scheduling/time-zone.util';
 import { LEGAL_DOCUMENT_VERSION } from '../../legal/legal.constants';
@@ -89,6 +89,30 @@ export class MiniAppRescheduleDto extends MiniAppAppointmentDto {
 
   @Matches(/^([01]\d|2[0-3]):[0-5]\d$/)
   time: string;
+}
+
+export class MiniAppReviewDto extends MiniAppAppointmentDto {
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(5)
+  rating: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  comment?: string;
+}
+
+export class MiniAppWorkPhotoDto extends MiniAppAppointmentDto {
+  @IsBoolean()
+  @Equals(true)
+  @Transform(({ value }: { value: unknown }) => value === true || value === 'true')
+  publicationConsentConfirmed: true;
+
+  @IsString()
+  @Equals(LEGAL_DOCUMENT_VERSION)
+  consentVersion: string;
 }
 
 export class MiniAppFunnelEventDto extends MiniAppSessionDto {

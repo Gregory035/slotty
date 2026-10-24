@@ -19,6 +19,6 @@ import { PasswordResetMailerService } from './password-reset-mailer.service';
     TokenService,
     AccessTokenGuard,
   ],
-  exports: [AccessTokenGuard, TokenService, UsersModule],
+  exports: [AccessTokenGuard, AuthCookieService, AuthService, PasswordService, TokenService, UsersModule],
 })
 export class AuthModule {}

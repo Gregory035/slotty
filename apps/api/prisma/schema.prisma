@@ -18,6 +18,8 @@ model User {
   refreshTokens        RefreshToken[]
   passwordResetTokens  PasswordResetToken[]
   pushSubscriptions    WebPushSubscription[]
+  pushPreference       PushPreference?
+  sentInvitations      CompanyInvitation[]    @relation("InvitationSender")
   auditLogs            AuditLog[]           @relation("AuditActor")
   createdAt            DateTime             @default(now())
   updatedAt            DateTime             @updatedAt
@@ -36,6 +38,16 @@ model WebPushSubscription {
   updatedAt DateTime @updatedAt
 
   @@index([userId])
+}
+
+model PushPreference {
+  userId                 String  @id @db.Uuid
+  appointmentCreated     Boolean @default(true)
+  appointmentRescheduled Boolean @default(true)
+  appointmentCancelled   Boolean @default(true)
+  user                   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
 }
 
 model Company {
@@ -76,6 +88,7 @@ model Company {
   paymentEvents             PaymentEvent[]
   waitlistEntries           WaitlistEntry[]
   workExamples              WorkExample[]
+  invitations               CompanyInvitation[]
   bookingFunnelEvents       BookingFunnelEvent[]
   rebookingDelayDays        Int                  @default(30)
   createdAt                 DateTime             @default(now())
@@ -100,6 +113,27 @@ model CompanyMember {
   @@unique([id, companyId])
   @@unique([companyId, employeeId])
   @@index([companyId, role])
+}
+
+model CompanyInvitation {
+  id          String      @id @default(uuid()) @db.Uuid
+  companyId   String      @db.Uuid
+  email       String      @db.VarChar(254)
+  role        CompanyRole
+  employeeId  String?     @db.Uuid
+  invitedById String      @db.Uuid
+  tokenHash   String      @unique @db.Char(64)
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  revokedAt   DateTime?
+  company     Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employee    Employee?   @relation("InvitationEmployee", fields: [employeeId, companyId], references: [id, companyId], onDelete: Restrict)
+  invitedBy   User        @relation("InvitationSender", fields: [invitedById], references: [id], onDelete: Cascade)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@index([companyId, createdAt])
+  @@index([email, expiresAt])
 }
 
 model Bot {
@@ -140,6 +174,7 @@ model Employee {
   waitlistEntries    WaitlistEntry[]
   memberships        CompanyMember[]     @relation("EmployeeMembership")
   workExamples       WorkExample[]
+  invitations        CompanyInvitation[] @relation("InvitationEmployee")
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
   deletedAt          DateTime?

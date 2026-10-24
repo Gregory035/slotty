@@ -355,6 +355,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .customer-import-preview span, .customer-import-preview p { color: var(--muted); }
 .customer-card { padding: 18px; }.customer-head { display: grid; grid-template-columns: auto 1fr auto; gap: 11px; align-items: center; }.customer-head h2 { margin: 0; font-size: 15px; }.customer-head p { margin: 4px 0 0; color: var(--muted); font-size: 10px; }.customer-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; margin-top: 17px; }.customer-stats div { padding: 9px; border-radius: 8px; background: var(--soft); }.customer-stats strong, .customer-stats span { display: block; }.customer-stats strong { font-size: 12px; }.customer-stats span { margin-top: 3px; color: var(--faint); font-size: 8px; }.customer-notes { min-height: 36px; margin: 14px 0; color: var(--muted); font-size: 10px; line-height: 1.55; }.card-action-row { display: flex; justify-content: flex-end; gap: 6px; padding-top: 12px; border-top: 1px solid var(--line); }.card-action-row .secondary-button { margin-right: auto; }
 .data-list { overflow: hidden; }.data-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; gap: 12px; align-items: center; padding: 13px 15px; border-top: 1px solid var(--line); }.data-row:first-child { border-top: 0; }.data-row > div { min-width: 0; }.data-row strong, .data-row span { display: block; }.data-row strong { font-size: 11px; }.data-row span { margin-top: 3px; color: var(--muted); font-size: 9px; }.data-row select, .inline-field select { height: 36px; border: 1px solid var(--line); border-radius: 8px; padding: 0 9px; background: var(--surface); font-size: 10px; }.audit-list .data-row { grid-template-columns: minmax(0, 1fr) auto; }
+.members-pending { margin-top: 24px; }.members-pending h2 { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; font-size: 14px; }.members-pending .data-row { grid-template-columns: auto minmax(0, 1fr) auto; }
+.role-guide { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 16px; }.role-guide article { display: grid; gap: 5px; padding: 13px 14px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); }.role-guide strong { font-size: 11px; }.role-guide span { color: var(--muted); font-size: 9px; line-height: 1.5; }
+.push-settings { display: grid; gap: 16px; padding: 19px 22px 22px; }.push-settings-status { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 11px; }.push-settings-status span { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }.push-settings-status span.is-active { background: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 18%, transparent); }.push-settings fieldset { display: grid; gap: 10px; margin: 0; padding: 15px; border: 1px solid var(--line); border-radius: 10px; }.push-settings legend { padding: 0 6px; color: var(--muted); font-size: 10px; }.push-settings label { display: flex; align-items: center; gap: 9px; font-size: 11px; }.push-settings input { width: 17px; height: 17px; accent-color: var(--accent); }
 .settings-form { padding: 24px; }.settings-form section + section { margin-top: 25px; padding-top: 22px; border-top: 1px solid var(--line); }.settings-form h2, .usage-panel h2, .payments-panel h2 { margin: 0 0 16px; font-size: 16px; }.settings-form label { display: grid; gap: 7px; color: #3b3b3b; font-size: 11px; font-weight: 600; }.settings-form input, .settings-form select { height: 42px; border: 1px solid var(--line-strong); border-radius: 9px; padding: 0 11px; background: var(--surface); }.toggle-field { display: flex !important; grid-column: 1 / -1; flex-direction: row; align-items: center; margin-top: 14px; }.toggle-field input { width: 16px; height: 16px; }.settings-actions { display: flex; justify-content: flex-end; margin-top: 22px; }
 .schedule-page { padding: 18px; }.inline-field { display: flex; align-items: center; gap: 9px; color: var(--muted); font-size: 10px; }.schedule-week-grid { display: grid; gap: 8px; }.schedule-week-grid section { padding: 10px; border-radius: 9px; background: var(--soft); }.schedule-week-grid header { display: flex; align-items: center; justify-content: space-between; }.schedule-week-grid header strong { font-size: 11px; }.schedule-week-grid section > p { margin: 8px 0 0; color: var(--faint); font-size: 9px; }.schedule-interval { display: grid; grid-template-columns: 105px auto 105px 32px; gap: 8px; align-items: center; margin-top: 7px; }.schedule-interval input { height: 34px; border: 1px solid var(--line); border-radius: 7px; padding: 0 7px; background: var(--surface); font-size: 10px; }
 .plan-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }.plan-card { padding: 22px; }.plan-card.active { border-color: #a7cfc2; background: #f5faf8; }.plan-card h2 { margin: 0; font-size: 20px; }.plan-price { display: block; margin: 15px 0; font-size: 24px; }.plan-price small { margin-left: 4px; color: var(--muted); font-size: 10px; }.plan-card ul { display: grid; gap: 9px; margin: 18px 0; padding: 0; list-style: none; }.plan-card li { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 10px; }.usage-panel, .payments-panel { margin-top: 12px; padding: 20px; }.usage-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 5px 12px; margin-top: 12px; font-size: 10px; }.usage-row > div { grid-column: 1 / -1; height: 4px; overflow: hidden; border-radius: 5px; background: var(--hover); }.usage-row i { display: block; height: 100%; background: var(--accent); }
@@ -1857,6 +1860,16 @@ input[type='checkbox'] { accent-color: var(--accent); }
   min-height: 210px;
 }
 
+.employee-card-self {
+  display: grid;
+  gap: 18px;
+  max-width: 680px;
+}
+
+.employee-card-self .primary-button {
+  justify-self: start;
+}
+
 .customer-stats,
 .review-summary,
 .analytics-kpi-grid,
@@ -1947,4 +1960,5 @@ input[type='checkbox'] { accent-color: var(--accent); }
   .subscription-controls,
   .subscription-control-actions { align-items: stretch; flex-direction: column; }
   .subscription-control-actions button { width: 100%; justify-content: center; }
+  .role-guide { grid-template-columns: 1fr; }
 }

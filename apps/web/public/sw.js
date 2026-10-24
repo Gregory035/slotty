@@ -1,4 +1,4 @@
-const CACHE = 'slotty-shell-v2';
+const CACHE = 'slotty-shell-v3';
 const SHELL = [
   '/',
   '/app',
@@ -37,9 +37,12 @@ self.addEventListener('push', (event) => {
   try { payload = { ...payload, ...event.data?.json() }; } catch { /* use safe defaults */ }
   event.waitUntil(self.registration.showNotification(payload.title, {
     body: payload.body,
-    icon: '/slotty-favicon.png',
-    badge: '/slotty-favicon.png',
+    icon: '/brand/slotty-icon-192.png',
+    badge: '/brand/slotty-badge-96.png',
     tag: payload.tag,
+    renotify: true,
+    requireInteraction: true,
+    vibrate: [120, 60, 120],
     data: { url: payload.url },
   }));
 });
@@ -49,7 +52,8 @@ self.addEventListener('notificationclick', (event) => {
   const url = event.notification.data?.url || '/app';
   const target = new URL(url, self.location.origin);
   event.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
-    const existing = clients.find((client) => new URL(client.url).pathname === target.pathname);
-    return existing ? existing.focus() : self.clients.openWindow(target.href);
+    const existing = clients[0];
+    if (!existing) return self.clients.openWindow(target.href);
+    return existing.navigate(target.href).then((client) => client?.focus());
   }));
 });

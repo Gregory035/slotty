@@ -46,6 +46,30 @@ export interface Company {
   updatedAt: string;
 }
 
+export interface CompanyInvitation {
+  id: string;
+  companyId: string;
+  email: string;
+  role: Company['role'];
+  employeeId: string | null;
+  expiresAt: string;
+  createdAt: string;
+}
+
+export interface PublicCompanyInvitation {
+  companyName: string;
+  email: string;
+  role: Company['role'];
+  expiresAt: string;
+  existingAccount: boolean;
+}
+
+export interface PushPreferences {
+  appointmentCreated: boolean;
+  appointmentRescheduled: boolean;
+  appointmentCancelled: boolean;
+}
+
 export interface PublicCompany {
   name: string;
   description: string | null;
@@ -286,6 +310,8 @@ export interface MiniAppAppointment {
   endsAt: string;
   status: 'PENDING' | 'CONFIRMED' | 'COMPLETED' | 'CANCELLED_BY_CUSTOMER' | 'CANCELLED_BY_COMPANY' | 'NO_SHOW';
   price: string;
+  review: { rating: number; comment: string | null } | null;
+  hasWorkPhoto: boolean;
 }
 
 export interface MiniAppAppointments {

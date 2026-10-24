@@ -29,11 +29,12 @@ import {
   X,
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
-import { deletePushSubscription, getPushConfig, logout, savePushSubscription } from '../api';
+import { deletePushSubscription, getPushConfig, getPushPreferences, logout, savePushSubscription, sendTestPush, updatePushPreferences } from '../api';
 import { useAppStore } from '../store';
-import type { Company, Section } from '../types';
+import type { Company, PushPreferences, Section } from '../types';
 import { Brand } from './Brand';
 import { useToast } from './ToastProvider';
+import { Modal } from './ui';
 
 const navigation: Array<{ id: Section; label: string; icon: typeof LayoutDashboard }> = [
   { id: 'dashboard', label: 'Обзор', icon: LayoutDashboard },
@@ -82,6 +83,8 @@ export function AppShell({
   const [installPrompt, setInstallPrompt] = useState<InstallPromptEvent | null>(null);
   const [pushActive, setPushActive] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
+  const [pushSettingsOpen, setPushSettingsOpen] = useState(false);
+  const [pushPreferences, setPushPreferences] = useState<PushPreferences | null>(null);
   const daysLeft = trialDays(activeCompany.trialEndsAt);
 
   async function signOut() {
@@ -91,7 +94,6 @@ export function AppShell({
         const subscription = await registration.pushManager.getSubscription();
         if (subscription) {
           await deletePushSubscription(subscription.endpoint);
-          await subscription.unsubscribe();
         }
       } catch {
         // Logout must remain available if the browser push service is offline.
@@ -103,9 +105,11 @@ export function AppShell({
   }
 
   const initials = `${session?.user.firstName?.[0] ?? ''}${session?.user.lastName?.[0] ?? ''}` || 'В';
-  const sectionTitle = navigation.find((item) => item.id === section)?.label ?? 'Обзор';
+  const sectionTitle = activeCompany.role === 'EMPLOYEE' && section === 'employees'
+    ? 'Мои работы'
+    : navigation.find((item) => item.id === section)?.label ?? 'Обзор';
   const visibleNavigation = navigation.filter((item) => {
-    if (activeCompany.role === 'EMPLOYEE') return ['calendar', 'appointments', 'schedule'].includes(item.id);
+    if (activeCompany.role === 'EMPLOYEE') return ['calendar', 'appointments', 'employees', 'schedule'].includes(item.id);
     if (activeCompany.role === 'ADMIN') return item.id !== 'billing' && item.id !== 'system';
     return true;
   });
@@ -138,7 +142,10 @@ export function AppShell({
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
     void navigator.serviceWorker.ready
       .then((registration) => registration.pushManager.getSubscription())
-      .then((subscription) => setPushActive(Boolean(subscription)))
+      .then(async (subscription) => {
+        setPushActive(Boolean(subscription));
+        if (subscription) await savePushSubscription(subscription.toJSON());
+      })
       .catch(() => setPushActive(false));
   }, []);
 
@@ -158,7 +165,18 @@ export function AppShell({
       setInstallPrompt(null);
       return;
     }
-    window.alert('На iPhone откройте меню «Поделиться» и выберите «На экран Домой».');
+    window.alert(isAndroidBrowser()
+      ? 'В Chrome откройте меню ⋮ и выберите «Установить приложение» или «Добавить на главный экран».'
+      : 'На iPhone откройте меню «Поделиться» и выберите «На экран Домой».');
+  }
+
+  async function openPushSettings() {
+    setPushSettingsOpen(true);
+    try {
+      setPushPreferences(await getPushPreferences());
+    } catch (caught) {
+      notify(errorText(caught), 'error');
+    }
   }
 
   async function togglePush() {
@@ -185,7 +203,9 @@ export function AppShell({
       }
       const permission = await Notification.requestPermission();
       if (permission !== 'granted') {
-        notify('Разрешение на уведомления не предоставлено', 'error');
+        notify(isAndroidBrowser()
+          ? 'Разрешите уведомления: Chrome → Настройки сайта → Уведомления'
+          : 'Разрешение на уведомления не предоставлено', 'error');
         return;
       }
       const subscription = await registration.pushManager.subscribe({
@@ -197,6 +217,30 @@ export function AppShell({
       notify('Push-уведомления включены');
     } catch {
       notify('Не удалось изменить настройки уведомлений', 'error');
+    } finally {
+      setPushBusy(false);
+    }
+  }
+
+  async function savePreferences(next: PushPreferences) {
+    setPushBusy(true);
+    try {
+      setPushPreferences(await updatePushPreferences(next));
+      notify('Настройки уведомлений сохранены');
+    } catch (caught) {
+      notify(errorText(caught), 'error');
+    } finally {
+      setPushBusy(false);
+    }
+  }
+
+  async function testPush() {
+    setPushBusy(true);
+    try {
+      await sendTestPush();
+      notify('Тестовое уведомление отправлено');
+    } catch (caught) {
+      notify(errorText(caught), 'error');
     } finally {
       setPushBusy(false);
     }
@@ -252,17 +296,18 @@ export function AppShell({
           <p>Рабочее пространство</p>
           {visibleNavigation.map((item) => {
             const Icon = item.icon;
+            const label = activeCompany.role === 'EMPLOYEE' && item.id === 'employees' ? 'Мои работы' : item.label;
             return (
               <button
                 key={item.id}
                 className={section === item.id ? 'active' : ''}
                 onClick={() => openSection(item.id)}
-                title={sidebarCollapsed ? item.label : undefined}
-                aria-label={item.label}
+                title={sidebarCollapsed ? label : undefined}
+                aria-label={label}
                 aria-current={section === item.id ? 'page' : undefined}
               >
                 <Icon size={19} strokeWidth={1.8} />
-                <span>{item.label}</span>
+                <span>{label}</span>
                 {item.id === 'appointments' && <i>Live</i>}
               </button>
             );
@@ -297,13 +342,13 @@ export function AppShell({
             <strong className="topbar-title">{sectionTitle}</strong>
           </div>
           <div className="topbar-actions">
-            {(installPrompt || isIosBrowser()) && !isStandalone() && <button className="icon-button topbar-icon" onClick={() => void installApp()} title="Установить Slotty" aria-label="Установить Slotty"><Download size={18} /></button>}
+            {(installPrompt || isIosBrowser() || isAndroidBrowser()) && !isStandalone() && <button className="icon-button topbar-icon" onClick={() => void installApp()} title="Установить Slotty" aria-label="Установить Slotty"><Download size={18} /></button>}
             <button className="command-trigger" onClick={() => setPaletteOpen(true)} aria-label="Открыть поиск и команды"><Search size={16} /><span>Поиск</span><kbd>⌘ K</kbd></button>
             <button
               className={`icon-button topbar-icon ${pushActive ? 'active' : ''}`}
-              onClick={() => void togglePush()}
-              aria-label={pushActive ? 'Выключить push-уведомления' : 'Включить push-уведомления'}
-              title={pushActive ? 'Push-уведомления включены' : 'Включить push-уведомления'}
+              onClick={() => void openPushSettings()}
+              aria-label="Настройки push-уведомлений"
+              title={pushActive ? 'Push-уведомления включены' : 'Настроить push-уведомления'}
               disabled={pushBusy}
             ><Bell size={18} /></button>
             <div className="theme-switch" aria-label="Тема интерфейса">
@@ -314,10 +359,26 @@ export function AppShell({
         </header>
         <div className="page-container">{children}</div>
         <nav className="mobile-bottom-nav" aria-label="Быстрая навигация">
-          {visibleNavigation.filter((item) => ['dashboard', 'calendar', 'appointments', 'customers', 'bot'].includes(item.id)).slice(0, 5).map((item) => { const Icon = item.icon; return <button key={item.id} className={section === item.id ? 'active' : ''} aria-current={section === item.id ? 'page' : undefined} onClick={() => openSection(item.id)}><Icon size={18} /><span>{item.label}</span></button>; })}
+          {visibleNavigation.filter((item) => activeCompany.role === 'EMPLOYEE'
+            ? ['calendar', 'appointments', 'employees', 'schedule'].includes(item.id)
+            : ['dashboard', 'calendar', 'appointments', 'customers', 'bot'].includes(item.id)).slice(0, 5).map((item) => { const Icon = item.icon; const label = activeCompany.role === 'EMPLOYEE' && item.id === 'employees' ? 'Работы' : item.label; return <button key={item.id} className={section === item.id ? 'active' : ''} aria-current={section === item.id ? 'page' : undefined} onClick={() => openSection(item.id)}><Icon size={18} /><span>{label}</span></button>; })}
         </nav>
       </div>
       {paletteOpen && <CommandPalette close={() => setPaletteOpen(false)} openSection={openSection} setThemeMode={setThemeMode} />}
+      <Modal open={pushSettingsOpen} title="Уведомления" description="Настройки действуют для вашего аккаунта на всех устройствах." onClose={() => setPushSettingsOpen(false)}>
+        <div className="push-settings">
+          <div className="push-settings-status"><span className={pushActive ? 'is-active' : ''} />{pushActive ? 'Включены на этом устройстве' : 'Выключены на этом устройстве'}</div>
+          <button className={pushActive ? 'secondary-button' : 'primary-button'} onClick={() => void togglePush()} disabled={pushBusy}>{pushActive ? 'Выключить на устройстве' : 'Включить на устройстве'}</button>
+          {pushPreferences && <fieldset disabled={pushBusy}>
+            <legend>О каких событиях сообщать</legend>
+            <label><input type="checkbox" checked={pushPreferences.appointmentCreated} onChange={(event) => void savePreferences({ ...pushPreferences, appointmentCreated: event.target.checked })} />Новая запись</label>
+            <label><input type="checkbox" checked={pushPreferences.appointmentRescheduled} onChange={(event) => void savePreferences({ ...pushPreferences, appointmentRescheduled: event.target.checked })} />Перенос записи</label>
+            <label><input type="checkbox" checked={pushPreferences.appointmentCancelled} onChange={(event) => void savePreferences({ ...pushPreferences, appointmentCancelled: event.target.checked })} />Отмена записи</label>
+          </fieldset>}
+          {isAndroidBrowser() && 'Notification' in window && Notification.permission === 'denied' && <p className="form-notice">Уведомления заблокированы. Откройте Chrome → Настройки сайта → Уведомления и разрешите их для Slotty.</p>}
+          <div className="modal-actions"><button className="secondary-button" onClick={() => void testPush()} disabled={!pushActive || pushBusy}>Отправить тест</button><button className="primary-button" onClick={() => setPushSettingsOpen(false)}>Готово</button></div>
+        </div>
+      </Modal>
     </div>
   );
 }
@@ -329,6 +390,14 @@ interface InstallPromptEvent extends Event {
 
 function isIosBrowser() {
   return /iPhone|iPad|iPod/u.test(navigator.userAgent);
+}
+
+function isAndroidBrowser() {
+  return /Android/u.test(navigator.userAgent);
+}
+
+function errorText(error: unknown): string {
+  return error instanceof Error ? error.message : 'Не удалось выполнить действие';
 }
 
 function isStandalone() {

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, Trash2 } from 'lucide-react';
-import { addMember, deleteMember, getEmployees, getMembers, updateMember } from '../api';
+import { Clock3, Mail, Plus, Trash2, X } from 'lucide-react';
+import { createInvitation, deleteMember, getEmployees, getInvitations, getMembers, revokeInvitation, updateMember } from '../api';
 import { useToast } from '../components/ToastProvider';
 import { EmptyState, ErrorBlock, LoadingBlock, Modal, SectionHeader } from '../components/ui';
 import type { Company } from '../types';
@@ -14,6 +14,7 @@ export function MembersView({ company }: { company: Company }) {
   const queryClient = useQueryClient();
   const { notify } = useToast();
   const members = useQuery({ queryKey: ['members', company.id], queryFn: () => getMembers(company.id) });
+  const invitations = useQuery({ queryKey: ['invitations', company.id], queryFn: () => getInvitations(company.id) });
   const remove = useMutation({
     mutationFn: (id: string) => deleteMember(company.id, id),
     onSuccess: async () => { notify('Участник удалён'); await queryClient.invalidateQueries({ queryKey: ['members', company.id] }); },
@@ -24,9 +25,19 @@ export function MembersView({ company }: { company: Company }) {
     onSuccess: async () => { notify('Роль изменена'); await queryClient.invalidateQueries({ queryKey: ['members', company.id] }); },
     onError: (caught) => notify(errorMessage(caught), 'error'),
   });
+  const revoke = useMutation({
+    mutationFn: (id: string) => revokeInvitation(company.id, id),
+    onSuccess: async () => { notify('Приглашение отозвано'); await queryClient.invalidateQueries({ queryKey: ['invitations', company.id] }); },
+    onError: (caught) => notify(errorMessage(caught), 'error'),
+  });
   return (
     <>
       <SectionHeader eyebrow="Доступ" title="Участники и роли" description="Права проверяются сервером для каждого рабочего пространства." action={<button className="primary-button" onClick={() => setOpen(true)}><Plus size={17} /> Добавить</button>} />
+      <div className="role-guide" aria-label="Права ролей">
+        <article><strong>Владелец</strong><span>Полный доступ, тариф, системные настройки и управление ролями.</span></article>
+        <article><strong>Администратор</strong><span>Записи, клиенты, команда и расписание — без тарифа и системных настроек.</span></article>
+        <article><strong>Сотрудник</strong><span>Только собственные записи, календарь, расписание и портфолио.</span></article>
+      </div>
       {members.isLoading ? <LoadingBlock /> : members.error ? <ErrorBlock message="Не удалось загрузить участников" /> : !members.data?.items.length ? <EmptyState title="Нет участников" description="Добавьте пользователя по email." /> : (
         <div className="panel data-list">
           {members.data.items.map((member) => (
@@ -41,6 +52,16 @@ export function MembersView({ company }: { company: Company }) {
           ))}
         </div>
       )}
+      {Boolean(invitations.data?.length) && <section className="members-pending">
+        <h2><Mail size={17} /> Ожидают подтверждения</h2>
+        <div className="panel data-list">
+          {invitations.data?.map((invitation) => <div className="data-row" key={invitation.id}>
+            <span className="avatar"><Clock3 size={17} /></span>
+            <div><strong>{invitation.email}</strong><span>{roleLabel[invitation.role]} · до {new Date(invitation.expiresAt).toLocaleDateString('ru-RU')}</span></div>
+            <button className="icon-button" aria-label="Отозвать приглашение" onClick={() => revoke.mutate(invitation.id)}><X size={17} /></button>
+          </div>)}
+        </div>
+      </section>}
       <AddMemberModal company={company} open={open} onClose={() => setOpen(false)} />
     </>
   );
@@ -54,17 +75,17 @@ function AddMemberModal({ company, open, onClose }: { company: Company; open: bo
   const { notify } = useToast();
   const employees = useQuery({ queryKey: ['employees', company.id], queryFn: () => getEmployees(company.id), enabled: open });
   const mutation = useMutation({
-    mutationFn: () => addMember(company.id, { email, role, employeeId: role === 'EMPLOYEE' ? employeeId : null }),
-    onSuccess: async () => { notify('Участник добавлен'); onClose(); await queryClient.invalidateQueries({ queryKey: ['members', company.id] }); },
+    mutationFn: () => createInvitation(company.id, { email, role, employeeId: role === 'EMPLOYEE' ? employeeId : null }),
+    onSuccess: async () => { notify('Приглашение отправлено'); setEmail(''); onClose(); await queryClient.invalidateQueries({ queryKey: ['invitations', company.id] }); },
     onError: (caught) => notify(errorMessage(caught), 'error'),
   });
   return (
-    <Modal open={open} title="Добавить участника" description="Пользователь должен сначала зарегистрироваться в сервисе." onClose={onClose}>
+    <Modal open={open} title="Пригласить участника" description="Отправим одноразовую ссылку. Новый пользователь задаст пароль, существующий — войдёт в аккаунт." onClose={onClose}>
       <form className="modal-form form-stack" onSubmit={(event) => { event.preventDefault(); if (email && (role !== 'EMPLOYEE' || employeeId)) mutation.mutate(); }}>
         <label>Email<input type="email" required value={email} onChange={(event) => setEmail(event.target.value)} /></label>
         <label>Роль<select value={role} onChange={(event) => setRole(event.target.value as Company['role'])}>{(company.role === 'OWNER' ? ['EMPLOYEE', 'ADMIN', 'OWNER'] : ['EMPLOYEE']).map((item) => <option key={item} value={item}>{roleLabel[item as Company['role']]}</option>)}</select></label>
         {role === 'EMPLOYEE' && <label>Профиль сотрудника<select required value={employeeId} onChange={(event) => setEmployeeId(event.target.value)}><option value="">Выберите сотрудника</option>{employees.data?.map((employee) => <option key={employee.id} value={employee.id}>{employee.firstName} {employee.lastName}</option>)}</select></label>}
-        <div className="modal-actions"><button type="button" className="secondary-button" onClick={onClose}>Отмена</button><button className="primary-button" disabled={mutation.isPending}>Добавить</button></div>
+        <div className="modal-actions"><button type="button" className="secondary-button" onClick={onClose}>Отмена</button><button className="primary-button" disabled={mutation.isPending}>{mutation.isPending ? 'Отправляем…' : 'Отправить приглашение'}</button></div>
       </form>
     </Modal>
   );

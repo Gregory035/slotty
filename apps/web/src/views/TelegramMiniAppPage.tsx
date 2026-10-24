@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { CalendarDays, Check, ChevronLeft, Clock3, LoaderCircle, RotateCcw, Star, UserRound, X } from 'lucide-react';
+import { CalendarDays, Check, ChevronLeft, Clock3, ImagePlus, LoaderCircle, RotateCcw, Star, UserRound, X } from 'lucide-react';
 import { useParams } from 'react-router-dom';
-import { ApiError, cancelMiniAppAppointment, createMiniAppVisit, getMiniAppAppointments, getMiniAppAvailability, getMiniAppSession, getWorkExampleImageUrl, rescheduleMiniAppAppointment, trackMiniAppEvent } from '../api';
+import { ApiError, cancelMiniAppAppointment, createMiniAppVisit, getMiniAppAppointments, getMiniAppAvailability, getMiniAppSession, getWorkExampleImageUrl, rescheduleMiniAppAppointment, submitMiniAppReview, trackMiniAppEvent, uploadMiniAppWorkPhoto } from '../api';
 import type { MiniAppAppointment, MiniAppAppointments, MiniAppEmployee, MiniAppService, MiniAppSession } from '../types';
 import { SlottyMark } from '../components/Brand';
 import './telegram-miniapp.css';
@@ -37,6 +37,7 @@ export function TelegramMiniAppPage() {
   const [visitItems, setVisitItems] = useState<VisitItem[]>([]);
   const [visitRequestId, setVisitRequestId] = useState(() => crypto.randomUUID());
   const [legalAccepted, setLegalAccepted] = useState(false);
+  const [feedbackAppointment, setFeedbackAppointment] = useState<MiniAppAppointment | null>(null);
 
   useEffect(() => {
     const telegram = window.Telegram?.WebApp;
@@ -158,6 +159,23 @@ export function TelegramMiniAppPage() {
     setService(nextService); setEmployee(nextEmployee); setDate(todayInZone(session.company.timezone)); setSelectedSlot(null); setRescheduling(isReschedule ? appointment : null); setMode('booking'); setStep('time');
   };
 
+  const submitFeedback = async (input: { rating: number; comment: string; photo: File | null; photoConsent: boolean }) => {
+    if (!feedbackAppointment) return;
+    setBusy(true); setError('');
+    try {
+      if (input.photo) {
+        if (!input.photoConsent) throw new ApiError('Подтвердите согласие на публикацию фото', 400);
+        await uploadMiniAppWorkPhoto(companyId, { initData, appointmentId: feedbackAppointment.id, photo: input.photo, publicationConsentConfirmed: true, consentVersion: LEGAL_DOCUMENT_VERSION });
+      }
+      if (!feedbackAppointment.review) {
+        await submitMiniAppReview(companyId, { initData, appointmentId: feedbackAppointment.id, rating: input.rating, comment: input.comment || undefined });
+      }
+      haptic('medium'); setFeedbackAppointment(null); await loadAppointments();
+    } catch (requestError) {
+      setError(messageOf(requestError, 'Не удалось сохранить отзыв или фото.'));
+    } finally { setBusy(false); }
+  };
+
   if (loading) return <MiniAppState label="Открываем запись" />;
   if (error && !session) return <MiniAppState label={error} retry={() => window.location.reload()} />;
   if (!session) return null;
@@ -176,7 +194,7 @@ export function TelegramMiniAppPage() {
     <header className="miniapp-header"><div className="miniapp-brand"><span><SlottyMark size={21} tone="dark" /></span><b>{session.company.name}</b></div>{mode === 'booking' && step !== 'service' && <button className="miniapp-back" onClick={goBack} aria-label="Назад"><ChevronLeft size={21} /></button>}</header>
     <nav className="miniapp-nav" aria-label="Разделы"><button className={mode === 'booking' ? 'selected' : ''} onClick={() => { setMode('booking'); setError(''); }}>Записаться</button><button className={mode === 'appointments' ? 'selected' : ''} onClick={() => { setMode('appointments'); setError(''); }}>Мои записи</button></nav>
     {error && <div className="miniapp-error" role="alert">{error}</div>}
-    {mode === 'appointments' ? <AppointmentsView appointments={appointments} loading={appointmentsLoading} tab={appointmentTab} setTab={setAppointmentTab} items={appointmentItems} timezone={session.company.timezone} currency={session.company.currency} busy={busy} onCancel={(item) => void cancelAppointment(item)} onReschedule={(item) => startFromAppointment(item, true)} onRepeat={(item) => startFromAppointment(item, false)} /> : <>
+    {mode === 'appointments' ? <AppointmentsView appointments={appointments} loading={appointmentsLoading} tab={appointmentTab} setTab={setAppointmentTab} items={appointmentItems} timezone={session.company.timezone} currency={session.company.currency} busy={busy} onCancel={(item) => void cancelAppointment(item)} onReschedule={(item) => startFromAppointment(item, true)} onRepeat={(item) => startFromAppointment(item, false)} onFeedback={setFeedbackAppointment} /> : <>
       <section className="miniapp-intro"><p className="miniapp-eyebrow">ОНЛАЙН-ЗАПИСЬ</p><h1>{step === 'service' ? 'Выберите услугу' : step === 'employee' ? 'Выберите специалиста' : step === 'profile' ? 'О специалисте' : step === 'review' ? 'Ваш визит' : rescheduling ? 'Новое время' : 'Выберите время'}</h1>{step === 'service' && <p>{session.company.description || 'Свободное время отображается сразу — без переписки и ожидания.'}</p>}</section>
       {step === 'service' && <section className="miniapp-service-list" aria-label="Услуги">{session.services.map((item) => <button className="miniapp-service" key={item.id} onClick={() => chooseService(item)}><span className="miniapp-service-icon">{item.photoUrl ? <img src={item.photoUrl} alt="" /> : <Clock3 size={20} />}</span><span><b>{item.name}</b>{item.description && <small>{item.description}</small>}<em>{formatPrice(item.price, session.company.currency)} · {duration(item.durationMinutes)}</em></span><ChevronLeft className="miniapp-forward" size={20} /></button>)}{!session.services.length && <p className="miniapp-empty">Сейчас нет услуг для онлайн-записи.</p>}</section>}
       {step === 'employee' && service && <section className="miniapp-employee-list" aria-label="Специалисты"><button className="miniapp-choice-summary" onClick={() => setStep('service')}><span>{service.name}</span><small>{formatPrice(service.price, session.company.currency)} · {duration(service.durationMinutes)}</small></button>{session.company.allowAnyEmployee && <button className="miniapp-employee miniapp-any-employee" onClick={() => chooseEmployee(null)}><span className="miniapp-avatar"><UserRound size={20} /></span><span><b>Любой специалист</b><small>Покажем ближайшее время у всей команды</small></span><ChevronLeft className="miniapp-forward" size={20} /></button>}{service.employees.map((item) => <button className="miniapp-employee" key={item.id} onClick={() => chooseEmployee(item)}><Avatar employee={item} /><span><b>{item.name}</b><small>{item.description || 'Выберите время для записи'}</small></span><ChevronLeft className="miniapp-forward" size={20} /></button>)}</section>}
@@ -186,11 +204,20 @@ export function TelegramMiniAppPage() {
       {step === 'time' && <footer className="miniapp-bottom-action">{selectedSlot && <span>{formatLongDate(date)} · {timeInZone(selectedSlot.startsAt, session.company.timezone)}</span>}<button className="miniapp-primary" disabled={!selectedSlot || busy} onClick={() => void confirm()}>{busy ? <LoaderCircle className="miniapp-spin" size={19} /> : rescheduling ? 'Перенести запись' : 'Добавить в визит'}</button></footer>}
       {step === 'review' && <footer className="miniapp-bottom-action"><span>{visitItems.length ? `${visitItems.length} ${serviceWord(visitItems.length)}` : 'Добавьте хотя бы одну услугу'}</span><button className="miniapp-primary" disabled={!visitItems.length || !legalAccepted || busy} onClick={() => void submitVisit()}>{busy ? <LoaderCircle className="miniapp-spin" size={19} /> : 'Подтвердить визит'}</button></footer>}
     </>}
+    {feedbackAppointment && <FeedbackSheet appointment={feedbackAppointment} busy={busy} onClose={() => setFeedbackAppointment(null)} onSubmit={(value) => void submitFeedback(value)} />}
   </main>;
 }
 
-function AppointmentsView({ appointments, loading, tab, setTab, items, timezone, currency, busy, onCancel, onReschedule, onRepeat }: { appointments: MiniAppAppointments | null; loading: boolean; tab: AppointmentTab; setTab(tab: AppointmentTab): void; items: MiniAppAppointment[]; timezone: string; currency: string; busy: boolean; onCancel(item: MiniAppAppointment): void; onReschedule(item: MiniAppAppointment): void; onRepeat(item: MiniAppAppointment): void }) {
-  return <section className="miniapp-appointments"><div className="miniapp-intro"><p className="miniapp-eyebrow">ВАШИ ВИЗИТЫ</p><h1>Мои записи</h1></div><div className="miniapp-appointment-tabs"><button className={tab === 'upcoming' ? 'selected' : ''} onClick={() => setTab('upcoming')}>Предстоящие {appointments?.upcoming.length ?? ''}</button><button className={tab === 'history' ? 'selected' : ''} onClick={() => setTab('history')}>История</button></div>{loading ? <MiniAppState label="Загружаем записи" compact /> : items.length ? <div className="miniapp-appointment-list">{items.map((item) => <article className="miniapp-appointment-card" key={item.id}><p className="miniapp-eyebrow">{appointmentStatus(item.status)}</p><h2>{item.serviceName}</h2><p>{formatAppointmentDate(item.startsAt, timezone)} · {item.employeeName}</p><strong>{formatPrice(item.price, currency)}</strong><div>{tab === 'upcoming' && <><button disabled={busy} onClick={() => onReschedule(item)}><CalendarDays size={16} />Перенести</button><button disabled={busy} className="danger" onClick={() => onCancel(item)}><X size={16} />Отменить</button></>}<button disabled={busy} onClick={() => onRepeat(item)}><RotateCcw size={16} />Повторить</button></div></article>)}</div> : <p className="miniapp-empty">{tab === 'upcoming' ? 'Предстоящих записей нет.' : 'История пока пуста.'}</p>}</section>;
+function AppointmentsView({ appointments, loading, tab, setTab, items, timezone, currency, busy, onCancel, onReschedule, onRepeat, onFeedback }: { appointments: MiniAppAppointments | null; loading: boolean; tab: AppointmentTab; setTab(tab: AppointmentTab): void; items: MiniAppAppointment[]; timezone: string; currency: string; busy: boolean; onCancel(item: MiniAppAppointment): void; onReschedule(item: MiniAppAppointment): void; onRepeat(item: MiniAppAppointment): void; onFeedback(item: MiniAppAppointment): void }) {
+  return <section className="miniapp-appointments"><div className="miniapp-intro"><p className="miniapp-eyebrow">ВАШИ ВИЗИТЫ</p><h1>Мои записи</h1></div><div className="miniapp-appointment-tabs"><button className={tab === 'upcoming' ? 'selected' : ''} onClick={() => setTab('upcoming')}>Предстоящие {appointments?.upcoming.length ?? ''}</button><button className={tab === 'history' ? 'selected' : ''} onClick={() => setTab('history')}>История</button></div>{loading ? <MiniAppState label="Загружаем записи" compact /> : items.length ? <div className="miniapp-appointment-list">{items.map((item) => <article className="miniapp-appointment-card" key={item.id}><p className="miniapp-eyebrow">{appointmentStatus(item.status)}</p><h2>{item.serviceName}</h2><p>{formatAppointmentDate(item.startsAt, timezone)} · {item.employeeName}</p><strong>{formatPrice(item.price, currency)}</strong>{item.review && <p className="miniapp-saved-review">{'★'.repeat(item.review.rating)} {item.review.comment}</p>}<div>{tab === 'upcoming' && <><button disabled={busy} onClick={() => onReschedule(item)}><CalendarDays size={16} />Перенести</button><button disabled={busy} className="danger" onClick={() => onCancel(item)}><X size={16} />Отменить</button></>}<button disabled={busy} onClick={() => onRepeat(item)}><RotateCcw size={16} />Повторить</button>{item.status === 'COMPLETED' && (!item.review || !item.hasWorkPhoto) && <button disabled={busy} onClick={() => onFeedback(item)}>{item.review ? <ImagePlus size={16} /> : <Star size={16} />}{item.review ? 'Добавить фото' : 'Оставить отзыв'}</button>}</div></article>)}</div> : <p className="miniapp-empty">{tab === 'upcoming' ? 'Предстоящих записей нет.' : 'История пока пуста.'}</p>}</section>;
+}
+
+function FeedbackSheet({ appointment, busy, onClose, onSubmit }: { appointment: MiniAppAppointment; busy: boolean; onClose(): void; onSubmit(input: { rating: number; comment: string; photo: File | null; photoConsent: boolean }): void }) {
+  const [rating, setRating] = useState(appointment.review?.rating ?? 5);
+  const [comment, setComment] = useState(appointment.review?.comment ?? '');
+  const [photo, setPhoto] = useState<File | null>(null);
+  const [photoConsent, setPhotoConsent] = useState(false);
+  return <div className="miniapp-sheet-backdrop" onClick={onClose}><section className="miniapp-feedback-sheet" onClick={(event) => event.stopPropagation()}><header><div><p className="miniapp-eyebrow">ПОСЛЕ ВИЗИТА</p><h2>{appointment.serviceName}</h2></div><button onClick={onClose} aria-label="Закрыть"><X size={20} /></button></header>{!appointment.review && <><div className="miniapp-rating" aria-label="Оценка">{[1, 2, 3, 4, 5].map((value) => <button key={value} className={value <= rating ? 'selected' : ''} onClick={() => setRating(value)} aria-label={`${value} из 5`}>★</button>)}</div><textarea value={comment} maxLength={1000} onChange={(event) => setComment(event.target.value)} placeholder="Расскажите, как прошла услуга" /></>}<label className="miniapp-photo-field"><ImagePlus size={19} /><span>{photo?.name ?? (appointment.hasWorkPhoto ? 'Заменить фото результата' : 'Добавить фото результата')}</span><input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setPhoto(event.target.files?.[0] ?? null)} /></label>{photo && <label className="miniapp-legal-consent"><input type="checkbox" checked={photoConsent} onChange={(event) => setPhotoConsent(event.target.checked)} /><span>Разрешаю опубликовать фото в портфолио специалиста и подтверждаю право на его размещение.</span></label>}<button className="miniapp-primary" disabled={busy || (Boolean(photo) && !photoConsent) || (Boolean(appointment.review) && !photo)} onClick={() => onSubmit({ rating, comment, photo, photoConsent })}>{busy ? <LoaderCircle className="miniapp-spin" size={19} /> : 'Сохранить'}</button></section></div>;
 }
 
 function MiniAppState({ label, retry, compact = false }: { label: string; retry?: () => void; compact?: boolean }) { return <main className={`miniapp-state${compact ? ' compact' : ''}`}><LoaderCircle className="miniapp-spin" size={22} /><p>{label}</p>{retry && <button className="miniapp-primary" onClick={retry}>Попробовать снова</button>}</main>; }

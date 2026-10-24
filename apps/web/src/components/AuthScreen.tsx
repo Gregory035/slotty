@@ -1,12 +1,13 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { ArrowRight } from 'lucide-react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { trackEvent } from '../analytics';
-import { login, register, requestPasswordReset, resetPassword } from '../api';
+import { acceptInvitation, getInvitation, login, register, registerInvitation, requestPasswordReset, resetPassword } from '../api';
 import { useAppStore } from '../store';
 import { errorMessage } from '../utils';
 import { Brand } from './Brand';
 import { LEGAL_DOCUMENT_VERSION } from '../legal';
+import type { PublicCompanyInvitation } from '../types';
 
 export function AuthScreen() {
   const [searchParams] = useSearchParams();
@@ -14,6 +15,9 @@ export function AuthScreen() {
   const navigate = useNavigate();
   const setSession = useAppStore((state) => state.setSession);
   const resetToken = new URLSearchParams(location.hash.replace(/^#/, '')).get('token') ?? '';
+  const invitationToken = searchParams.get('invite') ?? '';
+  const [invitation, setInvitation] = useState<PublicCompanyInvitation | null>(null);
+  const [invitationLoading, setInvitationLoading] = useState(Boolean(invitationToken));
   const [mode, setMode] = useState<'login' | 'register' | 'forgot' | 'reset'>(() => {
     if (searchParams.get('mode') === 'register') return 'register';
     if (searchParams.get('mode') === 'forgot-password') return 'forgot';
@@ -23,6 +27,20 @@ export function AuthScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!invitationToken) return;
+    let active = true;
+    void getInvitation(invitationToken)
+      .then((value) => {
+        if (!active) return;
+        setInvitation(value);
+        setMode(value.existingAccount ? 'login' : 'register');
+      })
+      .catch((caught) => { if (active) setError(errorMessage(caught)); })
+      .finally(() => { if (active) setInvitationLoading(false); });
+    return () => { active = false; };
+  }, [invitationToken]);
 
   function switchMode(next: 'login' | 'register' | 'forgot') {
     setMode(next);
@@ -58,19 +76,29 @@ export function AuthScreen() {
       }
       const session = mode === 'login'
         ? await login({
-            email: String(form.get('email')),
+            email: invitation?.email ?? String(form.get('email')),
             password: String(form.get('password')),
           })
-        : await register({
-            email: String(form.get('email')),
+        : invitationToken
+          ? await registerInvitation(invitationToken, {
             password: String(form.get('password')),
             firstName: String(form.get('firstName')),
             lastName: String(form.get('lastName') || '') || undefined,
             legalAccepted: true,
             legalVersion: LEGAL_DOCUMENT_VERSION,
-          });
+          })
+          : await register({
+              email: String(form.get('email')),
+              password: String(form.get('password')),
+              firstName: String(form.get('firstName')),
+              lastName: String(form.get('lastName') || '') || undefined,
+              legalAccepted: true,
+              legalVersion: LEGAL_DOCUMENT_VERSION,
+            });
       if (mode === 'register') trackEvent('registration_success');
       setSession(session);
+      if (invitationToken && mode === 'login') await acceptInvitation(invitationToken);
+      if (invitationToken) void navigate('/app', { replace: true });
     } catch (caught) {
       setError(errorMessage(caught));
     } finally {
@@ -82,9 +110,13 @@ export function AuthScreen() {
     <main className="auth-layout">
       <section className="auth-form-wrap">
         <div className="auth-brand"><Brand /></div>
-        <h1>{mode === 'login' ? 'С возвращением' : mode === 'register' ? 'Создайте аккаунт' : mode === 'forgot' ? 'Восстановить пароль' : 'Новый пароль'}</h1>
+        <h1>{invitation ? `Присоединиться к ${invitation.companyName}` : mode === 'login' ? 'С возвращением' : mode === 'register' ? 'Создайте аккаунт' : mode === 'forgot' ? 'Восстановить пароль' : 'Новый пароль'}</h1>
         <p className="auth-subtitle">
-          {mode === 'login'
+          {invitationLoading
+            ? 'Проверяем приглашение…'
+            : invitation
+              ? `${roleLabel(invitation.role)} · приглашение для ${invitation.email}`
+              : mode === 'login'
             ? 'Войдите в рабочее пространство Slotty.'
             : mode === 'register'
               ? 'Настройте онлайн-запись за несколько минут.'
@@ -93,31 +125,35 @@ export function AuthScreen() {
                 : 'Задайте новый пароль. Ссылка работает один раз.'}
         </p>
 
-        {(mode === 'login' || mode === 'register') && <div className="auth-tabs" role="tablist">
+        {!invitationToken && (mode === 'login' || mode === 'register') && <div className="auth-tabs" role="tablist">
           <button type="button" className={mode === 'login' ? 'active' : ''} onClick={() => switchMode('login')}>Вход</button>
           <button type="button" className={mode === 'register' ? 'active' : ''} onClick={() => switchMode('register')}>Регистрация</button>
         </div>}
 
-        <form className="form-stack" onSubmit={submit}>
+        {invitationToken && !invitationLoading && !invitation && <div className="form-stack"><p className="form-error">{error ?? 'Приглашение недействительно или устарело'}</p><Link className="secondary-button" to="/app">Перейти ко входу</Link></div>}
+        {(!invitationToken || invitationLoading || invitation) && <form className="form-stack" onSubmit={submit}>
           {mode === 'register' && (
             <div className="form-grid-2">
               <label>Имя<input name="firstName" required maxLength={50} placeholder="Алексей" /></label>
               <label>Фамилия<input name="lastName" maxLength={50} placeholder="Громов" /></label>
             </div>
           )}
-          {mode !== 'reset' && <label>Email<input name="email" required type="email" autoComplete="email" placeholder="owner@example.com" /></label>}
+          {mode !== 'reset' && <label>Email{invitation
+            ? <input name="email" required type="email" autoComplete="email" value={invitation.email} readOnly />
+            : <input name="email" required type="email" autoComplete="email" placeholder="owner@example.com" />}
+          </label>}
           {mode !== 'forgot' && <label>Пароль<input name="password" required type="password" minLength={8} maxLength={128} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} placeholder="Минимум 8 символов" /></label>}
           {mode === 'reset' && <label>Повторите пароль<input name="passwordConfirmation" required type="password" minLength={8} maxLength={128} autoComplete="new-password" placeholder="Повторите новый пароль" /></label>}
           {mode === 'register' && <label className="legal-checkbox"><input name="legalAccepted" type="checkbox" required /><span>Я принимаю <Link to="/terms" target="_blank">условия</Link>, <Link to="/privacy" target="_blank">политику конфиденциальности</Link> и даю <Link to="/personal-data" target="_blank">согласие на обработку данных</Link>.</span></label>}
           {error && <p className="form-error">{error}</p>}
           {notice && <p className="form-notice">{notice}</p>}
-          <button className="primary-button auth-submit" disabled={busy}>
-            {busy ? 'Подождите…' : mode === 'login' ? 'Войти' : mode === 'register' ? 'Создать аккаунт' : mode === 'forgot' ? 'Отправить ссылку' : 'Сохранить пароль'}
+          <button className="primary-button auth-submit" disabled={busy || invitationLoading}>
+            {busy ? 'Подождите…' : invitation ? 'Принять приглашение' : mode === 'login' ? 'Войти' : mode === 'register' ? 'Создать аккаунт' : mode === 'forgot' ? 'Отправить ссылку' : 'Сохранить пароль'}
             {!busy && <ArrowRight size={17} />}
           </button>
-        </form>
+        </form>}
 
-        {mode === 'login' && <button type="button" className="auth-link-button" onClick={() => switchMode('forgot')}>Забыли пароль?</button>}
+        {mode === 'login' && !invitationToken && <button type="button" className="auth-link-button" onClick={() => switchMode('forgot')}>Забыли пароль?</button>}
         {(mode === 'forgot' || mode === 'reset') && <Link className="auth-link-button" to="/app" onClick={() => { setMode('login'); setError(null); setNotice(null); }}>Вернуться ко входу</Link>}
 
         {mode === 'login' && <p className="auth-legal">Работа с сервисом регулируется <Link to="/terms">условиями использования</Link> и <Link to="/privacy">политикой конфиденциальности</Link>.</p>}
@@ -155,4 +191,10 @@ export function AuthScreen() {
       </aside>
     </main>
   );
+}
+
+function roleLabel(role: PublicCompanyInvitation['role']): string {
+  if (role === 'OWNER') return 'Владелец';
+  if (role === 'ADMIN') return 'Администратор';
+  return 'Сотрудник';
 }

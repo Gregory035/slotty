@@ -10,6 +10,7 @@ import {
   deleteScheduleException,
   getEmployeeWorkExamples,
   getEmployees,
+  getOwnEmployeeProfile,
   getSchedule,
   getScheduleExceptions,
   getServices,
@@ -31,6 +32,30 @@ type DayRule = { enabled: boolean; startTime: string; endTime: string };
 type WeekRules = { [day in DayNumber]: DayRule };
 
 export function EmployeesView({ company }: { company: Company }) {
+  if (company.role === 'EMPLOYEE') return <OwnPortfolioView company={company} />;
+  return <TeamEmployeesView company={company} />;
+}
+
+function OwnPortfolioView({ company }: { company: Company }) {
+  const employee = useQuery({
+    queryKey: ['employee-self', company.id],
+    queryFn: () => getOwnEmployeeProfile(company.id),
+  });
+  const [portfolioOpen, setPortfolioOpen] = useState(false);
+  if (employee.isLoading) return <LoadingBlock />;
+  if (employee.error || !employee.data) return <ErrorBlock message="Не удалось открыть профиль сотрудника" />;
+  return <>
+    <SectionHeader eyebrow="Портфолио" title="Мои работы" description="Добавляйте примеры работ, которые увидят клиенты при выборе специалиста." />
+    <article className="employee-card employee-card-self">
+      <div className="employee-head"><span className="avatar avatar-large" style={{ backgroundColor: `${employee.data.color}20`, color: employee.data.color }}>{employee.data.firstName[0]}{employee.data.lastName?.[0]}</span><div><h2>{employee.data.firstName} {employee.data.lastName}</h2><span className={`status-dot-label ${employee.data.isActive ? 'active' : ''}`}><i />{employee.data.isActive ? 'Профиль активен' : 'Профиль неактивен'}</span></div></div>
+      <div className="employee-services"><p>Услуги</p><div>{employee.data.services.length ? employee.data.services.map((service) => <span key={service.id}>{service.name}</span>) : <em>Не назначены</em>}</div></div>
+      <button className="primary-button" onClick={() => setPortfolioOpen(true)}><Images size={16} /> Управлять работами</button>
+    </article>
+    {portfolioOpen && <PortfolioModal company={company} employee={employee.data} onClose={() => setPortfolioOpen(false)} />}
+  </>;
+}
+
+function TeamEmployeesView({ company }: { company: Company }) {
   const queryClient = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
   const [scheduleEmployee, setScheduleEmployee] = useState<Employee | null>(null);

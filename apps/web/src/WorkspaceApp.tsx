@@ -113,7 +113,7 @@ function SubscriptionExpiryNotice({ company }: { company: Company }) {
 }
 
 function allowedSections(company: Company): Section[] {
-  if (company.role === 'EMPLOYEE') return ['calendar', 'appointments', 'schedule'];
+  if (company.role === 'EMPLOYEE') return ['calendar', 'appointments', 'employees', 'schedule'];
   const common: Section[] = ['dashboard', 'analytics', 'calendar', 'appointments', 'customers', 'reviews', 'services', 'employees', 'schedule', 'bot', 'members', 'settings', 'audit'];
   return company.role === 'OWNER' ? [...common, 'billing', 'system'] : common;
 }

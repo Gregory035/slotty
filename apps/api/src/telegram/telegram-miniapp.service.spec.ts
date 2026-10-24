@@ -1,4 +1,4 @@
-import { UnauthorizedException } from '@nestjs/common';
+import { NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { createHmac } from 'node:crypto';
 import { TelegramMiniAppService } from './telegram-miniapp.service';
 
@@ -11,6 +11,7 @@ describe('TelegramMiniAppService', () => {
   let scheduling: any;
   let appointments: any;
   let encryption: any;
+  let workImages: any;
   let miniApp: TelegramMiniAppService;
 
   beforeEach(() => {
@@ -27,12 +28,15 @@ describe('TelegramMiniAppService', () => {
       employeeService: { findMany: jest.fn().mockResolvedValue([{ employeeId }]) },
       customer: { findUnique: jest.fn().mockResolvedValue(null) },
       appointment: { findMany: jest.fn().mockResolvedValue([]), findFirst: jest.fn() },
+      review: { create: jest.fn() },
+      workExample: { findUnique: jest.fn(), upsert: jest.fn() },
       legalAcceptance: { createMany: jest.fn().mockResolvedValue({ count: 2 }) },
     };
     scheduling = { getAvailability: jest.fn().mockResolvedValue({ slots: [] }) };
     appointments = { createFromTelegram: jest.fn().mockResolvedValue({ appointmentId: 'appointment-id' }) };
     encryption = { decrypt: jest.fn().mockReturnValue(token) };
-    miniApp = new TelegramMiniAppService(prisma, scheduling, appointments, encryption);
+    workImages = { store: jest.fn(), remove: jest.fn() };
+    miniApp = new TelegramMiniAppService(prisma, scheduling, appointments, encryption, workImages);
   });
 
   it('accepts Telegram-signed initData and exposes only a bookable catalog', async () => {
@@ -64,6 +68,33 @@ describe('TelegramMiniAppService', () => {
       telegramId: 42, firstName: 'Ivan', lastName: 'Petrov', username: 'ivan',
     }, employeeId, serviceId, '2030-01-10', '12:00');
     expect(prisma.bookingFunnelEvent.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ step: 'BOOKED' }) }));
+  });
+
+  it('allows a review only for the customer completed appointment', async () => {
+    prisma.appointment.findFirst.mockResolvedValue({ id: 'appointment-id', customerId: 'customer-id', employeeId, review: null });
+    prisma.review.create.mockResolvedValue({ rating: 5, comment: 'Отлично' });
+    await miniApp.submitReview(companyId, { initData: signedInitData(), appointmentId: 'appointment-id', rating: 5, comment: 'Отлично' });
+    expect(prisma.appointment.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ status: 'COMPLETED', customer: { telegramId: BigInt(42) } }),
+    }));
+    expect(prisma.review.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ appointmentId: 'appointment-id', rating: 5 }) }));
+  });
+
+  it('rejects feedback before the company confirms completion', async () => {
+    prisma.appointment.findFirst.mockResolvedValue(null);
+    await expect(miniApp.submitReview(companyId, { initData: signedInitData(), appointmentId: 'appointment-id', rating: 5 }))
+      .rejects.toBeInstanceOf(NotFoundException);
+    expect(prisma.review.create).not.toHaveBeenCalled();
+  });
+
+  it('does not store a customer work photo before completion is confirmed', async () => {
+    prisma.appointment.findFirst.mockResolvedValue(null);
+    await expect(miniApp.uploadWorkPhoto(companyId, {
+      initData: signedInitData(), appointmentId: 'appointment-id', publicationConsentConfirmed: true, consentVersion: '2026-10-21',
+    }, { buffer: Buffer.from('image'), mimetype: 'image/jpeg', size: 5 }))
+      .rejects.toBeInstanceOf(NotFoundException);
+    expect(workImages.store).not.toHaveBeenCalled();
+    expect(prisma.workExample.upsert).not.toHaveBeenCalled();
   });
 
   it('merges availability from all assigned employees', async () => {

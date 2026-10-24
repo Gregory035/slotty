@@ -225,7 +225,7 @@ export class AuthService {
     await this.auditUserCompanies(resetToken.userId, 'auth.password_reset');
   }
 
-  private async issueSession(user: User): Promise<IssuedSession> {
+  async issueSession(user: User): Promise<IssuedSession> {
     const refreshToken = this.tokens.createRefreshToken();
 
     await this.prisma.refreshToken.create({

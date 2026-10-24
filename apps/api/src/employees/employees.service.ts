@@ -76,6 +76,15 @@ export class EmployeesService {
     return employees.map((employee) => this.toResponse(employee));
   }
 
+  async findOwnProfile(companyId: string, actorId: string): Promise<EmployeeResponseDto> {
+    const membership = await this.prisma.companyMember.findUnique({
+      where: { userId_companyId: { userId: actorId, companyId } },
+      select: { employeeId: true },
+    });
+    if (!membership?.employeeId) throw new ForbiddenException('Профиль сотрудника не привязан');
+    return this.findOne(companyId, membership.employeeId);
+  }
+
   async findOne(
     companyId: string,
     employeeId: string,

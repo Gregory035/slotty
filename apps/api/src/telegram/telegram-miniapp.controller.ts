@@ -1,7 +1,8 @@
-import { Body, Controller, Param, ParseUUIDPipe, Post } from '@nestjs/common';
+import { Body, Controller, Param, ParseUUIDPipe, Post, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiExcludeController } from '@nestjs/swagger';
 import { RateLimits } from '../rate-limit/rate-limit.decorator';
-import { MiniAppAppointmentDto, MiniAppAvailabilityDto, MiniAppBookingDto, MiniAppFunnelEventDto, MiniAppRescheduleDto, MiniAppSessionDto, MiniAppVisitBookingDto } from './dto/mini-app.dto';
+import { MiniAppAppointmentDto, MiniAppAvailabilityDto, MiniAppBookingDto, MiniAppFunnelEventDto, MiniAppRescheduleDto, MiniAppReviewDto, MiniAppSessionDto, MiniAppVisitBookingDto, MiniAppWorkPhotoDto } from './dto/mini-app.dto';
 import { TelegramMiniAppService } from './telegram-miniapp.service';
 
 @ApiExcludeController()
@@ -64,5 +65,20 @@ export class TelegramMiniAppController {
   @Post('appointments/reschedule')
   reschedule(@Param('companyId', ParseUUIDPipe) companyId: string, @Body() input: MiniAppRescheduleDto) {
     return this.miniApp.rescheduleAppointment(companyId, input);
+  }
+
+  @Post('appointments/review')
+  review(@Param('companyId', ParseUUIDPipe) companyId: string, @Body() input: MiniAppReviewDto) {
+    return this.miniApp.submitReview(companyId, input);
+  }
+
+  @Post('appointments/work-photo')
+  @UseInterceptors(FileInterceptor('photo', { limits: { fileSize: 5 * 1024 * 1024, files: 1 } }))
+  workPhoto(
+    @Param('companyId', ParseUUIDPipe) companyId: string,
+    @Body() input: MiniAppWorkPhotoDto,
+    @UploadedFile() file: { buffer: Buffer; mimetype: string; size: number } | undefined,
+  ) {
+    return this.miniApp.uploadWorkPhoto(companyId, input, file);
   }
 }

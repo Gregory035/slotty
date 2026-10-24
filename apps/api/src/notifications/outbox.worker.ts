@@ -135,6 +135,7 @@ export class OutboxWorker implements OnApplicationBootstrap, OnApplicationShutdo
       where: { id: event.aggregateId, companyId: event.companyId },
       select: {
         startsAt: true,
+        employeeId: true,
         service: { select: { name: true } },
         company: { select: { timezone: true } },
       },
@@ -157,7 +158,7 @@ export class OutboxWorker implements OnApplicationBootstrap, OnApplicationShutdo
       body: `${copy.action}: ${appointment.service.name}, ${when}`,
       url: `/companies/${event.companyId}/appointments`,
       tag: `appointment-${event.aggregateId}`,
-    });
+    }, { event: event.type as 'appointment.created' | 'appointment.rescheduled' | 'appointment.cancelled', employeeId: appointment.employeeId });
   }
 
   private async createAppointmentNotifications(event: OutboxEvent): Promise<void> {

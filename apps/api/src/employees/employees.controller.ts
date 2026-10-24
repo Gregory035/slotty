@@ -64,6 +64,16 @@ export class EmployeesController {
     return this.employees.findAll(companyId);
   }
 
+  @Get('self/profile')
+  @RequirePermissions(CompanyPermission.PORTFOLIO_MANAGE)
+  @ApiOkResponse({ type: EmployeeResponseDto })
+  selfProfile(
+    @Param('companyId') companyId: string,
+    @CurrentUser() user: AuthenticatedUserDto,
+  ): Promise<EmployeeResponseDto> {
+    return this.employees.findOwnProfile(companyId, user.id);
+  }
+
   @Get(':employeeId')
   @RequirePermissions(CompanyPermission.EMPLOYEES_READ)
   @ApiOkResponse({ type: EmployeeResponseDto })

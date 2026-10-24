@@ -5,14 +5,15 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { AppointmentStatus, BookingFunnelStep, BotStatus, LegalAcceptanceSource, LegalDocument } from '@prisma/client';
+import { AppointmentStatus, BookingFunnelStep, BotStatus, LegalAcceptanceSource, LegalDocument, Prisma, WorkExampleSource } from '@prisma/client';
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import { AppointmentsService, TelegramCustomerInput } from '../appointments/appointments.service';
 import { PrismaService } from '../database/prisma.service';
 import { SchedulingService } from '../scheduling/scheduling.service';
 import { localDateTimeToUtc } from '../scheduling/time-zone.util';
-import { MiniAppAppointmentDto, MiniAppAvailabilityDto, MiniAppBookingDto, MiniAppRescheduleDto, MiniAppVisitBookingDto } from './dto/mini-app.dto';
+import { MiniAppAppointmentDto, MiniAppAvailabilityDto, MiniAppBookingDto, MiniAppRescheduleDto, MiniAppReviewDto, MiniAppVisitBookingDto, MiniAppWorkPhotoDto } from './dto/mini-app.dto';
 import { TokenEncryptionService } from './token-encryption.service';
+import { WorkImageStorageService } from '../employees/work-image-storage.service';
 
 interface TelegramMiniAppUser {
   id: number;
@@ -33,6 +34,7 @@ export class TelegramMiniAppService {
     private readonly scheduling: SchedulingService,
     private readonly appointments: AppointmentsService,
     private readonly encryption: TokenEncryptionService,
+    private readonly workImages: WorkImageStorageService,
   ) {}
 
   async getSession(companyId: string, initData: string) {
@@ -194,7 +196,7 @@ export class TelegramMiniAppService {
     if (!customer) return { upcoming: [], history: [] };
     const rows = await this.prisma.appointment.findMany({
       where: { companyId, customerId: customer.id },
-      include: { service: true, employee: true },
+      include: { service: true, employee: true, review: true, workExample: { select: { publishedAt: true } } },
       orderBy: [{ startsAt: 'desc' }, { id: 'desc' }],
       take: 100,
     });
@@ -209,6 +211,8 @@ export class TelegramMiniAppService {
       endsAt: appointment.endsAt.toISOString(),
       status: appointment.status,
       price: appointment.priceSnapshot.toFixed(2),
+      review: appointment.review ? { rating: appointment.review.rating, comment: appointment.review.comment } : null,
+      hasWorkPhoto: Boolean(appointment.workExample?.publishedAt),
     }));
     const activeStatuses: AppointmentStatus[] = [AppointmentStatus.PENDING, AppointmentStatus.CONFIRMED];
     return {
@@ -230,6 +234,95 @@ export class TelegramMiniAppService {
     const appointment = await this.requireCustomerAppointment(companyId, input.appointmentId, user.id);
     const startsAt = localDateTimeToUtc(input.date, input.time, appointment.company.timezone);
     return this.appointments.reschedule(companyId, appointment.id, { startsAt: startsAt.toISOString() });
+  }
+
+  async submitReview(companyId: string, input: MiniAppReviewDto) {
+    const user = await this.authenticate(companyId, input.initData);
+    const appointment = await this.requireCompletedCustomerAppointment(companyId, input.appointmentId, user.id);
+    if (appointment.review) throw new ConflictException('Отзыв для этой записи уже оставлен');
+    try {
+      return await this.prisma.review.create({
+        data: {
+          companyId,
+          customerId: appointment.customerId,
+          appointmentId: appointment.id,
+          rating: input.rating,
+          comment: input.comment?.trim() || null,
+        },
+        select: { rating: true, comment: true },
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw new ConflictException('Отзыв для этой записи уже оставлен');
+      }
+      throw error;
+    }
+  }
+
+  async uploadWorkPhoto(
+    companyId: string,
+    input: MiniAppWorkPhotoDto,
+    file: { buffer: Buffer; mimetype: string; size: number } | undefined,
+  ) {
+    const user = await this.authenticate(companyId, input.initData);
+    const appointment = await this.requireCompletedCustomerAppointment(companyId, input.appointmentId, user.id);
+    if (!file) throw new BadRequestException('Выберите фотографию');
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.mimetype) || file.size > 5 * 1024 * 1024) {
+      throw new BadRequestException('Поддерживаются JPG, PNG или WebP до 5 МБ');
+    }
+    const previous = await this.prisma.workExample.findUnique({
+      where: { appointmentId_companyId: { appointmentId: appointment.id, companyId } },
+      select: { storageKey: true, thumbnailKey: true },
+    });
+    const stored = await this.workImages.store(companyId, file.buffer);
+    try {
+      const work = await this.prisma.workExample.upsert({
+        where: { appointmentId_companyId: { appointmentId: appointment.id, companyId } },
+        update: {
+          source: WorkExampleSource.CUSTOMER,
+          employeeId: appointment.employeeId,
+          customerId: appointment.customerId,
+          imageData: null,
+          storageKey: stored.storageKey,
+          thumbnailKey: stored.thumbnailKey,
+          mimeType: stored.mimeType,
+          publishedAt: new Date(),
+          uploadRequestedAt: null,
+          consentConfirmedAt: new Date(),
+          consentVersion: input.consentVersion,
+          consentSource: 'TELEGRAM_MINI_APP',
+        },
+        create: {
+          companyId,
+          employeeId: appointment.employeeId,
+          appointmentId: appointment.id,
+          customerId: appointment.customerId,
+          source: WorkExampleSource.CUSTOMER,
+          storageKey: stored.storageKey,
+          thumbnailKey: stored.thumbnailKey,
+          mimeType: stored.mimeType,
+          publishedAt: new Date(),
+          consentConfirmedAt: new Date(),
+          consentVersion: input.consentVersion,
+          consentSource: 'TELEGRAM_MINI_APP',
+        },
+        select: { id: true },
+      });
+      await this.workImages.remove(previous?.storageKey, previous?.thumbnailKey);
+      return work;
+    } catch (error) {
+      await this.workImages.remove(stored.storageKey, stored.thumbnailKey);
+      throw error;
+    }
+  }
+
+  private async requireCompletedCustomerAppointment(companyId: string, appointmentId: string, telegramId: number) {
+    const appointment = await this.prisma.appointment.findFirst({
+      where: { id: appointmentId, companyId, status: AppointmentStatus.COMPLETED, customer: { telegramId: BigInt(telegramId) } },
+      select: { id: true, customerId: true, employeeId: true, review: { select: { id: true } } },
+    });
+    if (!appointment) throw new NotFoundException('Отзыв и фото доступны только после подтверждённого завершения услуги');
+    return appointment;
   }
 
   private async requireCustomerAppointment(companyId: string, appointmentId: string, telegramId: number) {

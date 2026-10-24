@@ -4,6 +4,7 @@ import type {
   AuditLog,
   Company,
   CompanyMember,
+  CompanyInvitation,
   CursorPage,
   Customer,
   CustomerDetails,
@@ -25,6 +26,8 @@ import type {
   MiniAppSession,
   SystemStatus,
   PublicCompany,
+  PublicCompanyInvitation,
+  PushPreferences,
 } from './types';
 
 const apiUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:3000/api';
@@ -92,7 +95,7 @@ async function publicRequest<T>(
 
 async function miniAppRequest<T>(
   companyId: string,
-  path: 'session' | 'availability' | 'book' | 'book-visit' | 'event' | 'appointments' | 'appointments/cancel' | 'appointments/reschedule',
+  path: 'session' | 'availability' | 'book' | 'book-visit' | 'event' | 'appointments' | 'appointments/cancel' | 'appointments/reschedule' | 'appointments/review',
   input: unknown,
 ): Promise<T> {
   const response = await fetchResponse(`${apiUrl}/telegram/miniapp/${companyId}/${path}`, {
@@ -135,6 +138,28 @@ export const rescheduleMiniAppAppointment = (
   companyId: string,
   input: { initData: string; appointmentId: string; date: string; time: string },
 ) => miniAppRequest<unknown>(companyId, 'appointments/reschedule', input);
+
+export const submitMiniAppReview = (
+  companyId: string,
+  input: { initData: string; appointmentId: string; rating: number; comment?: string },
+) => miniAppRequest<{ rating: number; comment: string | null }>(companyId, 'appointments/review', input);
+
+export async function uploadMiniAppWorkPhoto(
+  companyId: string,
+  input: { initData: string; appointmentId: string; photo: File; publicationConsentConfirmed: true; consentVersion: string },
+): Promise<{ id: string }> {
+  const form = new FormData();
+  form.set('initData', input.initData);
+  form.set('appointmentId', input.appointmentId);
+  form.set('photo', input.photo);
+  form.set('publicationConsentConfirmed', String(input.publicationConsentConfirmed));
+  form.set('consentVersion', input.consentVersion);
+  const response = await fetchResponse(`${apiUrl}/telegram/miniapp/${companyId}/appointments/work-photo`, {
+    method: 'POST', body: form,
+  });
+  if (!response.ok) throw await responseError(response);
+  return responseBody(response);
+}
 
 async function refreshSession(): Promise<Session> {
   if (!refreshPromise) {
@@ -199,6 +224,23 @@ export function register(input: {
     body: JSON.stringify(input),
   });
 }
+
+export const getInvitation = (token: string) =>
+  publicRequest<PublicCompanyInvitation>(`/invitations/${encodeURIComponent(token)}`);
+
+export const registerInvitation = (token: string, input: {
+  password: string;
+  firstName: string;
+  lastName?: string;
+  legalAccepted: true;
+  legalVersion: string;
+}) => publicRequest<Session>(`/invitations/${encodeURIComponent(token)}/register`, {
+  method: 'POST',
+  body: JSON.stringify(input),
+});
+
+export const acceptInvitation = (token: string) =>
+  request<{ companyId: string }>(`/invitations/${encodeURIComponent(token)}/accept`, { method: 'POST' });
 
 export function requestPasswordReset(input: { email: string }): Promise<void> {
   return publicRequest<void>('/auth/password-reset/request', { method: 'POST', body: JSON.stringify(input) });
@@ -272,6 +314,9 @@ export const deleteService = (companyId: string, serviceId: string) =>
 
 export const getEmployees = (companyId: string) =>
   request<Employee[]>(`/companies/${companyId}/employees`);
+
+export const getOwnEmployeeProfile = (companyId: string) =>
+  request<Employee>(`/companies/${companyId}/employees/self/profile`);
 
 export const createEmployee = (
   companyId: string,
@@ -588,6 +633,17 @@ export const addMember = (
   input: { email: string; role: Company['role']; employeeId?: string | null },
 ) => request<CompanyMember>(`/companies/${companyId}/members`, { method: 'POST', body: JSON.stringify(input) });
 
+export const getInvitations = (companyId: string) =>
+  request<CompanyInvitation[]>(`/companies/${companyId}/invitations`);
+
+export const createInvitation = (
+  companyId: string,
+  input: { email: string; role: Company['role']; employeeId?: string | null },
+) => request<CompanyInvitation>(`/companies/${companyId}/invitations`, { method: 'POST', body: JSON.stringify(input) });
+
+export const revokeInvitation = (companyId: string, invitationId: string) =>
+  request<void>(`/companies/${companyId}/invitations/${invitationId}`, { method: 'DELETE' });
+
 export const updateMember = (
   companyId: string,
   memberId: string,
@@ -656,3 +712,10 @@ export const deletePushSubscription = (endpoint: string) =>
     method: 'DELETE',
     body: JSON.stringify({ endpoint }),
   });
+
+export const getPushPreferences = () => request<PushPreferences>('/push/preferences');
+
+export const updatePushPreferences = (input: PushPreferences) =>
+  request<PushPreferences>('/push/preferences', { method: 'PATCH', body: JSON.stringify(input) });
+
+export const sendTestPush = () => request<void>('/push/test', { method: 'POST' });
