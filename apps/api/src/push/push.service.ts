@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { CompanyRole } from '@prisma/client';
 import webpush, { type PushSubscription } from 'web-push';
@@ -82,13 +82,17 @@ export class PushService {
     };
   }
 
-  async sendTest(userId: string): Promise<number> {
-    return this.sendToUsers({ userId }, {
+  async sendTest(userId: string, endpoint: string): Promise<void> {
+    if (!this.enabled) throw new ServiceUnavailableException('Push-уведомления временно недоступны на сервере');
+    const subscriptions = await this.prisma.webPushSubscription.findMany({ where: { userId, endpoint } });
+    if (!subscriptions.length) throw new BadRequestException('Подключение этого устройства не найдено. Выключите и снова включите уведомления.');
+    const delivered = await this.deliver(subscriptions, {
       title: 'Уведомления работают',
       body: 'Slotty сможет сообщать о новых, перенесённых и отменённых записях.',
       url: '/app',
       tag: `push-test-${Date.now()}`,
     });
+    if (!delivered) throw new ServiceUnavailableException('Push-сервис отклонил уведомление для этого устройства. Выключите и снова включите уведомления, затем повторите тест.');
   }
 
   async sendToCompany(
@@ -117,12 +121,6 @@ export class PushService {
     return this.deliver(subscriptions.filter((item) => item.user.pushPreference?.[preferenceKey] !== false), payload);
   }
 
-  private async sendToUsers(where: { userId: string }, payload: BusinessPushPayload): Promise<number> {
-    if (!this.enabled) return 0;
-    const subscriptions = await this.prisma.webPushSubscription.findMany({ where });
-    return this.deliver(subscriptions, payload);
-  }
-
   private async deliver(
     subscriptions: Array<{ id: string; endpoint: string; p256dh: string; auth: string }>,
     payload: BusinessPushPayload,
@@ -137,6 +135,7 @@ export class PushService {
         await webpush.sendNotification(subscription, JSON.stringify(payload), {
           TTL: 300,
           urgency: 'high',
+          timeout: 10_000,
         });
         delivered += 1;
       } catch (error) {

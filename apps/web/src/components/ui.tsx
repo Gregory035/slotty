@@ -7,18 +7,20 @@ export function Modal({
   description,
   children,
   onClose,
+  className = '',
 }: {
   open: boolean;
   title: string;
   description?: string;
   children: ReactNode;
   onClose: () => void;
+  className?: string;
 }) {
   if (!open) return null;
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
       <section
-        className="modal-card"
+        className={`modal-card ${className}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby="modal-title"

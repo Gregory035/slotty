@@ -145,6 +145,8 @@ model Bot {
   webhookSecret   String           @unique
   status          BotStatus        @default(ACTIVE)
   errorMessage    String?
+  profilePhoto    Bytes?
+  profilePhotoUpdatedAt DateTime?
   company         Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
   telegramUpdates TelegramUpdate[]
   createdAt       DateTime         @default(now())

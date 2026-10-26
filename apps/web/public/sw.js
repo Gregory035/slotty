@@ -1,4 +1,4 @@
-const CACHE = 'slotty-shell-v3';
+const CACHE = 'slotty-shell-v4';
 const SHELL = [
   '/',
   '/app',
@@ -39,10 +39,7 @@ self.addEventListener('push', (event) => {
     body: payload.body,
     icon: '/brand/slotty-icon-192.png',
     badge: '/brand/slotty-badge-96.png',
-    tag: payload.tag,
-    renotify: true,
-    requireInteraction: true,
-    vibrate: [120, 60, 120],
+    ...(payload.tag ? { tag: payload.tag } : {}),
     data: { url: payload.url },
   }));
 });

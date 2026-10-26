@@ -10,6 +10,7 @@ import { ConfigService } from '@nestjs/config';
 import { Bot, BotStatus, Prisma } from '@prisma/client';
 import { GrammyError } from 'grammy';
 import { randomBytes } from 'node:crypto';
+import sharp from 'sharp';
 import { PrismaService } from '../database/prisma.service';
 import { BotResponseDto } from './dto/bot-response.dto';
 import { ConnectBotDto } from './dto/connect-bot.dto';
@@ -95,6 +96,7 @@ export class BotsService {
               webhookSecret,
               status,
               errorMessage,
+              ...(existing.telegramBotId !== BigInt(botInfo.id) ? { profilePhoto: null, profilePhotoUpdatedAt: null } : {}),
             },
           })
         : await this.prisma.bot.create({
@@ -152,6 +154,50 @@ export class BotsService {
   async find(companyId: string): Promise<BotResponseDto | null> {
     const bot = await this.prisma.bot.findUnique({ where: { companyId } });
     return bot ? this.toResponse(bot) : null;
+  }
+
+  async setProfilePhoto(
+    companyId: string,
+    botId: string,
+    file: { buffer: Buffer; mimetype: string; size: number } | undefined,
+    actorId: string,
+  ): Promise<BotResponseDto> {
+    const bot = await this.requireBot(companyId, botId);
+    if (!file || file.size > 5 * 1024 * 1024 || !['image/jpeg', 'image/png', 'image/webp'].includes(file.mimetype)) {
+      throw new BadRequestException('Выберите JPG, PNG или WebP до 5 МБ');
+    }
+    let jpeg: Buffer;
+    try {
+      const image = sharp(file.buffer, { limitInputPixels: 20_000_000, failOn: 'warning' });
+      const metadata = await image.metadata();
+      if (!['jpeg', 'png', 'webp'].includes(metadata.format || '') || (metadata.pages ?? 1) !== 1) throw new Error('Unsupported image');
+      jpeg = await image.rotate().resize(640, 640, { fit: 'cover' }).flatten({ background: '#ffffff' }).jpeg({ quality: 88 }).toBuffer();
+    } catch {
+      throw new BadRequestException('Не удалось прочитать фото. Выберите обычное изображение JPG, PNG или WebP до 20 мегапикселей.');
+    }
+    try {
+      await this.telegramApi.setProfilePhoto(this.encryption.decrypt(bot.tokenEncrypted), jpeg);
+    } catch {
+      throw new BadGatewayException('Telegram не принял аватар. Проверьте подключение бота и повторите загрузку.');
+    }
+    const saved = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.bot.update({
+        where: { id_companyId: { id: botId, companyId }, telegramBotId: bot.telegramBotId },
+        data: { profilePhoto: Uint8Array.from(jpeg), profilePhotoUpdatedAt: new Date() },
+      });
+      await tx.auditLog.create({ data: { companyId, actorId, action: 'bot.avatar_updated', entityType: 'Bot', entityId: botId } });
+      return updated;
+    });
+    return this.toResponse(saved);
+  }
+
+  async getProfilePhoto(botId: string): Promise<Buffer> {
+    const bot = await this.prisma.bot.findFirst({
+      where: { id: botId, company: { deletedAt: null } },
+      select: { profilePhoto: true },
+    });
+    if (!bot?.profilePhoto) throw new NotFoundException('Аватар бота не найден');
+    return Buffer.from(bot.profilePhoto);
   }
 
   async activate(companyId: string, botId: string, actorId?: string): Promise<BotResponseDto> {
@@ -239,6 +285,8 @@ export class BotsService {
       status: bot.status,
       webhookConfigured: bot.status === BotStatus.ACTIVE,
       errorMessage: bot.errorMessage,
+      hasProfilePhoto: Boolean(bot.profilePhoto),
+      profilePhotoUpdatedAt: bot.profilePhotoUpdatedAt ?? null,
       createdAt: bot.createdAt,
       updatedAt: bot.updatedAt,
     };

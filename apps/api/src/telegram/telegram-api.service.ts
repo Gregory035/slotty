@@ -1,13 +1,14 @@
 import { Injectable } from '@nestjs/common';
-import { Api, InlineKeyboard } from 'grammy';
+import { Api, InlineKeyboard, InputFile } from 'grammy';
 import type { UserFromGetMe } from 'grammy/types';
 
 @Injectable()
 export class TelegramApiService {
-  private createApi(token: string): Api {
+  private createApi(token: string, timeoutSeconds?: number): Api {
     const apiRoot = process.env.TELEGRAM_API_ROOT?.trim();
     const useEnvironmentProxy = process.env.TELEGRAM_USE_ENV_PROXY === 'true';
     return new Api(token, {
+      ...(timeoutSeconds ? { timeoutSeconds } : {}),
       ...(apiRoot ? { apiRoot } : {}),
       ...(useEnvironmentProxy ? { fetch: globalThis.fetch } : {}),
     });
@@ -15,6 +16,13 @@ export class TelegramApiService {
 
   getMe(token: string): Promise<UserFromGetMe> {
     return this.createApi(token).getMe();
+  }
+
+  async setProfilePhoto(token: string, jpeg: Buffer): Promise<void> {
+    await this.createApi(token, 25).setMyProfilePhoto({
+      type: 'static',
+      photo: new InputFile(jpeg, 'bot-avatar.jpg'),
+    });
   }
 
   async setWebhook(

@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Delete, Get, Headers, HttpCode, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Headers, HttpCode, Patch, Post, UseGuards } from '@nestjs/common';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { AuthenticatedUserDto } from '../auth/dto/auth-response.dto';
 import { AccessTokenGuard } from '../auth/guards/access-token.guard';
@@ -50,8 +50,7 @@ export class PushController {
 
   @Post('test')
   @HttpCode(204)
-  async test(@CurrentUser() user: AuthenticatedUserDto): Promise<void> {
-    const delivered = await this.push.sendTest(user.id);
-    if (!delivered) throw new BadRequestException('Сначала включите уведомления на этом устройстве');
+  async test(@CurrentUser() user: AuthenticatedUserDto, @Body() input: DeletePushSubscriptionDto): Promise<void> {
+    await this.push.sendTest(user.id, input.endpoint);
   }
 }

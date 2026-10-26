@@ -24,6 +24,12 @@ export class BotResponseDto {
   errorMessage: string | null;
 
   @ApiProperty()
+  hasProfilePhoto: boolean;
+
+  @ApiPropertyOptional({ nullable: true })
+  profilePhotoUpdatedAt: Date | null;
+
+  @ApiProperty()
   createdAt: Date;
 
   @ApiProperty()

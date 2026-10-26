@@ -6,7 +6,12 @@ import {
   ParseUUIDPipe,
   Post,
   UseGuards,
+  UploadedFile,
+  UseInterceptors,
+  Res,
+  HttpCode,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import {
   ApiBearerAuth,
   ApiCreatedResponse,
@@ -54,6 +59,21 @@ export class BotsController {
     return this.bots.find(companyId);
   }
 
+  @Post(':botId/profile-photo')
+  @HttpCode(200)
+  @RequirePermissions(CompanyPermission.BOT_MANAGE)
+  @RateLimits({ name: 'bot-profile-photo', identity: 'user_company', limitEnv: 'RATE_LIMIT_BOT_PHOTO_MAX', windowEnv: 'RATE_LIMIT_BOT_PHOTO_WINDOW_SECONDS', defaultLimit: 10, defaultWindowSeconds: 3600 })
+  @UseInterceptors(FileInterceptor('photo', { limits: { fileSize: 5 * 1024 * 1024, files: 1 } }))
+  @ApiOkResponse({ type: BotResponseDto })
+  profilePhoto(
+    @Param('companyId') companyId: string,
+    @Param('botId', ParseUUIDPipe) botId: string,
+    @UploadedFile() file: { buffer: Buffer; mimetype: string; size: number } | undefined,
+    @CurrentUser() user: AuthenticatedUserDto,
+  ): Promise<BotResponseDto> {
+    return this.bots.setProfilePhoto(companyId, botId, file, user.id);
+  }
+
   @Post(':botId/activate')
   @RequirePermissions(CompanyPermission.BOT_MANAGE)
   @ApiOkResponse({ type: BotResponseDto })
@@ -74,5 +94,23 @@ export class BotsController {
     @CurrentUser() user: AuthenticatedUserDto,
   ): Promise<BotResponseDto> {
     return this.bots.disable(companyId, botId, user.id);
+  }
+}
+
+// Avatars are intentionally public, just like a bot profile photo in Telegram.
+@Controller('bot-avatars')
+export class BotAvatarsController {
+  constructor(private readonly bots: BotsService) {}
+
+  @Get(':botId/image')
+  async image(
+    @Param('botId', ParseUUIDPipe) botId: string,
+    @Res() response: { setHeader(name: string, value: string): void; send(body: Buffer): void },
+  ): Promise<void> {
+    const photo = await this.bots.getProfilePhoto(botId);
+    response.setHeader('Content-Type', 'image/jpeg');
+    response.setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
+    response.setHeader('X-Content-Type-Options', 'nosniff');
+    response.send(photo);
   }
 }

@@ -238,6 +238,8 @@ export interface TelegramBot {
   status: 'ACTIVE' | 'DISABLED' | 'ERROR';
   webhookConfigured: boolean;
   errorMessage: string | null;
+  hasProfilePhoto: boolean;
+  profilePhotoUpdatedAt: string | null;
   createdAt: string;
   updatedAt: string;
 }

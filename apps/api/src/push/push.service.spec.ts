@@ -1,6 +1,7 @@
 import { ConfigService } from '@nestjs/config';
 import webpush from 'web-push';
 import { PushService } from './push.service';
+import { BadRequestException, ServiceUnavailableException } from '@nestjs/common';
 
 jest.mock('web-push', () => ({
   __esModule: true,
@@ -73,5 +74,29 @@ describe('PushService', () => {
       where: { user: { memberships: { some: expect.objectContaining({ companyId: 'company-id' }) } } },
     }));
     expect(webpush.sendNotification).toHaveBeenCalledTimes(1);
+  });
+
+  const enabledConfig = () => new ConfigService({ WEB_PUSH_PUBLIC_KEY: 'public', WEB_PUSH_PRIVATE_KEY: 'private', WEB_PUSH_SUBJECT: 'https://slotty23.ru' });
+
+  it('sends a test only to the current authenticated device, not every device', async () => {
+    findMany.mockResolvedValue([{ id: 'one', endpoint: 'https://web.push.apple.com/current', p256dh: 'p', auth: 'a' }]);
+    jest.mocked(webpush.sendNotification).mockResolvedValue({} as never);
+    await new PushService(prisma as never, enabledConfig()).sendTest('user-id', 'https://web.push.apple.com/current');
+    expect(findMany).toHaveBeenCalledWith({ where: { userId: 'user-id', endpoint: 'https://web.push.apple.com/current' } });
+    expect(webpush.sendNotification).toHaveBeenCalledWith(expect.objectContaining({ endpoint: 'https://web.push.apple.com/current' }), expect.any(String), expect.objectContaining({ timeout: 10_000 }));
+  });
+
+  it('rejects a test for an unregistered or another users device', async () => {
+    findMany.mockResolvedValue([]);
+    await expect(new PushService(prisma as never, enabledConfig()).sendTest('user-id', 'https://push.test/foreign'))
+      .rejects.toBeInstanceOf(BadRequestException);
+    expect(webpush.sendNotification).not.toHaveBeenCalled();
+  });
+
+  it('reports provider failures instead of claiming the test was delivered', async () => {
+    findMany.mockResolvedValue([{ id: 'one', endpoint: 'https://push.test/one', p256dh: 'p', auth: 'a' }]);
+    jest.mocked(webpush.sendNotification).mockRejectedValue({ statusCode: 403 });
+    await expect(new PushService(prisma as never, enabledConfig()).sendTest('user-id', 'https://push.test/one'))
+      .rejects.toBeInstanceOf(ServiceUnavailableException);
   });
 });

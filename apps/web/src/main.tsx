@@ -25,8 +25,15 @@ async function bootstrap() {
   else createRoot(root).render(application);
   initializeWebVitals();
   if (import.meta.env.PROD && 'serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      void navigator.serviceWorker.register('/sw.js');
+    const register = () => {
+      void navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).catch(() => undefined);
+    };
+    if (document.readyState === 'complete') register();
+    else window.addEventListener('load', register, { once: true });
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        void navigator.serviceWorker.getRegistration().then((registration) => registration?.update()).catch(() => undefined);
+      }
     });
   }
 }

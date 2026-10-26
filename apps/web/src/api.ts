@@ -516,6 +516,15 @@ export const updateDepositStatus = (
 export const getBot = (companyId: string) =>
   request<TelegramBot | null>(`/companies/${companyId}/bots`);
 
+export const getBotProfilePhotoUrl = (bot: TelegramBot) =>
+  `${apiUrl}/bot-avatars/${bot.id}/image?v=${encodeURIComponent(bot.profilePhotoUpdatedAt ?? '')}`;
+
+export const uploadBotProfilePhoto = (companyId: string, botId: string, photo: File) => {
+  const body = new FormData();
+  body.set('photo', photo);
+  return request<TelegramBot>(`/companies/${companyId}/bots/${botId}/profile-photo`, { method: 'POST', body });
+};
+
 export const connectBot = (companyId: string, token: string) =>
   request<TelegramBot>(`/companies/${companyId}/bots/connect`, {
     method: 'POST',
@@ -718,4 +727,4 @@ export const getPushPreferences = () => request<PushPreferences>('/push/preferen
 export const updatePushPreferences = (input: PushPreferences) =>
   request<PushPreferences>('/push/preferences', { method: 'PATCH', body: JSON.stringify(input) });
 
-export const sendTestPush = () => request<void>('/push/test', { method: 'POST' });
+export const sendTestPush = (endpoint: string) => request<void>('/push/test', { method: 'POST', body: JSON.stringify({ endpoint }) });

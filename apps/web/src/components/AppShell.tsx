@@ -29,7 +29,8 @@ import {
   X,
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
-import { deletePushSubscription, getPushConfig, getPushPreferences, logout, savePushSubscription, sendTestPush, updatePushPreferences } from '../api';
+import { deletePushSubscription, getPushPreferences, logout, sendTestPush, updatePushPreferences } from '../api';
+import { disableDevicePush, enableDevicePush, notificationPermission, pushSupportMessage, syncDevicePush } from '../push';
 import { useAppStore } from '../store';
 import type { Company, PushPreferences, Section } from '../types';
 import { Brand } from './Brand';
@@ -85,6 +86,9 @@ export function AppShell({
   const [pushBusy, setPushBusy] = useState(false);
   const [pushSettingsOpen, setPushSettingsOpen] = useState(false);
   const [pushPreferences, setPushPreferences] = useState<PushPreferences | null>(null);
+  const [pushError, setPushError] = useState<string | null>(null);
+  const [pushMessage, setPushMessage] = useState<string | null>(null);
+  const [pushPermission, setPushPermission] = useState(notificationPermission);
   const daysLeft = trialDays(activeCompany.trialEndsAt);
 
   async function signOut() {
@@ -139,14 +143,19 @@ export function AppShell({
   }, []);
 
   useEffect(() => {
-    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
-    void navigator.serviceWorker.ready
-      .then((registration) => registration.pushManager.getSubscription())
-      .then(async (subscription) => {
-        setPushActive(Boolean(subscription));
-        if (subscription) await savePushSubscription(subscription.toJSON());
-      })
-      .catch(() => setPushActive(false));
+    let active = true;
+    const sync = () => {
+      if (document.visibilityState === 'hidden') return;
+      setPushPermission(notificationPermission());
+      void syncDevicePush().then((subscription) => {
+        if (active) setPushActive(Boolean(subscription));
+      }).catch((caught: unknown) => {
+        if (active) { setPushActive(false); setPushError(errorText(caught)); }
+      });
+    };
+    sync();
+    document.addEventListener('visibilitychange', sync);
+    return () => { active = false; document.removeEventListener('visibilitychange', sync); };
   }, []);
 
   useEffect(() => {
@@ -172,52 +181,30 @@ export function AppShell({
 
   async function openPushSettings() {
     setPushSettingsOpen(true);
+    setPushMessage(null);
+    setPushPermission(notificationPermission());
     try {
       setPushPreferences(await getPushPreferences());
     } catch (caught) {
-      notify(errorText(caught), 'error');
+      setPushError(errorText(caught));
     }
   }
 
   async function togglePush() {
     if (pushBusy) return;
-    if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
-      notify('Этот браузер не поддерживает push-уведомления', 'error');
-      return;
-    }
+    // Start immediately in the click handler, before any network/worker await.
+    const operation = pushActive ? disableDevicePush() : enableDevicePush();
     setPushBusy(true);
+    setPushError(null);
+    setPushMessage(null);
     try {
-      const registration = await navigator.serviceWorker.ready;
-      const existing = await registration.pushManager.getSubscription();
-      if (existing) {
-        await deletePushSubscription(existing.endpoint);
-        await existing.unsubscribe();
-        setPushActive(false);
-        notify('Push-уведомления выключены');
-        return;
-      }
-      const config = await getPushConfig();
-      if (!config.enabled || !config.publicKey) {
-        notify('Push-уведомления пока не настроены на сервере', 'error');
-        return;
-      }
-      const permission = await Notification.requestPermission();
-      if (permission !== 'granted') {
-        notify(isAndroidBrowser()
-          ? 'Разрешите уведомления: Chrome → Настройки сайта → Уведомления'
-          : 'Разрешение на уведомления не предоставлено', 'error');
-        return;
-      }
-      const subscription = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: decodeVapidKey(config.publicKey),
-      });
-      await savePushSubscription(subscription.toJSON());
-      setPushActive(true);
-      notify('Push-уведомления включены');
-    } catch {
-      notify('Не удалось изменить настройки уведомлений', 'error');
+      await operation;
+      setPushActive(!pushActive);
+      setPushMessage(pushActive ? 'Уведомления выключены на этом устройстве.' : 'Уведомления включены. Теперь нажмите «Тестовое уведомление».');
+    } catch (caught) {
+      setPushError(errorText(caught));
     } finally {
+      setPushPermission(notificationPermission());
       setPushBusy(false);
     }
   }
@@ -235,12 +222,20 @@ export function AppShell({
   }
 
   async function testPush() {
+    if (pushBusy) return;
     setPushBusy(true);
+    setPushError(null);
+    setPushMessage(null);
     try {
-      await sendTestPush();
-      notify('Тестовое уведомление отправлено');
+      const subscription = await syncDevicePush();
+      if (!subscription) {
+        setPushActive(false);
+        throw new Error('Сначала включите уведомления на этом устройстве.');
+      }
+      await sendTestPush(subscription.endpoint);
+      setPushMessage('Push-сервис принял тест для этого устройства. Если баннер не появился, проверьте «Настройки → Уведомления → Slotty», режим фокусирования и сводку уведомлений.');
     } catch (caught) {
-      notify(errorText(caught), 'error');
+      setPushError(errorText(caught));
     } finally {
       setPushBusy(false);
     }
@@ -365,18 +360,25 @@ export function AppShell({
         </nav>
       </div>
       {paletteOpen && <CommandPalette close={() => setPaletteOpen(false)} openSection={openSection} setThemeMode={setThemeMode} />}
-      <Modal open={pushSettingsOpen} title="Уведомления" description="Настройки действуют для вашего аккаунта на всех устройствах." onClose={() => setPushSettingsOpen(false)}>
+      <Modal open={pushSettingsOpen} title="Уведомления" description="Подключение этого устройства и события вашего аккаунта." className="push-settings-modal" onClose={() => setPushSettingsOpen(false)}>
         <div className="push-settings">
           <div className="push-settings-status"><span className={pushActive ? 'is-active' : ''} />{pushActive ? 'Включены на этом устройстве' : 'Выключены на этом устройстве'}</div>
-          <button className={pushActive ? 'secondary-button' : 'primary-button'} onClick={() => void togglePush()} disabled={pushBusy}>{pushActive ? 'Выключить на устройстве' : 'Включить на устройстве'}</button>
+          <div className="push-device-actions">
+            <button className={pushActive ? 'secondary-button' : 'primary-button'} onClick={() => void togglePush()} disabled={pushBusy || Boolean(pushSupportMessage())}>{pushBusy ? 'Подождите…' : pushActive ? 'Выключить на устройстве' : 'Включить уведомления'}</button>
+            <button className="secondary-button" onClick={() => void testPush()} disabled={!pushActive || pushBusy}>Тестовое уведомление</button>
+          </div>
+          {!pushActive && !pushSupportMessage() && <p className="form-notice">Сначала нажмите «Включить уведомления» и разрешите их в системном окне. После подключения станет доступен тест.</p>}
+          {pushSupportMessage() && <p className="form-notice">{pushSupportMessage()}</p>}
+          {pushError && <p className="form-error" role="alert">{pushError}</p>}
+          {pushMessage && <p className="form-notice" role="status">{pushMessage}</p>}
           {pushPreferences && <fieldset disabled={pushBusy}>
             <legend>О каких событиях сообщать</legend>
             <label><input type="checkbox" checked={pushPreferences.appointmentCreated} onChange={(event) => void savePreferences({ ...pushPreferences, appointmentCreated: event.target.checked })} />Новая запись</label>
             <label><input type="checkbox" checked={pushPreferences.appointmentRescheduled} onChange={(event) => void savePreferences({ ...pushPreferences, appointmentRescheduled: event.target.checked })} />Перенос записи</label>
             <label><input type="checkbox" checked={pushPreferences.appointmentCancelled} onChange={(event) => void savePreferences({ ...pushPreferences, appointmentCancelled: event.target.checked })} />Отмена записи</label>
           </fieldset>}
-          {isAndroidBrowser() && 'Notification' in window && Notification.permission === 'denied' && <p className="form-notice">Уведомления заблокированы. Откройте Chrome → Настройки сайта → Уведомления и разрешите их для Slotty.</p>}
-          <div className="modal-actions"><button className="secondary-button" onClick={() => void testPush()} disabled={!pushActive || pushBusy}>Отправить тест</button><button className="primary-button" onClick={() => setPushSettingsOpen(false)}>Готово</button></div>
+          {pushPermission === 'denied' && <p className="form-notice">{isIosBrowser() ? 'На iPhone: Настройки → Уведомления → Slotty → Допуск уведомлений. После изменения вернитесь в Slotty.' : 'Уведомления заблокированы. Разрешите их для Slotty в настройках сайта вашего браузера.'}</p>}
+          <div className="modal-actions"><button className="primary-button" onClick={() => setPushSettingsOpen(false)}>Готово</button></div>
         </div>
       </Modal>
     </div>
@@ -402,14 +404,6 @@ function errorText(error: unknown): string {
 
 function isStandalone() {
   return window.matchMedia('(display-mode: standalone)').matches || (navigator as Navigator & { standalone?: boolean }).standalone === true;
-}
-
-function decodeVapidKey(value: string): Uint8Array<ArrayBuffer> {
-  const padded = `${value}${'='.repeat((4 - value.length % 4) % 4)}`;
-  const binary = atob(padded.replace(/-/gu, '+').replace(/_/gu, '/'));
-  const bytes = new Uint8Array(binary.length);
-  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
-  return bytes;
 }
 
 function CommandPalette({ close, openSection, setThemeMode }: { close: () => void; openSection: (section: Section) => void; setThemeMode: (mode: 'light' | 'dark' | 'system') => void }) {
