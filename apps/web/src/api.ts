@@ -722,9 +722,9 @@ export const deletePushSubscription = (endpoint: string) =>
     body: JSON.stringify({ endpoint }),
   });
 
-export const getPushPreferences = () => request<PushPreferences>('/push/preferences');
+export const getPushPreferences = () => request<PushPreferences>('/push/preferences', { signal: AbortSignal.timeout(15_000) });
 
 export const updatePushPreferences = (input: PushPreferences) =>
-  request<PushPreferences>('/push/preferences', { method: 'PATCH', body: JSON.stringify(input) });
+  request<PushPreferences>('/push/preferences', { method: 'PATCH', body: JSON.stringify(input), signal: AbortSignal.timeout(15_000) });
 
-export const sendTestPush = (endpoint: string) => request<void>('/push/test', { method: 'POST', body: JSON.stringify({ endpoint }) });
+export const sendTestPush = (endpoint: string) => request<void>('/push/test', { method: 'POST', body: JSON.stringify({ endpoint }), signal: AbortSignal.timeout(15_000) });

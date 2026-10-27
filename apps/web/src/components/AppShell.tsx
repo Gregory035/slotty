@@ -30,7 +30,7 @@ import {
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { deletePushSubscription, getPushPreferences, logout, sendTestPush, updatePushPreferences } from '../api';
-import { disableDevicePush, enableDevicePush, notificationPermission, pushSupportMessage, syncDevicePush } from '../push';
+import { disableDevicePush, enableDevicePush, notificationPermission, prepareDevicePush, pushSupportMessage, syncDevicePush, type DevicePushSetup, type PushConnectionStep } from '../push';
 import { useAppStore } from '../store';
 import type { Company, PushPreferences, Section } from '../types';
 import { Brand } from './Brand';
@@ -89,6 +89,9 @@ export function AppShell({
   const [pushError, setPushError] = useState<string | null>(null);
   const [pushMessage, setPushMessage] = useState<string | null>(null);
   const [pushPermission, setPushPermission] = useState(notificationPermission);
+  const [pushSetup, setPushSetup] = useState<DevicePushSetup | null>(null);
+  const [pushPreparing, setPushPreparing] = useState(false);
+  const [pushStep, setPushStep] = useState<PushConnectionStep | null>(null);
   const daysLeft = trialDays(activeCompany.trialEndsAt);
 
   async function signOut() {
@@ -182,29 +185,42 @@ export function AppShell({
   async function openPushSettings() {
     setPushSettingsOpen(true);
     setPushMessage(null);
+    setPushError(null);
+    setPushSetup(null);
+    setPushPreparing(true);
     setPushPermission(notificationPermission());
     try {
-      setPushPreferences(await getPushPreferences());
+      const [preferences, setup] = await Promise.all([
+        getPushPreferences(),
+        pushSupportMessage() ? Promise.resolve(null) : prepareDevicePush(),
+      ]);
+      setPushPreferences(preferences);
+      setPushSetup(setup);
+      setPushActive(Boolean(setup?.subscription) && notificationPermission() === 'granted');
     } catch (caught) {
       setPushError(errorText(caught));
+    } finally {
+      setPushPreparing(false);
     }
   }
 
   async function togglePush() {
-    if (pushBusy) return;
+    if (pushBusy || pushPreparing || (!pushActive && !pushSetup)) return;
     // Start immediately in the click handler, before any network/worker await.
-    const operation = pushActive ? disableDevicePush() : enableDevicePush();
+    const operation = pushActive ? disableDevicePush() : enableDevicePush(pushSetup!, setPushStep);
     setPushBusy(true);
     setPushError(null);
     setPushMessage(null);
     try {
-      await operation;
+      const subscription = await operation;
       setPushActive(!pushActive);
+      setPushSetup((current) => current ? { ...current, subscription: subscription ?? null } : null);
       setPushMessage(pushActive ? 'Уведомления выключены на этом устройстве.' : 'Уведомления включены. Теперь нажмите «Тестовое уведомление».');
     } catch (caught) {
       setPushError(errorText(caught));
     } finally {
       setPushPermission(notificationPermission());
+      setPushStep(null);
       setPushBusy(false);
     }
   }
@@ -364,12 +380,13 @@ export function AppShell({
         <div className="push-settings">
           <div className="push-settings-status"><span className={pushActive ? 'is-active' : ''} />{pushActive ? 'Включены на этом устройстве' : 'Выключены на этом устройстве'}</div>
           <div className="push-device-actions">
-            <button className={pushActive ? 'secondary-button' : 'primary-button'} onClick={() => void togglePush()} disabled={pushBusy || Boolean(pushSupportMessage())}>{pushBusy ? 'Подождите…' : pushActive ? 'Выключить на устройстве' : 'Включить уведомления'}</button>
+            <button className={pushActive ? 'secondary-button' : 'primary-button'} onClick={() => void togglePush()} disabled={pushBusy || pushPreparing || (!pushActive && !pushSetup) || Boolean(pushSupportMessage())}>{pushPreparing ? 'Подготавливаем подключение…' : pushBusy ? pushStep === 'permission' ? 'Ожидаем разрешение iOS…' : pushStep === 'subscription' ? 'Подключаем устройство…' : pushStep === 'saving' ? 'Сохраняем подключение…' : 'Подождите…' : pushActive ? 'Выключить на устройстве' : 'Включить уведомления'}</button>
             <button className="secondary-button" onClick={() => void testPush()} disabled={!pushActive || pushBusy}>Тестовое уведомление</button>
           </div>
           {!pushActive && !pushSupportMessage() && <p className="form-notice">Сначала нажмите «Включить уведомления» и разрешите их в системном окне. После подключения станет доступен тест.</p>}
           {pushSupportMessage() && <p className="form-notice">{pushSupportMessage()}</p>}
           {pushError && <p className="form-error" role="alert">{pushError}</p>}
+          {!pushSetup && !pushPreparing && !pushSupportMessage() && <button className="secondary-button" onClick={() => void openPushSettings()}>Повторить подготовку</button>}
           {pushMessage && <p className="form-notice" role="status">{pushMessage}</p>}
           {pushPreferences && <fieldset disabled={pushBusy}>
             <legend>О каких событиях сообщать</legend>
