@@ -1,4 +1,4 @@
-import { IsString, IsUrl, MaxLength, MinLength, ValidateNested } from 'class-validator';
+import { IsNumber, IsOptional, IsString, IsUrl, MaxLength, Min, MinLength, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class PushSubscriptionKeysDto {
@@ -17,6 +17,12 @@ export class SavePushSubscriptionDto {
   @IsUrl({ require_protocol: true })
   @MaxLength(2048)
   endpoint: string;
+
+  // Standard browser toJSON() field; tolerate existing clients without storing it.
+  @IsOptional()
+  @IsNumber({ allowInfinity: false, allowNaN: false })
+  @Min(0)
+  expirationTime?: number | null;
 
   @ValidateNested()
   @Type(() => PushSubscriptionKeysDto)

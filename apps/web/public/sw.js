@@ -1,4 +1,4 @@
-const CACHE = 'slotty-shell-v5';
+const CACHE = 'slotty-shell-v6';
 const SHELL = [
   '/',
   '/app',

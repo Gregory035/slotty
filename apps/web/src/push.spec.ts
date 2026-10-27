@@ -11,7 +11,7 @@ describe('installed iPhone push lifecycle', () => {
   const subscribe = vi.fn();
   const getSubscription = vi.fn();
   const unsubscribe = vi.fn();
-  const subscription = { endpoint: 'https://web.push.apple.com/device-one', options: {}, unsubscribe, toJSON: () => ({ endpoint: 'https://web.push.apple.com/device-one', keys: { auth: 'secret', p256dh: 'key' } }) };
+  const subscription = { endpoint: 'https://web.push.apple.com/device-one', options: {}, unsubscribe, toJSON: () => ({ endpoint: 'https://web.push.apple.com/device-one', expirationTime: null, keys: { auth: 'secret', p256dh: 'key' } }) };
 
   beforeEach(() => {
     vi.resetAllMocks();

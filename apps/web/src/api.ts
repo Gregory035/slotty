@@ -713,7 +713,10 @@ export const getPushConfig = () =>
 export const savePushSubscription = (subscription: PushSubscriptionJSON) =>
   request<void>('/push/subscriptions', {
     method: 'POST',
-    body: JSON.stringify(subscription),
+    body: JSON.stringify({
+      endpoint: subscription.endpoint,
+      keys: { p256dh: subscription.keys?.p256dh, auth: subscription.keys?.auth },
+    }),
   });
 
 export const deletePushSubscription = (endpoint: string) =>

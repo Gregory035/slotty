@@ -48,6 +48,27 @@ try {
     throw new Error(`Current-user request failed: ${currentUser.response.status}`);
   }
 
+  // Safari and Chromium include expirationTime in PushSubscription.toJSON().
+  // Exercise the real authenticated HTTP contract without contacting a push provider.
+  const endpoint = `https://web.push.apple.com/slotty-smoke-${Date.now()}`;
+  const authorization = `Bearer ${registration.body.accessToken}`;
+  for (const expirationTime of [null, 1_800_000_000_000]) {
+    const saved = await request('/push/subscriptions', {
+      method: 'POST',
+      headers: { authorization },
+      body: JSON.stringify({ endpoint, expirationTime, keys: { p256dh: 'p'.repeat(87), auth: 'a'.repeat(22) } }),
+    });
+    if (saved.response.status !== 204) throw new Error(`Browser push subscription failed: ${saved.response.status}`);
+    const row = await prisma.webPushSubscription.findUnique({ where: { endpoint } });
+    if (row?.userId !== registration.body.user.id) throw new Error('Push subscription was not saved for the authenticated user');
+  }
+  const removed = await request('/push/subscriptions', {
+    method: 'DELETE', headers: { authorization }, body: JSON.stringify({ endpoint }),
+  });
+  if (removed.response.status !== 204 || await prisma.webPushSubscription.count({ where: { endpoint } })) {
+    throw new Error('Push subscription cleanup failed');
+  }
+
   const refreshed = await request('/auth/refresh', {
     method: 'POST',
     headers: {
