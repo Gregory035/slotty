@@ -61,6 +61,8 @@ jobs:
         run: |
           mkdir -p test-results
           npm run test:coverage -- --json --outputFile=../../test-results/api-unit.json
+      - name: Web unit tests
+        run: npm run test -w @slotty/web
       - run: npx prisma migrate deploy --schema=apps/api/prisma/schema.prisma
       - name: Integration tests
         run: npm run test:integration -- --json --outputFile=../../test-results/api-integration.json
