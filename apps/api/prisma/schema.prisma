@@ -53,6 +53,7 @@ model PushPreference {
 model Company {
   id                        String               @id @default(uuid()) @db.Uuid
   name                      String
+  workingMode               WorkingMode          @default(TEAM)
   description               String?
   phone                     String?
   email                     String?
@@ -96,6 +97,11 @@ model Company {
   deletedAt                 DateTime?
 
   @@index([deletedAt])
+}
+
+enum WorkingMode {
+  SOLO
+  TEAM
 }
 
 model CompanyMember {

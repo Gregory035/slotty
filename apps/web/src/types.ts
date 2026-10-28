@@ -13,6 +13,7 @@ export interface Session {
 }
 
 export interface Company {
+  workingMode: 'SOLO' | 'TEAM';
   id: string;
   name: string;
   description: string | null;
@@ -281,6 +282,7 @@ export interface MiniAppService {
 
 export interface MiniAppSession {
   company: {
+    workingMode: 'SOLO' | 'TEAM';
     name: string;
     description: string | null;
     timezone: string;

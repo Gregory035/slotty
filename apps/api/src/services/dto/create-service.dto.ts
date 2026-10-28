@@ -14,6 +14,14 @@ import {
 } from 'class-validator';
 
 export class CreateServiceDto {
+  @ApiPropertyOptional({ description: 'Перерыв после услуги в личном режиме', minimum: 0, maximum: 1440 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(1440)
+  bufferAfterMinutes?: number;
+
   @ApiProperty({ example: 'Женская стрижка' })
   @IsString()
   @MinLength(1)

@@ -3,6 +3,7 @@ import { CompanyRole } from '@prisma/client';
 export enum CompanyPermission {
   COMPANY_READ = 'company:read',
   COMPANY_UPDATE = 'company:update',
+  COMPANY_WORKING_MODE = 'company:working-mode',
   COMPANY_DELETE = 'company:delete',
   MEMBERS_READ = 'members:read',
   MEMBERS_MANAGE = 'members:manage',

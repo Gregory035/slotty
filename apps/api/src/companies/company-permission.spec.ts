@@ -33,4 +33,10 @@ describe('company permission matrix', () => {
       ]),
     ).toBe(false);
   });
+
+  it('reserves working mode changes for the owner', () => {
+    expect(roleHasPermissions(CompanyRole.OWNER, [CompanyPermission.COMPANY_WORKING_MODE])).toBe(true);
+    expect(roleHasPermissions(CompanyRole.ADMIN, [CompanyPermission.COMPANY_WORKING_MODE])).toBe(false);
+    expect(roleHasPermissions(CompanyRole.EMPLOYEE, [CompanyPermission.COMPANY_WORKING_MODE])).toBe(false);
+  });
 });

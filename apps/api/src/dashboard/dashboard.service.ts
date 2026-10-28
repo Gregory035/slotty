@@ -23,7 +23,7 @@ export class DashboardService {
   async get(companyId: string, query: DashboardQuery) {
     const company = await this.prisma.company.findFirst({
       where: { id: companyId, deletedAt: null },
-      select: { timezone: true, currency: true },
+      select: { timezone: true, currency: true, workingMode: true },
     });
     if (!company) throw new NotFoundException('Company not found');
     const today = dateInTimeZone(new Date(), company.timezone);
@@ -201,7 +201,7 @@ export class DashboardService {
       })),
       setupChecklist: [
         { id: 'services', label: 'Добавить услуги', done: activeServices > 0, section: 'services' },
-        { id: 'employees', label: 'Добавить сотрудников', done: activeEmployees > 0, section: 'members' },
+        { id: 'employees', label: company.workingMode === 'SOLO' ? 'Профиль мастера создан' : 'Добавить сотрудников', done: activeEmployees > 0, section: 'employees' },
         { id: 'schedule', label: 'Настроить расписание', done: scheduleRules.length > 0, section: 'schedule' },
         { id: 'bot', label: 'Подключить Telegram-бота', done: bot?.status === BotStatus.ACTIVE, section: 'bot' },
         { id: 'test-booking', label: 'Сделать тестовую запись', done: hasAppointment > 0, section: 'appointments' },

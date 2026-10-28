@@ -20,6 +20,7 @@ export class ServicesService {
   ): Promise<ServiceResponseDto> {
     await this.entitlements.assertCanCreateService(companyId);
     const service = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM "Company" WHERE id = ${companyId}::uuid FOR UPDATE`;
       const created = await tx.service.create({
         data: {
           companyId,
@@ -34,6 +35,14 @@ export class ServicesService {
           depositFixedAmount: input.depositFixedAmount === undefined ? null : new Prisma.Decimal(input.depositFixedAmount),
         },
       });
+      const company = await tx.company.findUnique({ where: { id: companyId }, select: { workingMode: true } });
+      if (company?.workingMode === 'SOLO') {
+        const owner = await tx.companyMember.findFirst({ where: { companyId, role: 'OWNER', employeeId: { not: null } } });
+        if (!owner?.employeeId) throw new BadRequestException('Профиль владельца не привязан');
+        await tx.employeeService.create({ data: { companyId, employeeId: owner.employeeId, serviceId: created.id, bufferAfterMinutes: input.bufferAfterMinutes ?? 0 } });
+      } else if (input.bufferAfterMinutes !== undefined) {
+        throw new BadRequestException('В командном режиме перерыв задаётся для конкретного специалиста');
+      }
       if (actorId) await tx.auditLog.create({ data: {
         companyId, actorId, action: 'service.created', entityType: 'Service', entityId: created.id,
       } });

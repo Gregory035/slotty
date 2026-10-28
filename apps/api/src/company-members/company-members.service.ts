@@ -80,6 +80,10 @@ export class CompanyMembersService {
     if (!user) throw new NotFoundException('User with this email not found');
     try {
       const member = await this.prisma.$transaction(async (tx) => {
+        if (input.role === CompanyRole.OWNER) {
+          await tx.$queryRaw`SELECT id FROM "Company" WHERE id = ${companyId}::uuid FOR UPDATE`;
+          await tx.company.updateMany({ where: { id: companyId, workingMode: 'SOLO' }, data: { workingMode: 'TEAM' } });
+        }
         const created = await tx.companyMember.create({
           data: {
             companyId,
@@ -133,6 +137,10 @@ export class CompanyMembersService {
       await this.assertAnotherOwner(companyId, memberId);
     }
     const member = await this.prisma.$transaction(async (tx) => {
+      if (role === CompanyRole.OWNER && current.role !== CompanyRole.OWNER) {
+        await tx.$queryRaw`SELECT id FROM "Company" WHERE id = ${companyId}::uuid FOR UPDATE`;
+        await tx.company.updateMany({ where: { id: companyId, workingMode: 'SOLO' }, data: { workingMode: 'TEAM' } });
+      }
       const changed = await tx.companyMember.update({
         where: { id_companyId: { id: memberId, companyId } },
         data: {
@@ -142,7 +150,7 @@ export class CompanyMembersService {
               ? input.employeeId === undefined
                 ? current.employeeId
                 : input.employeeId
-              : null,
+              : role === CompanyRole.OWNER && current.role === CompanyRole.OWNER ? current.employeeId : null,
         },
         include: { user: true },
       });

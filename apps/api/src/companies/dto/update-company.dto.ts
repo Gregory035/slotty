@@ -1,10 +1,10 @@
-import { PartialType } from '@nestjs/swagger';
+import { OmitType, PartialType } from '@nestjs/swagger';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import { IsBoolean, IsInt, IsOptional, Matches, Max, Min } from 'class-validator';
 import { CreateCompanyDto } from './create-company.dto';
 
-export class UpdateCompanyDto extends PartialType(CreateCompanyDto) {
+export class UpdateCompanyDto extends PartialType(OmitType(CreateCompanyDto, ['workingMode'] as const)) {
   @ApiPropertyOptional({ description: 'Публичный адрес компании', example: 'studio-liniya', nullable: true })
   @IsOptional()
   @Transform(({ value }: { value: unknown }) => typeof value === 'string' ? value.trim().toLowerCase() || null : value)

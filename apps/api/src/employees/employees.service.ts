@@ -43,6 +43,9 @@ export class EmployeesService {
   ): Promise<EmployeeResponseDto> {
     await this.entitlements.assertCanCreateEmployee(companyId);
     const employee = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM "Company" WHERE id = ${companyId}::uuid FOR UPDATE`;
+      // Adding a colleague expands the existing workspace; the owner's profile stays linked.
+      await tx.company.updateMany({ where: { id: companyId, workingMode: 'SOLO' }, data: { workingMode: 'TEAM' } });
       const created = await tx.employee.create({
         data: {
           companyId,
@@ -101,6 +104,15 @@ export class EmployeesService {
     await this.requireEmployee(companyId, employeeId);
 
     const employee = await this.prisma.$transaction(async (tx) => {
+      if (input.isActive !== undefined) {
+        await tx.$queryRaw`SELECT id FROM "Company" WHERE id = ${companyId}::uuid FOR UPDATE`;
+        const company = await tx.company.findUnique({ where: { id: companyId } });
+        if (company?.workingMode === 'SOLO') {
+          const owner = await tx.companyMember.findFirst({ where: { companyId, role: 'OWNER' } });
+          if (!input.isActive && owner?.employeeId === employeeId) throw new BadRequestException('В личном режиме нельзя отключить свой профиль. Сначала перейдите к команде');
+          if (input.isActive && owner?.employeeId !== employeeId) await tx.company.update({ where: { id: companyId }, data: { workingMode: 'TEAM' } });
+        }
+      }
       const updated = await tx.employee.update({
         where: { id_companyId: { id: employeeId, companyId } },
         data: {
@@ -137,6 +149,9 @@ export class EmployeesService {
 
   async softDelete(companyId: string, employeeId: string, actorId?: string): Promise<void> {
     const result = await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM "Company" WHERE id = ${companyId}::uuid FOR UPDATE`;
+      const company = await tx.company.findUnique({ where: { id: companyId } });
+      if (company?.workingMode === 'SOLO') throw new BadRequestException('В режиме «Работаю один» нельзя удалить свой профиль. Сначала перейдите в командный режим');
       const changed = await tx.employee.updateMany({
         where: { id: employeeId, companyId, deletedAt: null },
         data: { deletedAt: new Date(), isActive: false },

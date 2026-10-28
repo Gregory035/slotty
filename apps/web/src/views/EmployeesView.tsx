@@ -17,10 +17,12 @@ import {
   getWorkExampleImageUrl,
   replaceSchedule,
   uploadEmployeeWorkExample,
+  updateEmployee,
 } from '../api';
 import type { Company, Employee, ScheduleExceptionType } from '../types';
 import { errorMessage } from '../utils';
 import { LEGAL_DOCUMENT_VERSION } from '../legal';
+import { useNavigate } from 'react-router-dom';
 import { EmptyState, ErrorBlock, LoadingBlock, Modal, SectionHeader } from '../components/ui';
 
 const days = [
@@ -56,12 +58,15 @@ function OwnPortfolioView({ company }: { company: Company }) {
 }
 
 function TeamEmployeesView({ company }: { company: Company }) {
+  const solo = company.workingMode === 'SOLO' && company.role === 'OWNER';
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
   const [scheduleEmployee, setScheduleEmployee] = useState<Employee | null>(null);
   const [portfolioEmployee, setPortfolioEmployee] = useState<Employee | null>(null);
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [editing, setEditing] = useState<Employee | null>(null);
   const employees = useQuery({ queryKey: ['employees', company.id], queryFn: () => getEmployees(company.id) });
   const services = useQuery({ queryKey: ['services', company.id], queryFn: () => getServices(company.id) });
   const createMutation = useMutation({
@@ -75,12 +80,23 @@ function TeamEmployeesView({ company }: { company: Company }) {
       setSelectedServices([]);
       setError(null);
       await queryClient.invalidateQueries({ queryKey: ['employees', company.id] });
+      await queryClient.invalidateQueries({ queryKey: ['companies'] });
+      await queryClient.invalidateQueries({ queryKey: ['dashboard', company.id] });
     },
     onError: (caught) => setError(errorMessage(caught)),
   });
   const deleteMutation = useMutation({
     mutationFn: (employeeId: string) => deleteEmployee(company.id, employeeId),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['employees', company.id] }),
+  });
+  const editMutation = useMutation({
+    mutationFn: (input: Parameters<typeof updateEmployee>[2]) => updateEmployee(company.id, editing!.id, input),
+    onSuccess: async () => {
+      setEditing(null); setError(null);
+      await queryClient.invalidateQueries({ queryKey: ['employees', company.id] });
+      await queryClient.invalidateQueries({ queryKey: ['employee-self', company.id] });
+    },
+    onError: (caught) => setError(errorMessage(caught)),
   });
 
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -99,17 +115,20 @@ function TeamEmployeesView({ company }: { company: Company }) {
 
   return (
     <>
-      <SectionHeader eyebrow="Команда" title="Сотрудники" description="Назначайте услуги и рабочие часы каждому специалисту." action={<button className="primary-button" onClick={() => setCreateOpen(true)}><UserRoundPlus size={17} /> Добавить сотрудника</button>} />
+      <SectionHeader eyebrow={solo ? 'Специалист' : 'Команда'} title={solo ? 'Мой профиль' : 'Сотрудники'} description={solo ? 'Это ваша карточка для клиентов. Услуги назначаются вам автоматически.' : 'Назначайте услуги и рабочие часы каждому специалисту.'} action={<button className="primary-button" onClick={() => setCreateOpen(true)}><UserRoundPlus size={17} /> Добавить специалиста</button>} />
+      {solo && <p className="form-notice">Работаете один. При добавлении коллеги включится командный режим — ваш профиль, записи и отзывы сохранятся.</p>}
       {employees.isLoading ? <LoadingBlock /> : employees.error ? <ErrorBlock message="Не удалось загрузить сотрудников" /> : employees.data?.length === 0 ? (
         <EmptyState title="Добавьте первого сотрудника" description="После этого настройте его график и назначьте услуги." action={<button className="primary-button" onClick={() => setCreateOpen(true)}><Plus size={16} /> Добавить сотрудника</button>} />
       ) : (
-        <div className="employee-grid">
-          {employees.data?.map((employee) => (
+        <div className={`employee-grid ${solo ? 'employee-grid-solo' : ''}`}>
+          {employees.data?.filter((employee) => !solo || employee.id === company.employeeId).map((employee) => (
             <article className="employee-card" key={employee.id}>
               <div className="employee-head"><span className="avatar avatar-large" style={{ backgroundColor: `${employee.color}20`, color: employee.color }}>{employee.firstName[0]}{employee.lastName?.[0]}</span><div><h2>{employee.firstName} {employee.lastName}</h2><span className={`status-dot-label ${employee.isActive ? 'active' : ''}`}><i />{employee.isActive ? 'Работает' : 'Неактивен'}</span></div></div>
               <div className="employee-contacts">{employee.phone && <span><Phone size={15} />{employee.phone}</span>}{employee.email && <span><Mail size={15} />{employee.email}</span>}</div>
+              {employee.description && <p className="employee-card-description">{employee.description}</p>}
+              <button className="secondary-button" onClick={() => { setError(null); setEditing(employee); }}>Редактировать профиль</button>
               <div className="employee-services"><p>Услуги</p><div>{employee.services.length ? employee.services.map((service) => <span key={service.id}>{service.name}</span>) : <em>Не назначены</em>}</div></div>
-              <div className="employee-actions"><button className="secondary-button" onClick={() => setScheduleEmployee(employee)}><CalendarClock size={16} /> Расписание</button><button className="secondary-button" onClick={() => setPortfolioEmployee(employee)}><Images size={16} /> Работы</button><button className="icon-button danger" title="Удалить" onClick={() => { if (window.confirm(`Удалить сотрудника ${employee.firstName}?`)) deleteMutation.mutate(employee.id); }}><Trash2 size={16} /></button></div>
+              <div className="employee-actions"><button className="secondary-button" onClick={() => solo ? void navigate(`/companies/${company.id}/schedule`) : setScheduleEmployee(employee)}><CalendarClock size={16} /> Расписание</button>{solo && <button className="secondary-button" onClick={() => setScheduleEmployee(employee)}>Выходные и отпуск</button>}<button className="secondary-button" onClick={() => setPortfolioEmployee(employee)}><Images size={16} /> Работы</button>{!solo && <button className="icon-button danger" title="Удалить" onClick={() => { if (window.confirm(`Удалить сотрудника ${employee.firstName}?`)) deleteMutation.mutate(employee.id); }}><Trash2 size={16} /></button>}</div>
             </article>
           ))}
         </div>
@@ -127,7 +146,19 @@ function TeamEmployeesView({ company }: { company: Company }) {
         </form>
       </Modal>
 
-      {scheduleEmployee && <ScheduleModal company={company} employee={scheduleEmployee} onClose={() => setScheduleEmployee(null)} />}
+      {scheduleEmployee && <ScheduleModal company={company} employee={scheduleEmployee} exceptionsOnly={solo} onClose={() => setScheduleEmployee(null)} />}
+      <Modal open={Boolean(editing)} title="Профиль специалиста" description="Имя и описание увидят клиенты при записи." onClose={() => setEditing(null)}>
+        {editing && <form className="form-stack modal-form" onSubmit={(event) => {
+          event.preventDefault(); const form = new FormData(event.currentTarget);
+          editMutation.mutate({ firstName: String(form.get('firstName')), lastName: String(form.get('lastName') || ''), description: String(form.get('description') || '') });
+        }}>
+          <label>Имя<input name="firstName" defaultValue={editing.firstName} required maxLength={50} /></label>
+          <label>Фамилия<input name="lastName" defaultValue={editing.lastName ?? ''} maxLength={50} /></label>
+          <label>О специалисте<textarea name="description" defaultValue={editing.description ?? ''} rows={4} maxLength={2000} /></label>
+          {error && <p className="form-error">{error}</p>}
+          <div className="modal-actions"><button type="button" className="secondary-button" onClick={() => setEditing(null)}>Отмена</button><button className="primary-button" disabled={editMutation.isPending}>Сохранить профиль</button></div>
+        </form>}
+      </Modal>
       {portfolioEmployee && <PortfolioModal company={company} employee={portfolioEmployee} onClose={() => setPortfolioEmployee(null)} />}
     </>
   );
@@ -172,9 +203,9 @@ function PortfolioModal({ company, employee, onClose }: { company: Company; empl
   </Modal>;
 }
 
-function ScheduleModal({ company, employee, onClose }: { company: Company; employee: Employee; onClose: () => void }) {
+function ScheduleModal({ company, employee, onClose, exceptionsOnly = false }: { company: Company; employee: Employee; onClose: () => void; exceptionsOnly?: boolean }) {
   const queryClient = useQueryClient();
-  const schedule = useQuery({ queryKey: ['schedule', company.id, employee.id], queryFn: () => getSchedule(company.id, employee.id) });
+  const schedule = useQuery({ queryKey: ['schedule', company.id, employee.id], queryFn: () => getSchedule(company.id, employee.id), enabled: !exceptionsOnly });
   const exceptions = useQuery({ queryKey: ['schedule-exceptions', company.id, employee.id], queryFn: () => getScheduleExceptions(company.id, employee.id) });
   const [rules, setRules] = useState<WeekRules>(() => createDefaultRules());
   const [error, setError] = useState<string | null>(null);
@@ -210,8 +241,10 @@ function ScheduleModal({ company, employee, onClose }: { company: Company; emplo
   return (
     <Modal open title={`Расписание · ${employee.firstName}`} description={`Часовой пояс: ${company.timezone}`} onClose={onClose}>
       <div className="schedule-content">
+        {!exceptionsOnly && <>
         {schedule.isLoading ? <LoadingBlock /> : <div className="week-schedule">{days.map(([number, label]) => <div className={`schedule-row ${rules[number].enabled ? 'enabled' : ''}`} key={number}><label className="day-toggle"><input type="checkbox" checked={rules[number].enabled} onChange={(event) => setRules((current) => ({ ...current, [number]: { ...current[number], enabled: event.target.checked } }))} /><span>{label}</span></label><div className="time-range"><input type="time" value={rules[number].startTime} disabled={!rules[number].enabled} onChange={(event) => setRules((current) => ({ ...current, [number]: { ...current[number], startTime: event.target.value } }))} /><span>—</span><input type="time" value={rules[number].endTime} disabled={!rules[number].enabled} onChange={(event) => setRules((current) => ({ ...current, [number]: { ...current[number], endTime: event.target.value } }))} /></div></div>)}</div>}
         <div className="schedule-save-row"><span>{saveMutation.isSuccess ? 'График сохранён' : 'Можно настроить отдельный график на каждый день.'}</span><button className="primary-button" disabled={saveMutation.isPending} onClick={() => saveMutation.mutate()}>{saveMutation.isPending ? 'Сохраняем…' : 'Сохранить график'}</button></div>
+        </>}
         <div className="exceptions-section"><div><p className="eyebrow">Особые дни</p><h3>Выходные и отпуск</h3></div><form className="exception-form" onSubmit={addException}><input name="date" type="date" required /><select name="type" defaultValue="DAY_OFF"><option value="DAY_OFF">Выходной</option><option value="VACATION">Отпуск</option><option value="SICK_LEAVE">Больничный</option></select><button className="secondary-button" disabled={exceptionMutation.isPending}><Plus size={15} /> Добавить</button></form>{exceptions.data?.length ? <div className="exception-list">{exceptions.data.map((item) => <div key={item.id}><span>{new Intl.DateTimeFormat('ru-RU', { dateStyle: 'long', timeZone: 'UTC' }).format(new Date(`${item.date}T12:00:00Z`))}</span><strong>{exceptionLabel(item.type)}</strong><button className="icon-button danger" onClick={() => deleteExceptionMutation.mutate(item.id)}><Trash2 size={15} /></button></div>)}</div> : <p className="muted-text">Особых дней пока нет.</p>}</div>
         {error && <p className="form-error">{error}</p>}
       </div>

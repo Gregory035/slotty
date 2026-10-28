@@ -126,10 +126,15 @@ export function AppShell({
   }
 
   const initials = `${session?.user.firstName?.[0] ?? ''}${session?.user.lastName?.[0] ?? ''}` || 'В';
+  const solo = activeCompany.workingMode === 'SOLO' && activeCompany.role === 'OWNER';
+  const workspaceNavigation = navigation.map((item) => ({ ...item, label: solo
+    ? ({ dashboard: 'Сегодня', employees: 'Мой профиль', schedule: 'Моё расписание' } as Partial<Record<Section, string>>)[item.id] ?? item.label
+    : item.label }));
   const sectionTitle = activeCompany.role === 'EMPLOYEE' && section === 'employees'
     ? 'Мои работы'
-    : navigation.find((item) => item.id === section)?.label ?? 'Обзор';
-  const visibleNavigation = navigation.filter((item) => {
+    : workspaceNavigation.find((item) => item.id === section)?.label ?? 'Обзор';
+  const visibleNavigation = workspaceNavigation.filter((item) => {
+    if (solo && item.id === 'members') return false;
     if (activeCompany.role === 'EMPLOYEE') return ['calendar', 'appointments', 'employees', 'schedule'].includes(item.id);
     if (activeCompany.role === 'ADMIN') return item.id !== 'billing' && item.id !== 'system';
     return true;

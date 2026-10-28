@@ -35,7 +35,7 @@ export function CalendarView({ company }: { company: Company }) {
       return items;
     },
   });
-  const ownProfile = company.role === 'EMPLOYEE';
+  const ownProfile = company.role === 'EMPLOYEE' || (company.role === 'OWNER' && company.workingMode === 'SOLO');
   const employees = useQuery({ queryKey: ownProfile ? ['employee-self', company.id, 'calendar'] : ['employees', company.id], queryFn: async () => ownProfile ? [await getOwnEmployeeProfile(company.id)] : getEmployees(company.id) });
   const inRange = useMemo(() => (appointments.data ?? []).filter((item) => days.includes(calendarDate(item.startsAt, company.timezone))), [appointments.data, days, company.timezone]);
   const firstHour = Math.min(9, ...inRange.map((item) => Math.floor(calendarMinutes(item.startsAt, company.timezone) / 60)));

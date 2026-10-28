@@ -6,6 +6,7 @@ import { useToast } from '../components/ToastProvider';
 import { SectionHeader } from '../components/ui';
 import type { Company } from '../types';
 import { errorMessage } from '../utils';
+import { WorkingModeSettings } from '../components/WorkingModeSettings';
 
 export function SettingsView({ company }: { company: Company }) {
   const [form, setForm] = useState({
@@ -36,6 +37,7 @@ export function SettingsView({ company }: { company: Company }) {
   return (
     <>
       <SectionHeader eyebrow="Компания" title="Настройки" description="Контакты, часовой пояс и правила онлайн-записи." />
+      <WorkingModeSettings company={company} />
       <form className="panel settings-form" onSubmit={(event) => { event.preventDefault(); mutation.mutate(); }}>
         <section><h2>Профиль</h2><div className="form-grid-2"><label>Название<input required maxLength={160} value={form.name} onChange={(event) => set('name', event.target.value)} /></label><label>Телефон<input value={form.phone} onChange={(event) => set('phone', event.target.value)} /></label><label>Email<input type="email" value={form.email} onChange={(event) => set('email', event.target.value)} /></label><label>Адрес<input value={form.address} onChange={(event) => set('address', event.target.value)} /></label><label className="form-grid-wide">Описание<textarea rows={4} maxLength={1000} value={form.description} onChange={(event) => set('description', event.target.value)} /></label><label>Часовой пояс<input required value={form.timezone} onChange={(event) => set('timezone', event.target.value)} /></label><label>Валюта<input required maxLength={3} value={form.currency} onChange={(event) => set('currency', event.target.value.toUpperCase())} /></label></div></section>
         <section><h2>Онлайн-запись</h2><div className="form-grid-2"><NumberField label="Минимум до записи, мин" value={form.minBookingNoticeMinutes} setValue={(value) => set('minBookingNoticeMinutes', value)} min={0} /><NumberField label="Горизонт записи, дней" value={form.maxBookingHorizonDays} setValue={(value) => set('maxBookingHorizonDays', value)} min={1} /><NumberField label="Шаг слотов, мин" value={form.slotStepMinutes} setValue={(value) => set('slotStepMinutes', value)} min={5} /><NumberField label="Отмена не позднее, мин" value={form.cancellationNoticeMinutes} setValue={(value) => set('cancellationNoticeMinutes', value)} min={0} /></div><label className="toggle-field"><input type="checkbox" checked={form.allowAnyEmployee} onChange={(event) => set('allowAnyEmployee', event.target.checked)} /><span>Разрешить запись без выбора конкретного сотрудника</span></label></section>

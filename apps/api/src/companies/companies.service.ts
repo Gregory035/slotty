@@ -1,14 +1,16 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { CompanyRole, LegalAcceptanceSource, LegalDocument, SubscriptionPlan, SubscriptionStatus } from '@prisma/client';
+import { CompanyRole, LegalAcceptanceSource, LegalDocument, SubscriptionPlan, SubscriptionStatus, WorkingMode } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import { CompanyResponseDto } from './dto/company-response.dto';
 import { CreateCompanyDto } from './dto/create-company.dto';
 import { UpdateCompanyDto } from './dto/update-company.dto';
+import { WorkingModeDto } from './dto/working-mode.dto';
 
 const TRIAL_LENGTH_MS = 14 * 24 * 60 * 60 * 1000;
 
@@ -28,6 +30,7 @@ export class CompaniesService {
       const company = await transaction.company.create({
         data: {
           name,
+          workingMode: input.workingMode ?? WorkingMode.TEAM,
           description: this.optionalTrimmed(input.description),
           phone: this.optionalTrimmed(input.phone),
           email: input.email?.trim().toLowerCase(),
@@ -37,11 +40,17 @@ export class CompaniesService {
           language: input.language ?? 'ru',
         },
       });
+      const owner = input.workingMode === WorkingMode.SOLO
+        ? await transaction.user.findUniqueOrThrow({ where: { id: userId } }) : null;
+      const employee = owner ? await transaction.employee.create({ data: {
+        companyId: company.id, firstName: owner.firstName, lastName: owner.lastName,
+      } }) : null;
       await transaction.companyMember.create({
         data: {
           companyId: company.id,
           userId,
           role: CompanyRole.OWNER,
+          employeeId: employee?.id,
         },
       });
       await transaction.legalAcceptance.create({
@@ -71,8 +80,42 @@ export class CompaniesService {
         },
       });
 
-      return this.toResponse(company, CompanyRole.OWNER, subscription, null);
+      return this.toResponse(company, CompanyRole.OWNER, subscription, employee?.id ?? null);
     });
+  }
+
+  async changeWorkingMode(companyId: string, userId: string, input: WorkingModeDto): Promise<CompanyResponseDto> {
+    await this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM "Company" WHERE id = ${companyId}::uuid FOR UPDATE`;
+      const membership = await tx.companyMember.findUnique({ where: { userId_companyId: { userId, companyId } } });
+      if (membership?.role !== CompanyRole.OWNER) throw new ForbiddenException('Только владелец может изменить режим работы');
+      const company = await tx.company.findFirst({ where: { id: companyId, deletedAt: null } });
+      if (!company) throw new NotFoundException('Company not found');
+      if (input.workingMode === WorkingMode.SOLO) {
+        if (await tx.companyMember.count({ where: { companyId, role: CompanyRole.OWNER } }) !== 1) throw new ConflictException('Личный режим доступен бизнесу с одним владельцем');
+        const profiles = await tx.employee.findMany({ where: { companyId, deletedAt: null } });
+        const chosenId = input.employeeId ?? membership.employeeId;
+        let profile = chosenId ? profiles.find((item) => item.id === chosenId) : undefined;
+        if (chosenId && !profile) throw new BadRequestException('Выберите свой профиль в этой компании');
+        if (!chosenId && profiles.length) throw new BadRequestException('Выберите свою существующую карточку специалиста');
+        if (profiles.some((item) => item.isActive && item.id !== profile?.id)) throw new ConflictException('В компании есть другие активные специалисты. Для них нужен командный режим');
+        if (profile) {
+          const linked = await tx.companyMember.findFirst({ where: { companyId, employeeId: profile.id, userId: { not: userId } } });
+          if (linked) throw new ConflictException('Этот профиль уже связан с другим пользователем');
+          if (!profile.isActive) throw new BadRequestException('Сначала активируйте свой профиль специалиста');
+        } else {
+          const user = await tx.user.findUniqueOrThrow({ where: { id: userId } });
+          profile = await tx.employee.create({ data: { companyId, firstName: user.firstName, lastName: user.lastName } });
+        }
+        await tx.companyMember.update({ where: { id: membership.id }, data: { employeeId: profile.id } });
+        const services = await tx.service.findMany({ where: { companyId, deletedAt: null, isActive: true }, select: { id: true } });
+        await tx.employeeService.createMany({ data: services.map((service) => ({ companyId, employeeId: profile.id, serviceId: service.id })), skipDuplicates: true });
+      }
+      await tx.company.update({ where: { id: companyId }, data: { workingMode: input.workingMode } });
+      await tx.auditLog.create({ data: { companyId, actorId: userId, action: 'company.working_mode_changed', entityType: 'Company', entityId: companyId, metadata: { from: company.workingMode, to: input.workingMode } } });
+    });
+    const membership = await this.findMembership(userId, companyId);
+    return this.findById(companyId, CompanyRole.OWNER, membership?.employeeId);
   }
 
   async findAllForUser(userId: string): Promise<CompanyResponseDto[]> {
@@ -312,6 +355,7 @@ export class CompaniesService {
     company: {
       id: string;
       name: string;
+      workingMode: WorkingMode;
       description: string | null;
       phone: string | null;
       email: string | null;
@@ -342,6 +386,7 @@ export class CompaniesService {
     return {
       id: company.id,
       name: company.name,
+      workingMode: company.workingMode,
       description: company.description,
       phone: company.phone,
       email: company.email,

@@ -4,6 +4,7 @@ import {
   Equals,
   IsBoolean,
   IsEmail,
+  IsEnum,
   IsOptional,
   IsString,
   Matches,
@@ -11,8 +12,14 @@ import {
   MinLength,
 } from 'class-validator';
 import { LEGAL_DOCUMENT_VERSION } from '../../legal/legal.constants';
+import { WorkingMode } from '@prisma/client';
 
 export class CreateCompanyDto {
+  @ApiPropertyOptional({ enum: WorkingMode, default: WorkingMode.TEAM })
+  @IsOptional()
+  @IsEnum(WorkingMode)
+  workingMode?: WorkingMode;
+
   @ApiProperty({ example: true })
   @IsBoolean()
   @Equals(true)

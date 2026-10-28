@@ -17,12 +17,20 @@ export function ServicesView({ company }: { company: Company }) {
       setModalOpen(false);
       setError(null);
       await queryClient.invalidateQueries({ queryKey: ['services', company.id] });
+      await queryClient.invalidateQueries({ queryKey: ['employees', company.id] });
+      await queryClient.invalidateQueries({ queryKey: ['employee-self', company.id] });
+      await queryClient.invalidateQueries({ queryKey: ['dashboard', company.id] });
     },
     onError: (caught) => setError(errorMessage(caught)),
   });
   const deleteMutation = useMutation({
     mutationFn: (serviceId: string) => deleteService(company.id, serviceId),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['services', company.id] }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['services', company.id] });
+      await queryClient.invalidateQueries({ queryKey: ['employees', company.id] });
+      await queryClient.invalidateQueries({ queryKey: ['employee-self', company.id] });
+      await queryClient.invalidateQueries({ queryKey: ['dashboard', company.id] });
+    },
   });
 
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -33,6 +41,7 @@ export function ServicesView({ company }: { company: Company }) {
       name: String(form.get('name')),
       category: String(form.get('category') || '') || undefined,
       durationMinutes: Number(form.get('durationMinutes')),
+      ...(company.workingMode === 'SOLO' ? { bufferAfterMinutes: Number(form.get('bufferAfterMinutes') || 0) } : {}),
       price: Number(form.get('price')),
       depositPercent: Number(form.get('depositPercent') || 0),
       depositFixedAmount: form.get('depositFixedAmount') ? Number(form.get('depositFixedAmount')) : undefined,
@@ -44,7 +53,7 @@ export function ServicesView({ company }: { company: Company }) {
     <>
       <SectionHeader eyebrow="Каталог" title="Услуги" description="То, что клиенты увидят первым при записи через Telegram." action={<button className="primary-button" onClick={() => setModalOpen(true)}><Plus size={17} /> Новая услуга</button>} />
       {services.isLoading ? <LoadingBlock /> : services.error ? <ErrorBlock message="Не удалось загрузить услуги" onRetry={() => void services.refetch()} retrying={services.isFetching} /> : services.data?.length === 0 ? (
-        <EmptyState title="Добавьте первую услугу" description="Укажите длительность и цену — после этого услугу можно назначить сотруднику." action={<button className="primary-button" onClick={() => setModalOpen(true)}><Plus size={16} /> Добавить услугу</button>} />
+        <EmptyState title="Добавьте первую услугу" description={company.workingMode === 'SOLO' ? 'Укажите длительность и цену. Услуга автоматически появится в вашем профиле.' : 'Укажите длительность и цену — после этого услугу можно назначить сотруднику.'} action={<button className="primary-button" onClick={() => setModalOpen(true)}><Plus size={16} /> Добавить услугу</button>} />
       ) : (
         <div className="service-grid">
           {services.data?.map((service) => (
@@ -60,12 +69,13 @@ export function ServicesView({ company }: { company: Company }) {
         </div>
       )}
 
-      <Modal open={modalOpen} title="Новая услуга" description="Она появится у сотрудников после назначения." onClose={() => setModalOpen(false)}>
+      <Modal open={modalOpen} title="Новая услуга" description={company.workingMode === 'SOLO' ? 'Услуга автоматически назначится вам. Для онлайн-записи настройте рабочие часы.' : 'Она появится у сотрудников после назначения.'} onClose={() => setModalOpen(false)}>
         <form className="form-stack modal-form" onSubmit={submit}>
           <label>Название<input name="name" required maxLength={120} placeholder="Женская стрижка" autoFocus /></label>
           <div className="form-grid-2"><label>Категория<input name="category" maxLength={100} placeholder="Стрижки" /></label><label>Длительность, мин<input name="durationMinutes" type="number" min={5} max={1440} step={5} defaultValue={60} required /></label></div>
           <div className="form-grid-2"><label>Цена, {company.currency}<input name="price" type="number" min={0} step="0.01" placeholder="2500" required /></label><label>Предоплата, %<input name="depositPercent" type="number" min={0} max={100} step={1} defaultValue={0} /></label><label>Или фиксированная предоплата, {company.currency}<input name="depositFixedAmount" type="number" min={0} step="0.01" placeholder="500" /></label></div>
           <label>Описание<textarea name="description" rows={3} maxLength={2000} placeholder="Что входит в услугу" /></label>
+          {company.workingMode === 'SOLO' && <label>Перерыв после услуги, мин<input name="bufferAfterMinutes" type="number" min={0} max={1440} step={1} defaultValue={0} /><small>Это время не будет доступно для следующей записи.</small></label>}
           {error && <p className="form-error">{error}</p>}
           <div className="modal-actions"><button type="button" className="secondary-button" onClick={() => setModalOpen(false)}>Отмена</button><button className="primary-button" disabled={createMutation.isPending}>{createMutation.isPending ? 'Сохраняем…' : 'Добавить услугу'}</button></div>
         </form>

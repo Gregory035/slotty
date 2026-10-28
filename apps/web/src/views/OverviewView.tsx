@@ -6,8 +6,10 @@ import { getDashboard, updateAppointmentStatus } from '../api';
 import type { Company } from '../types';
 import { formatMoney, formatTime, statusLabel, statusTone } from '../utils';
 import { EmptyState, ErrorBlock, LoadingBlock, SectionHeader } from '../components/ui';
+import { SoloTodayAgenda } from './SoloTodayAgenda';
 
 export function OverviewView({ company }: { company: Company }) {
+  const solo = company.workingMode === 'SOLO' && company.role === 'OWNER';
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const dashboard = useQuery({
@@ -30,14 +32,14 @@ export function OverviewView({ company }: { company: Company }) {
     <>
       <SectionHeader
         eyebrow={new Intl.DateTimeFormat('ru-RU', { weekday: 'long', day: 'numeric', month: 'long', timeZone: company.timezone }).format(new Date())}
-        title="Добрый день"
+        title={solo ? 'Сегодня' : 'Добрый день'}
         description="Главное о вашем бизнесе на сегодня — без лишних отчётов."
         action={<button className="primary-button" onClick={() => open('appointments')}><CalendarCheck2 size={17} /> Открыть записи</button>}
       />
-      <section className="metrics-grid">
+      <section className={`metrics-grid ${solo ? 'metrics-grid-solo' : ''}`}>
         <Metric icon={CalendarCheck2} label="Записей сегодня" value={String(data.todayAppointments)} />
         <Metric icon={TrendingUp} label="Ожидаемая выручка" value={formatMoney(data.expectedRevenue, data.currency)} />
-        <Metric icon={UsersRound} label="Сотрудников" value={String(data.activeEmployees)} />
+        {!solo && <Metric icon={UsersRound} label="Сотрудников" value={String(data.activeEmployees)} />}
         <Metric icon={Scissors} label="Активных услуг" value={String(data.activeServices)} />
       </section>
       {data.healthIssues.length > 0 && (
@@ -53,6 +55,7 @@ export function OverviewView({ company }: { company: Company }) {
         </section>
       )}
       {data.setupChecklist.some((item) => !item.done) && <section className="setup-checklist panel"><div><p className="eyebrow">Быстрый старт</p><h2>Подготовьте запись</h2></div><div>{data.setupChecklist.map((item) => <button key={item.id} className={item.done ? 'done' : ''} onClick={() => open(item.section)}><span>{item.done ? <Check size={14} /> : null}</span>{item.label}<ArrowRight size={14} /></button>)}</div></section>}
+      {solo ? <SoloTodayAgenda company={company} /> : <>
       <section className="overview-grid">
         <article className="panel upcoming-panel">
           <div className="panel-title-row"><div><p className="eyebrow">Живая лента</p><h2>Ближайшие записи</h2></div><button className="text-button" onClick={() => open('appointments')}>Все записи <ArrowRight size={15} /></button></div>
@@ -81,6 +84,8 @@ export function OverviewView({ company }: { company: Company }) {
         </article>
       </section>
       {data.upcomingAppointments.length > 0 && <section className="today-strip panel"><div><div><p className="eyebrow">Сегодня</p><h2>Оперативные действия</h2></div><button className="text-button" onClick={() => open('calendar')}>Календарь <ArrowRight size={15} /></button></div><div>{data.upcomingAppointments.slice(0, 3).map((appointment) => <article key={appointment.id}><time>{formatTime(appointment.startsAt, company.timezone)}</time><span><strong>{appointment.customerName}</strong><small>{appointment.serviceName} · {appointment.employeeName}</small></span>{appointment.status === 'CONFIRMED' && <div className="today-actions"><button className="compact-action" disabled={setStatus.isPending} onClick={() => setStatus.mutate({ appointmentId: appointment.id, status: 'COMPLETED' })}>Завершить</button><button className="compact-action muted" disabled={setStatus.isPending} onClick={() => setStatus.mutate({ appointmentId: appointment.id, status: 'NO_SHOW' })}>Не пришёл</button></div>}</article>)}</div></section>}
+      {setStatus.error && <p className="form-error" role="alert">Не удалось изменить статус. Повторите действие или откройте запись.</p>}
+      </>}
     </>
   );
 }

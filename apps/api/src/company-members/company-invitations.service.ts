@@ -137,6 +137,10 @@ export class CompanyInvitationsService {
   private async acceptInTransaction(tx: Prisma.TransactionClient, invitationId: string, userId: string): Promise<void> {
     const invitation = await tx.companyInvitation.findUnique({ where: { id: invitationId } });
     if (!invitation || invitation.acceptedAt || invitation.revokedAt || invitation.expiresAt <= new Date()) throw new UnauthorizedException('Приглашение недействительно или устарело');
+    if (invitation.role === CompanyRole.OWNER) {
+      await tx.$queryRaw`SELECT id FROM "Company" WHERE id = ${invitation.companyId}::uuid FOR UPDATE`;
+      await tx.company.updateMany({ where: { id: invitation.companyId, workingMode: 'SOLO' }, data: { workingMode: 'TEAM' } });
+    }
     await tx.companyMember.create({ data: { companyId: invitation.companyId, userId, role: invitation.role, employeeId: invitation.role === CompanyRole.EMPLOYEE ? invitation.employeeId : null } });
     await tx.user.update({ where: { id: userId }, data: { emailVerified: true } });
     const accepted = await tx.companyInvitation.updateMany({ where: { id: invitation.id, acceptedAt: null, revokedAt: null, expiresAt: { gt: new Date() } }, data: { acceptedAt: new Date() } });

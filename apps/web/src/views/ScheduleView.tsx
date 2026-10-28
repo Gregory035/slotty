@@ -11,7 +11,7 @@ const days = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
 type DraftRule = { key: string; weekday: number; startTime: string; endTime: string };
 
 export function ScheduleView({ company }: { company: Company }) {
-  const ownProfile = company.role === 'EMPLOYEE';
+  const ownProfile = company.role === 'EMPLOYEE' || (company.role === 'OWNER' && company.workingMode === 'SOLO');
   const employees = useQuery({
     queryKey: ownProfile ? ['employee-self', company.id, 'schedule'] : ['employees', company.id],
     queryFn: async () => ownProfile ? [await getOwnEmployeeProfile(company.id)] : getEmployees(company.id),
@@ -26,8 +26,8 @@ export function ScheduleView({ company }: { company: Company }) {
   if (employees.error) return <ErrorBlock message="Не удалось загрузить сотрудников" onRetry={() => void employees.refetch()} />;
   return (
     <>
-      <SectionHeader eyebrow="Рабочее время" title="Расписание" description="Несколько интервалов в день, перерывы, отпуск и исключения." />
-      {!availableEmployees.length ? <EmptyState title="Нет сотрудников" description="Сначала создайте профиль сотрудника." /> : <><div className="toolbar"><label className="inline-field">Сотрудник<select value={employeeId} onChange={(event) => setEmployeeId(event.target.value)}>{availableEmployees.map((employee) => <option key={employee.id} value={employee.id}>{employee.firstName} {employee.lastName}</option>)}</select></label></div>{schedule.isLoading ? <LoadingBlock /> : schedule.error ? <ErrorBlock message="Не удалось загрузить расписание" /> : <ScheduleEditor company={company} employeeId={employeeId} rules={schedule.data ?? []} />}</>}
+      <SectionHeader eyebrow="Рабочее время" title={ownProfile ? 'Моё расписание' : 'Расписание'} description="Несколько интервалов в день и перерывы. Выходные и отпуск можно задать в профиле специалиста." />
+      {!availableEmployees.length ? <EmptyState title="Нет сотрудников" description="Сначала создайте профиль сотрудника." /> : <>{!ownProfile && <div className="toolbar"><label className="inline-field">Сотрудник<select value={employeeId} onChange={(event) => setEmployeeId(event.target.value)}>{availableEmployees.map((employee) => <option key={employee.id} value={employee.id}>{employee.firstName} {employee.lastName}</option>)}</select></label></div>}{schedule.isLoading ? <LoadingBlock /> : schedule.error ? <ErrorBlock message="Не удалось загрузить расписание" /> : <ScheduleEditor company={company} employeeId={employeeId} rules={schedule.data ?? []} />}</>}
     </>
   );
 }

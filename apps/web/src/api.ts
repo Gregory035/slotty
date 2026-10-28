@@ -278,6 +278,8 @@ export const getSystemStatus = (companyId: string) =>
   request<SystemStatus>(`/companies/${companyId}/system-status`);
 
 export const createCompany = (input: {
+  workingMode?: Company['workingMode'];
+  address?: string;
   name: string;
   timezone: string;
   currency: string;
@@ -298,6 +300,7 @@ export const createService = (
     name: string;
     durationMinutes: number;
     price: number;
+    bufferAfterMinutes?: number;
     depositPercent?: number;
     depositFixedAmount?: number;
     category?: string;
@@ -319,6 +322,12 @@ export const getEmployees = (companyId: string) =>
 
 export const getOwnEmployeeProfile = (companyId: string) =>
   request<Employee>(`/companies/${companyId}/employees/self/profile`);
+
+export const changeWorkingMode = (companyId: string, workingMode: Company['workingMode'], employeeId?: string) =>
+  request<Company>(`/companies/${companyId}/working-mode`, { method: 'POST', body: JSON.stringify({ workingMode, employeeId }) });
+
+export const updateEmployee = (companyId: string, employeeId: string, input: { firstName: string; lastName?: string; description?: string; photoUrl?: string }) =>
+  request<Employee>(`/companies/${companyId}/employees/${employeeId}`, { method: 'PATCH', body: JSON.stringify(input) });
 
 export const createEmployee = (
   companyId: string,

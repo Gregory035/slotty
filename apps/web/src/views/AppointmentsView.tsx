@@ -167,9 +167,10 @@ function addCalendarDays(date: string, days: number): string {
   return value.toISOString().slice(0, 10);
 }
 
-function CreateAppointmentModal({ company, open, onClose, initialCustomerId = '', initialServiceId = '', initialEmployeeId = '' }: { company: Company; open: boolean; onClose: () => void; initialCustomerId?: string; initialServiceId?: string; initialEmployeeId?: string }) {
+export function CreateAppointmentModal({ company, open, onClose, initialCustomerId = '', initialServiceId = '', initialEmployeeId = '' }: { company: Company; open: boolean; onClose: () => void; initialCustomerId?: string; initialServiceId?: string; initialEmployeeId?: string }) {
   const queryClient = useQueryClient();
   const { notify } = useToast();
+  const solo = company.workingMode === 'SOLO' && company.role === 'OWNER';
   const [customerId, setCustomerId] = useState('');
   const [firstName, setFirstName] = useState('');
   const [items, setItems] = useState<VisitFormItem[]>([{ id: crypto.randomUUID(), serviceId: '', employeeId: '', startsAt: '' }]);
@@ -182,9 +183,9 @@ function CreateAppointmentModal({ company, open, onClose, initialCustomerId = ''
     if (!open) return;
     requestKey.current = { fingerprint: '', key: crypto.randomUUID() };
     setCustomerId(initialCustomerId);
-    setItems([{ id: crypto.randomUUID(), serviceId: initialServiceId, employeeId: initialEmployeeId, startsAt: '' }]);
+    setItems([{ id: crypto.randomUUID(), serviceId: initialServiceId, employeeId: solo ? company.employeeId ?? '' : initialEmployeeId, startsAt: '' }]);
     setDate('');
-  }, [open, initialCustomerId, initialServiceId, initialEmployeeId]);
+  }, [open, initialCustomerId, initialServiceId, initialEmployeeId, solo, company.employeeId]);
   const services = useQuery({ queryKey: ['services', company.id], queryFn: () => getServices(company.id), enabled: open });
   const employees = useQuery({ queryKey: ['employees', company.id], queryFn: () => getEmployees(company.id), enabled: open });
   const customers = useQuery({ queryKey: ['customers', company.id, 'booking'], queryFn: () => getCustomers(company.id), enabled: open });
@@ -243,11 +244,12 @@ function CreateAppointmentModal({ company, open, onClose, initialCustomerId = ''
       onClose();
       await queryClient.invalidateQueries({ queryKey: ['appointments', company.id] });
       await queryClient.invalidateQueries({ queryKey: ['dashboard', company.id] });
+      await queryClient.invalidateQueries({ queryKey: ['availability', company.id] });
     },
     onError: (caught) => notify(errorMessage(caught), 'error'),
   });
   return (
-    <Modal open={open} title="Новая запись" description="Выберите одну или несколько услуг. Каждую может выполнить свой специалист." onClose={onClose}>
+    <Modal open={open} title="Новая запись" description={solo ? 'Выберите услуги и свободное время в своём расписании.' : 'Выберите одну или несколько услуг. Каждую может выполнить свой специалист.'} onClose={onClose}>
       <form className="modal-form form-stack" onSubmit={(event) => { event.preventDefault(); if (valid && !mutation.isPending) mutation.mutate(); }}>
         <label>Клиент<select value={customerId} onChange={(event) => setCustomerId(event.target.value)}><option value="">Новый клиент</option>{customers.data?.items.map((customer) => <option key={customer.id} value={customer.id}>{customerDisplayName(customer)}</option>)}</select></label>
         {!customerId && <label>Имя нового клиента<input required maxLength={100} value={firstName} onChange={(event) => setFirstName(event.target.value)} /></label>}
@@ -256,8 +258,8 @@ function CreateAppointmentModal({ company, open, onClose, initialCustomerId = ''
           const assigned = (employees.data ?? []).filter((employee) => employee.services.some((service) => service.id === item.serviceId));
           return <div className="visit-form-item" key={item.id}>
             <div className="visit-form-heading"><strong>Услуга {index + 1}</strong>{items.length > 1 && <button type="button" className="text-button" onClick={() => setItems((current) => current.filter((_, position) => position !== index).map((entry, position) => position >= index ? { ...entry, startsAt: '' } : entry))}>Убрать</button>}</div>
-            <label>Услуга<select required value={item.serviceId} onChange={(event) => updateItem(index, { serviceId: event.target.value, employeeId: '', startsAt: '' })}><option value="">Выберите услугу</option>{services.data?.filter((service) => service.isActive).map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}</select></label>
-            <label>Специалист<select required value={item.employeeId} onChange={(event) => updateItem(index, { employeeId: event.target.value, startsAt: '' })}><option value="">Выберите специалиста</option>{assigned.map((employee) => <option key={employee.id} value={employee.id}>{employee.firstName} {employee.lastName}</option>)}</select></label>
+            <label>Услуга<select required value={item.serviceId} onChange={(event) => updateItem(index, { serviceId: event.target.value, employeeId: solo ? company.employeeId ?? '' : '', startsAt: '' })}><option value="">Выберите услугу</option>{services.data?.filter((service) => service.isActive).map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}</select></label>
+            {!solo && <label>Специалист<select required value={item.employeeId} onChange={(event) => updateItem(index, { employeeId: event.target.value, startsAt: '' })}><option value="">Выберите специалиста</option>{assigned.map((employee) => <option key={employee.id} value={employee.id}>{employee.firstName} {employee.lastName}</option>)}</select></label>}
             <label>Время<select required value={item.startsAt} onChange={(event) => updateItem(index, { startsAt: event.target.value })}><option value="">{availability[index]?.isLoading ? 'Загружаем время…' : 'Выберите время'}</option>{slotsFor(index).map((slot) => <option key={slot.startsAt} value={slot.startsAt}>{new Intl.DateTimeFormat('ru-RU', { timeZone: company.timezone, hour: '2-digit', minute: '2-digit' }).format(new Date(slot.startsAt))}</option>)}</select></label>
           </div>;
         })}
@@ -271,7 +273,7 @@ function CreateAppointmentModal({ company, open, onClose, initialCustomerId = ''
   );
 }
 
-function RescheduleModal({ company, appointment, onClose }: { company: Company; appointment: Appointment; onClose: () => void }) {
+export function RescheduleModal({ company, appointment, onClose }: { company: Company; appointment: Appointment; onClose: () => void }) {
   const queryClient = useQueryClient();
   const { notify } = useToast();
   const [date, setDate] = useState('');
@@ -287,6 +289,8 @@ function RescheduleModal({ company, appointment, onClose }: { company: Company; 
       notify('Запись перенесена');
       onClose();
       await queryClient.invalidateQueries({ queryKey: ['appointments', company.id] });
+      await queryClient.invalidateQueries({ queryKey: ['dashboard', company.id] });
+      await queryClient.invalidateQueries({ queryKey: ['availability', company.id] });
     },
     onError: (caught) => notify(errorMessage(caught), 'error'),
   });

@@ -28,6 +28,7 @@ import { CurrentCompanyMember } from './decorators/current-company-member.decora
 import { CompanyResponseDto } from './dto/company-response.dto';
 import { CreateCompanyDto } from './dto/create-company.dto';
 import { UpdateCompanyDto } from './dto/update-company.dto';
+import { WorkingModeDto } from './dto/working-mode.dto';
 import { CompanyAccessGuard } from './guards/company-access.guard';
 
 @ApiTags('companies')
@@ -81,6 +82,18 @@ export class CompaniesController {
     @Body() input: UpdateCompanyDto,
   ): Promise<CompanyResponseDto> {
     return this.companies.update(companyId, membership.role, input, membership.userId);
+  }
+
+  @Post(':companyId/working-mode')
+  @UseGuards(CompanyAccessGuard)
+  @RequirePermissions(CompanyPermission.COMPANY_WORKING_MODE)
+  @ApiOkResponse({ type: CompanyResponseDto })
+  changeWorkingMode(
+    @Param('companyId') companyId: string,
+    @CurrentUser() user: AuthenticatedUserDto,
+    @Body() input: WorkingModeDto,
+  ): Promise<CompanyResponseDto> {
+    return this.companies.changeWorkingMode(companyId, user.id, input);
   }
 
   @Delete(':companyId')

@@ -50,6 +50,7 @@ export class TelegramMiniAppService {
         maxBookingHorizonDays: true,
         cancellationNoticeMinutes: true,
         allowAnyEmployee: true,
+        workingMode: true,
       },
     });
     if (!company) throw new NotFoundException('Company not found');

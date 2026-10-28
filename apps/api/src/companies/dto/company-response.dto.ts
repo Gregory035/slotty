@@ -1,11 +1,15 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   CompanyRole,
+  WorkingMode,
   SubscriptionPlan,
   SubscriptionStatus,
 } from '@prisma/client';
 
 export class CompanyResponseDto {
+  @ApiProperty({ enum: WorkingMode })
+  workingMode: WorkingMode;
+
   @ApiProperty({ format: 'uuid' })
   id: string;
 
