@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   Bot,
@@ -36,6 +36,9 @@ import type { Company, PushPreferences, Section } from '../types';
 import { Brand } from './Brand';
 import { useToast } from './ToastProvider';
 import { Modal } from './ui';
+import { DialogLayer } from './DialogLayer';
+import { errorMessage } from '../utils';
+import { lockPageScroll } from '../scroll-lock';
 
 const navigation: Array<{ id: Section; label: string; icon: typeof LayoutDashboard }> = [
   { id: 'dashboard', label: 'Обзор', icon: LayoutDashboard },
@@ -93,6 +96,17 @@ export function AppShell({
   const [pushPreparing, setPushPreparing] = useState(false);
   const [pushStep, setPushStep] = useState<PushConnectionStep | null>(null);
   const daysLeft = trialDays(activeCompany.trialEndsAt);
+  const [mobile, setMobile] = useState(() => window.matchMedia('(max-width: 820px)').matches);
+  const sidebarRef = useRef<HTMLElement>(null);
+  const menuRef = useRef<HTMLButtonElement>(null);
+  const mobileMenuOpen = mobile && sidebarOpen;
+
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 820px)');
+    const change = () => { setMobile(media.matches); if (!media.matches) closeSidebar(); };
+    media.addEventListener('change', change);
+    return () => media.removeEventListener('change', change);
+  }, [closeSidebar]);
 
   async function signOut() {
     if ('serviceWorker' in navigator && 'PushManager' in window) {
@@ -258,17 +272,31 @@ export function AppShell({
   }
 
   useEffect(() => {
-    if (!sidebarOpen) return;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = previousOverflow;
+    if (!mobileMenuOpen) return;
+    const unlock = lockPageScroll();
+    const menuButton = menuRef.current;
+    sidebarRef.current?.querySelector<HTMLButtonElement>('.sidebar-close')?.focus();
+    const keydown = (event: KeyboardEvent) => {
+      if (document.querySelector('dialog[open]')) return;
+      if (event.key === 'Escape') { event.preventDefault(); closeSidebar(); }
+      if (event.key !== 'Tab') return;
+      const items = [...(sidebarRef.current?.querySelectorAll<HTMLElement>('a[href], button:not(:disabled), select:not(:disabled)') ?? [])].filter((element) => element.getClientRects().length > 0 && getComputedStyle(element).display !== 'none');
+      const first = items[0];
+      const last = items.at(-1);
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
     };
-  }, [sidebarOpen]);
+    document.addEventListener('keydown', keydown);
+    return () => {
+      unlock();
+      document.removeEventListener('keydown', keydown);
+      if (window.matchMedia('(max-width: 820px)').matches) menuButton?.focus({ preventScroll: true });
+    };
+  }, [mobileMenuOpen, closeSidebar]);
 
   return (
     <div className={`app-layout ${sidebarCollapsed ? 'sidebar-is-collapsed' : ''} ${sidebarOpen ? 'mobile-sidebar-open' : ''}`}>
-      <aside className={`sidebar ${sidebarOpen ? 'sidebar-open' : ''} ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
+      <aside ref={sidebarRef} className={`sidebar ${sidebarOpen ? 'sidebar-open' : ''} ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`} inert={mobile && !sidebarOpen} aria-hidden={mobile && !sidebarOpen ? true : undefined} role={mobileMenuOpen ? 'dialog' : undefined} aria-modal={mobileMenuOpen ? true : undefined} aria-label="Навигация рабочего пространства">
         <div className="sidebar-head">
           <Link
             className="brand-home"
@@ -339,10 +367,11 @@ export function AppShell({
 
       {sidebarOpen && <button className="sidebar-overlay" onClick={closeSidebar} aria-label="Закрыть меню" />}
 
-      <div className="app-main">
+      <div className="app-main" inert={mobileMenuOpen}>
+        <a className="skip-link" href="#workspace-content">К содержимому</a>
         <header className="topbar">
           <div className="topbar-left">
-            <button className="mobile-menu" onClick={toggleSidebar} aria-label="Открыть меню"><Menu size={20} /></button>
+            <button ref={menuRef} className="mobile-menu" onClick={toggleSidebar} aria-expanded={mobileMenuOpen} aria-label="Открыть меню"><Menu size={20} /></button>
             <Link
               className="mobile-brand brand-home"
               to={`/companies/${activeCompany.id}/${activeCompany.role === 'EMPLOYEE' ? 'calendar' : 'dashboard'}`}
@@ -368,7 +397,7 @@ export function AppShell({
             </div>
           </div>
         </header>
-        <div className="page-container">{children}</div>
+        <main id="workspace-content" className="page-container" tabIndex={-1}>{children}</main>
         <nav className="mobile-bottom-nav" aria-label="Быстрая навигация">
           {visibleNavigation.filter((item) => activeCompany.role === 'EMPLOYEE'
             ? ['calendar', 'appointments', 'employees', 'schedule'].includes(item.id)
@@ -416,7 +445,7 @@ function isAndroidBrowser() {
 }
 
 function errorText(error: unknown): string {
-  return error instanceof Error ? error.message : 'Не удалось выполнить действие';
+  return errorMessage(error);
 }
 
 function isStandalone() {
@@ -436,7 +465,7 @@ function CommandPalette({ close, openSection, setThemeMode }: { close: () => voi
   ];
   const visible = commands.filter((item) => item.label.toLowerCase().includes(query.toLowerCase()));
   const run = (action: () => void) => { action(); close(); };
-  return <div className="command-backdrop" onMouseDown={close}><section className="command-palette" role="dialog" aria-modal="true" aria-label="Команды" onMouseDown={(event) => event.stopPropagation()}><label><Search size={18} /><input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Найти команду" /></label><div>{visible.map((item) => <button key={item.label} onClick={() => run(item.action)}><span><Command size={15} />{item.label}</span><small>{item.hint}</small></button>)}{!visible.length && <p>Ничего не найдено</p>}</div></section></div>;
+  return <DialogLayer className="command-backdrop" onClose={close} label="Команды"><section className="command-palette" onMouseDown={(event) => event.stopPropagation()}><label><Search size={18} /><input aria-label="Найти команду" autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Найти команду" /></label><div>{visible.map((item) => <button key={item.label} onClick={() => run(item.action)}><span><Command size={15} />{item.label}</span><small>{item.hint}</small></button>)}{!visible.length && <p>Ничего не найдено</p>}</div></section></DialogLayer>;
 }
 
 function trialDays(trialEndsAt: string | null): number {

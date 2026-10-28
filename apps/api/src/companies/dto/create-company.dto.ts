@@ -41,11 +41,14 @@ export class CreateCompanyDto {
   @MaxLength(32)
   phone?: string;
 
-  @ApiPropertyOptional({ example: 'studio@example.com' })
+  @ApiPropertyOptional({ example: 'studio@example.com', nullable: true })
   @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim().toLowerCase() || null : value,
+  )
   @IsEmail()
   @MaxLength(254)
-  email?: string;
+  email?: string | null;
 
   @ApiPropertyOptional({ example: 'Москва, ул. Тверская, 1' })
   @IsOptional()

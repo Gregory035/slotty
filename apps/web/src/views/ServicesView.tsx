@@ -43,7 +43,7 @@ export function ServicesView({ company }: { company: Company }) {
   return (
     <>
       <SectionHeader eyebrow="Каталог" title="Услуги" description="То, что клиенты увидят первым при записи через Telegram." action={<button className="primary-button" onClick={() => setModalOpen(true)}><Plus size={17} /> Новая услуга</button>} />
-      {services.isLoading ? <LoadingBlock /> : services.error ? <ErrorBlock message="Не удалось загрузить услуги" /> : services.data?.length === 0 ? (
+      {services.isLoading ? <LoadingBlock /> : services.error ? <ErrorBlock message="Не удалось загрузить услуги" onRetry={() => void services.refetch()} retrying={services.isFetching} /> : services.data?.length === 0 ? (
         <EmptyState title="Добавьте первую услугу" description="Укажите длительность и цену — после этого услугу можно назначить сотруднику." action={<button className="primary-button" onClick={() => setModalOpen(true)}><Plus size={16} /> Добавить услугу</button>} />
       ) : (
         <div className="service-grid">

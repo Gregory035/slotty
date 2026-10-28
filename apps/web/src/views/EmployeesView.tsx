@@ -151,15 +151,16 @@ function PortfolioModal({ company, employee, onClose }: { company: Company; empl
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
     const photo = form.get('photo');
     if (!(photo instanceof File) || !photo.size) return setError('Выберите фотографию');
-    uploadMutation.mutate({ photo, caption: String(form.get('caption') || '') || undefined, publicationConsentConfirmed: true, consentVersion: LEGAL_DOCUMENT_VERSION }, { onSuccess: () => event.currentTarget.reset() });
+    uploadMutation.mutate({ photo, caption: String(form.get('caption') || '') || undefined, publicationConsentConfirmed: true, consentVersion: LEGAL_DOCUMENT_VERSION }, { onSuccess: () => formElement.reset() });
   }
 
   return <Modal open title={`Работы · ${employee.firstName}`} description="Добавляйте реальные примеры работ. Согласие человека на публикацию мастер получает самостоятельно." onClose={onClose}>
-    <div className="portfolio-content">
-      <form className="portfolio-upload" onSubmit={submit}>
+    <div className="portfolio-content modal-form">
+      <form className="form-stack portfolio-upload" onSubmit={submit}>
         <label className="portfolio-file"><ImagePlus size={18} /><span>Фото работы<small>JPG, PNG или WebP до 5 МБ</small></span><input name="photo" type="file" accept="image/jpeg,image/png,image/webp" required /></label>
         <label>Подпись<input name="caption" maxLength={300} placeholder="Например: окрашивание и укладка" /></label>
         <label className="legal-checkbox portfolio-consent"><input name="publicationConsentConfirmed" type="checkbox" required /><span>Подтверждаю, что получил разрешение изображённых лиц и право на публичное размещение фото.</span></label>

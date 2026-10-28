@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, Trash2 } from 'lucide-react';
-import { getEmployees, getSchedule, replaceSchedule } from '../api';
+import { getEmployees, getOwnEmployeeProfile, getSchedule, replaceSchedule } from '../api';
 import { useToast } from '../components/ToastProvider';
 import { EmptyState, ErrorBlock, LoadingBlock, SectionHeader } from '../components/ui';
 import type { Company } from '../types';
@@ -11,7 +11,11 @@ const days = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
 type DraftRule = { key: string; weekday: number; startTime: string; endTime: string };
 
 export function ScheduleView({ company }: { company: Company }) {
-  const employees = useQuery({ queryKey: ['employees', company.id], queryFn: () => getEmployees(company.id) });
+  const ownProfile = company.role === 'EMPLOYEE';
+  const employees = useQuery({
+    queryKey: ownProfile ? ['employee-self', company.id, 'schedule'] : ['employees', company.id],
+    queryFn: async () => ownProfile ? [await getOwnEmployeeProfile(company.id)] : getEmployees(company.id),
+  });
   const availableEmployees = useMemo(() => company.role === 'EMPLOYEE'
     ? employees.data?.filter((item) => item.id === company.employeeId) ?? []
     : employees.data ?? [], [company.employeeId, company.role, employees.data]);
@@ -19,7 +23,7 @@ export function ScheduleView({ company }: { company: Company }) {
   useEffect(() => { if (!employeeId && availableEmployees[0]) setEmployeeId(availableEmployees[0].id); }, [availableEmployees, employeeId]);
   const schedule = useQuery({ queryKey: ['schedule', company.id, employeeId], queryFn: () => getSchedule(company.id, employeeId), enabled: Boolean(employeeId) });
   if (employees.isLoading) return <LoadingBlock />;
-  if (employees.error) return <ErrorBlock message="Не удалось загрузить сотрудников" />;
+  if (employees.error) return <ErrorBlock message="Не удалось загрузить сотрудников" onRetry={() => void employees.refetch()} />;
   return (
     <>
       <SectionHeader eyebrow="Рабочее время" title="Расписание" description="Несколько интервалов в день, перерывы, отпуск и исключения." />
@@ -41,5 +45,20 @@ function ScheduleEditor({ company, employeeId, rules }: { company: Company; empl
   function update(key: string, field: 'startTime' | 'endTime', value: string) {
     setDraft((current) => current.map((rule) => rule.key === key ? { ...rule, [field]: value } : rule));
   }
-  return <div className="panel schedule-page"><div className="schedule-week-grid">{days.map((day, index) => { const weekday = index + 1; const own = draft.filter((rule) => rule.weekday === weekday); return <section key={day}><header><strong>{day}</strong><button className="icon-button" aria-label={`Добавить интервал ${day}`} onClick={() => setDraft((current) => [...current, { key: crypto.randomUUID(), weekday, startTime: '09:00', endTime: '18:00' }])}><Plus size={16} /></button></header>{own.length ? own.map((rule) => <div className="schedule-interval" key={rule.key}><input type="time" value={rule.startTime} onChange={(event) => update(rule.key, 'startTime', event.target.value)} /><span>—</span><input type="time" value={rule.endTime} onChange={(event) => update(rule.key, 'endTime', event.target.value)} /><button className="icon-button danger" onClick={() => setDraft((current) => current.filter((item) => item.key !== rule.key))}><Trash2 size={15} /></button></div>) : <p>Выходной</p>}</section>; })}</div><div className="settings-actions"><button className="primary-button" disabled={mutation.isPending} onClick={() => mutation.mutate()}>Сохранить расписание</button></div></div>;
+  return <div className="panel schedule-page">
+    <div className="schedule-week-grid">{days.map((day, index) => {
+      const weekday = index + 1;
+      const own = draft.filter((rule) => rule.weekday === weekday);
+      return <section key={day}>
+        <header><strong>{day}</strong><button type="button" className="icon-button" aria-label={`Добавить интервал ${day}`} onClick={() => setDraft((current) => [...current, { key: crypto.randomUUID(), weekday, startTime: '09:00', endTime: '18:00' }])}><Plus size={16} /></button></header>
+        {own.length ? own.map((rule, interval) => <div className="schedule-interval" key={rule.key}>
+          <input aria-label={`${day}, интервал ${interval + 1}, начало`} type="time" value={rule.startTime} onChange={(event) => update(rule.key, 'startTime', event.target.value)} />
+          <span aria-hidden="true">—</span>
+          <input aria-label={`${day}, интервал ${interval + 1}, конец`} type="time" value={rule.endTime} onChange={(event) => update(rule.key, 'endTime', event.target.value)} />
+          <button type="button" className="icon-button danger" aria-label={`Удалить интервал ${interval + 1}, ${day}`} onClick={() => setDraft((current) => current.filter((item) => item.key !== rule.key))}><Trash2 size={15} /></button>
+        </div>) : <p>Выходной</p>}
+      </section>;
+    })}</div>
+    <div className="settings-actions"><button className="primary-button" disabled={mutation.isPending} onClick={() => mutation.mutate()}>Сохранить расписание</button></div>
+  </div>;
 }

@@ -1,5 +1,6 @@
-import type { ReactNode } from 'react';
+import { useId, type ReactNode } from 'react';
 import { AlertCircle, Inbox, LoaderCircle, X } from 'lucide-react';
+import { DialogLayer } from './DialogLayer';
 
 export function Modal({
   open,
@@ -16,28 +17,26 @@ export function Modal({
   onClose: () => void;
   className?: string;
 }) {
-  if (!open) return null;
+  const titleId = useId();
+  const descriptionId = useId();
   return (
-    <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
+    <DialogLayer open={open} className="modal-backdrop" onClose={onClose} labelledBy={titleId} describedBy={description ? descriptionId : undefined}>
       <section
         className={`modal-card ${className}`}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="modal-title"
         onMouseDown={(event) => event.stopPropagation()}
       >
         <header className="modal-header">
           <div>
-            <h2 id="modal-title">{title}</h2>
-            {description && <p>{description}</p>}
+            <h2 id={titleId}>{title}</h2>
+            {description && <p id={descriptionId}>{description}</p>}
           </div>
-          <button className="icon-button" onClick={onClose} aria-label="Закрыть">
+          <button type="button" className="icon-button" onClick={onClose} aria-label="Закрыть">
             <X size={18} />
           </button>
         </header>
         {children}
       </section>
-    </div>
+    </DialogLayer>
   );
 }
 
@@ -53,14 +52,14 @@ export function SectionHeader({
   action?: ReactNode;
 }) {
   return (
-    <header className="section-header">
+    <div className="section-header">
       <div>
         <p className="eyebrow">{eyebrow}</p>
         <h1>{title}</h1>
         <p className="section-description">{description}</p>
       </div>
       {action}
-    </header>
+    </div>
   );
 }
 
@@ -73,11 +72,12 @@ export function LoadingBlock({ label = 'Загружаем данные' }: { la
   );
 }
 
-export function ErrorBlock({ message }: { message: string }) {
+export function ErrorBlock({ message, onRetry, retrying = false }: { message: string; onRetry?: () => void; retrying?: boolean }) {
   return (
     <div className="error-block" role="alert">
       <AlertCircle size={18} />
       <span>{message}</span>
+      {onRetry && <button type="button" className="secondary-button" disabled={retrying} onClick={onRetry}>{retrying ? 'Повторяем…' : 'Повторить'}</button>}
     </div>
   );
 }

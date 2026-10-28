@@ -144,7 +144,7 @@ export class CompaniesService {
           ? { phone: this.optionalTrimmed(input.phone) }
           : {}),
         ...(input.email !== undefined
-          ? { email: input.email.trim().toLowerCase() }
+          ? { email: input.email?.trim().toLowerCase() || null }
           : {}),
         ...(input.address !== undefined
           ? { address: this.optionalTrimmed(input.address) }

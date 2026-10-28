@@ -5,11 +5,11 @@ import { IsBoolean, IsInt, IsOptional, Matches, Max, Min } from 'class-validator
 import { CreateCompanyDto } from './create-company.dto';
 
 export class UpdateCompanyDto extends PartialType(CreateCompanyDto) {
-  @ApiPropertyOptional({ description: 'Публичный адрес компании', example: 'studio-liniya' })
+  @ApiPropertyOptional({ description: 'Публичный адрес компании', example: 'studio-liniya', nullable: true })
   @IsOptional()
-  @Transform(({ value }: { value: unknown }) => typeof value === 'string' ? value.trim().toLowerCase() : value)
-  @Matches(/^[a-z0-9](?:[a-z0-9-]{1,62}[a-z0-9])?$/, { message: 'publicSlug must contain 3-64 latin letters, numbers or hyphens' })
-  publicSlug?: string;
+  @Transform(({ value }: { value: unknown }) => typeof value === 'string' ? value.trim().toLowerCase() || null : value)
+  @Matches(/^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$/, { message: 'Адрес страницы должен содержать 3–64 латинских символа, цифры или дефисы' })
+  publicSlug?: string | null;
 
   @ApiPropertyOptional()
   @IsOptional()

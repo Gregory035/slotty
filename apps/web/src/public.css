@@ -15,6 +15,11 @@ button, a { -webkit-tap-highlight-color:transparent; }
 button { cursor:pointer; }
 a { color:inherit; }
 :focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
+.dialog-layer { position:fixed; inset:0; width:100%; height:100%; height:100dvh; max-width:none; max-height:none; margin:0; padding:0; border:0; color:var(--text); }
+.dialog-layer:not([open]) { display:none; }
+.dialog-layer::backdrop { background:transparent; }
+.skip-link { position:fixed; top:8px; left:8px; z-index:200; padding:12px 16px; border-radius:7px; color:var(--accent-ink); background:var(--accent); transform:translateY(-160%); }
+.skip-link:focus { transform:none; }
 .brand-lockup { display:inline-flex; align-items:center; gap:10px; color:var(--text); }
 .brand-mark { display:grid; width:32px; height:32px; place-items:center; border-radius:6px; color:var(--surface); background:var(--text); }
 .brand-wordmark { font-size:18px; font-weight:700; letter-spacing:-.035em; }
@@ -353,7 +358,7 @@ a { color:inherit; }
 @media (prefers-reduced-motion:reduce) { html { scroll-behavior:auto; } *,*::before,*::after { scroll-behavior:auto!important; transition-duration:.01ms!important; animation-duration:.01ms!important; animation-iteration-count:1!important; } [data-reveal].reveal-ready { opacity:1!important; transform:none!important; } }
 
 .legal-page { width:min(920px,calc(100% - 48px)); margin:0 auto; padding:70px 0 110px; }
-.legal-page h1 { max-width:780px; margin:12px 0 20px; font-size:clamp(42px,6vw,74px); letter-spacing:-.065em; line-height:1; }
+.legal-page h1 { min-width:0; max-width:780px; overflow-wrap:anywhere; margin:12px 0 20px; font-size:clamp(42px,6vw,74px); letter-spacing:-.065em; line-height:1; }
 .legal-intro { max-width:720px; color:var(--muted); font-size:16px; line-height:1.65; }
 .legal-date { margin:28px 0 52px; color:var(--faint); font-family:'IBM Plex Mono',monospace; font-size:11px; }
 .legal-page>section { display:grid; grid-template-columns:54px 1fr; gap:20px; padding:28px 0; border-top:1px solid var(--line); }
@@ -384,9 +389,11 @@ a { color:inherit; }
 .public-service-grid p,.public-employee-list>article>p { color:var(--muted); font-size:13px; line-height:1.55; }
 .public-service-grid footer { display:flex; align-items:center; justify-content:space-between; margin-top:30px; }
 .public-service-grid footer span { display:flex; align-items:center; gap:6px; color:var(--faint); font-size:12px; }
-.public-employee-list { display:grid; gap:14px; }
+.public-employee-list { display:grid; grid-template-columns:minmax(0,1fr); gap:14px; }
+.public-employee-list>article,.public-employee-head>div { min-width:0; }
+.public-employee-list h3,.public-company-hero h1 { overflow-wrap:anywhere; }
 .public-employee-head { display:flex; align-items:center; gap:14px; }
-.public-employee-head>img,.public-employee-head>span { width:54px; height:54px; display:grid; place-items:center; border-radius:50%; background:var(--line); object-fit:cover; font-weight:700; }
+.public-employee-head>img,.public-employee-head>span { flex:0 0 54px; width:54px; height:54px; display:grid; place-items:center; border-radius:50%; background:var(--line); object-fit:cover; font-weight:700; }
 .public-employee-head h3,.public-employee-head p { margin:0; }
 .public-employee-head p { display:flex; align-items:center; gap:5px; margin-top:5px; color:var(--accent-ink); font-size:12px; }
 .public-work-carousel { display:flex; gap:10px; margin-top:20px; overflow-x:auto; scroll-snap-type:x mandatory; }
@@ -398,6 +405,9 @@ a { color:inherit; }
 .public-review-list blockquote span { color:var(--accent-ink); }
 .public-review-list blockquote p { margin:8px 0; color:var(--muted); font-size:12px; line-height:1.5; }
 .public-review-list cite { color:var(--faint); font-size:11px; font-style:normal; }
+.public-company-page { --public-accent-text:#466600; }
+[data-theme='dark'] .public-company-page { --public-accent-text:#c7ff31; }
+.public-company-hero article>p:first-child,.public-section-title>p,.public-employee-head p,.public-review-list blockquote span { color:var(--public-accent-text); }
 .public-company-page>footer { display:flex; align-items:center; gap:18px; padding:28px 0; border-top:1px solid var(--line); }
 .public-company-page>footer>span { margin-right:auto; }
 .public-company-state { min-height:100vh; display:grid; place-content:center; justify-items:start; width:min(560px,calc(100% - 40px)); margin:auto; }

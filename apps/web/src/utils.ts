@@ -1,4 +1,5 @@
 import type { AppointmentStatus } from './types';
+import { userErrorMessage } from './user-errors';
 
 type CustomerIdentity = {
   firstName: string;
@@ -82,5 +83,5 @@ export const statusTone: Record<AppointmentStatus, string> = {
 };
 
 export function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : 'Что-то пошло не так';
+  return error instanceof Error ? userErrorMessage(error.message) : 'Что-то пошло не так';
 }

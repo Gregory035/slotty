@@ -30,6 +30,8 @@ import type {
   PushPreferences,
 } from './types';
 
+import { userErrorMessage } from './user-errors';
+
 const apiUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:3000/api';
 let currentSession: Session | null = null;
 let refreshPromise: Promise<Session> | null = null;
@@ -57,7 +59,7 @@ async function responseError(response: Response): Promise<ApiError> {
     const message = Array.isArray(body.message)
       ? body.message.join('. ')
       : body.message;
-    return new ApiError(message || 'Не удалось выполнить запрос', response.status);
+    return new ApiError(userErrorMessage(message || '', response.status, response.url), response.status);
   } catch {
     return new ApiError('Не удалось выполнить запрос', response.status);
   }

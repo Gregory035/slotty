@@ -98,14 +98,16 @@ function CompanyWorkspace({ companies }: { companies: Company[] }) {
   const content: Record<Section, ReactNode> = {
     dashboard: <OverviewView company={company} />, analytics: <AnalyticsView company={company} />, calendar: <CalendarView company={company} />, appointments: <AppointmentsView company={company} />, customers: <CustomersView company={company} />, reviews: <ReviewsView company={company} />, services: <ServicesView company={company} />, employees: <EmployeesView company={company} />, schedule: <ScheduleView company={company} />, bot: <BotView company={company} />, members: <MembersView company={company} />, billing: <BillingView company={company} />, settings: <SettingsView company={company} />, audit: <AuditView company={company} />, system: <SystemStatusView company={company} />,
   };
-  return <AppShell companies={companies} activeCompany={company} section={section}><SubscriptionExpiryNotice company={company} /><Suspense fallback={<LoadingBlock />}>{content[section]}</Suspense></AppShell>;
+return <AppShell companies={companies} activeCompany={company} section={section}><SubscriptionExpiryNotice company={company} /><Suspense key={company.id} fallback={<LoadingBlock />}>{content[section]}</Suspense></AppShell>;
 }
 
 function SubscriptionExpiryNotice({ company }: { company: Company }) {
   const navigate = useNavigate();
   const [dismissed, setDismissed] = useState(false);
-  const billing = useQuery({ queryKey: ['billing', company.id], queryFn: () => getEntitlements(company.id), staleTime: 60_000 });
-  const trialExpired = billing.data?.status === 'TRIALING' && !billing.data.active;
+  const billing = useQuery({ queryKey: ['billing', company.id], queryFn: () => getEntitlements(company.id), staleTime: 60_000, enabled: company.role === 'OWNER' });
+  const trialExpired = company.role === 'OWNER'
+    ? billing.data?.status === 'TRIALING' && !billing.data.active
+    : Boolean(company.subscriptionStatus === 'TRIALING' && company.trialEndsAt && new Date(company.trialEndsAt).getTime() < Date.now());
   useEffect(() => setDismissed(false), [company.id]);
   if (!trialExpired || dismissed) return null;
   const canPurchase = company.role === 'OWNER';
