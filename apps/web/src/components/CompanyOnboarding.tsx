@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { ArrowRight, Building2, Check, Clock3 } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { createCompany } from '../api';
 import { useAppStore } from '../store';
@@ -41,8 +41,7 @@ export function CompanyOnboarding() {
     <main className="onboarding-layout">
       <div className="onboarding-brand"><Brand /></div>
       <section className="onboarding-card">
-        <div className="onboarding-step"><span>1</span> · Основное</div>
-        <span className="onboarding-icon"><Building2 size={28} /></span>
+        <p className="eyebrow">Настройка бизнеса</p>
         <h1>Расскажите о вашем бизнесе</h1>
         <p>Эти данные нужны, чтобы правильно показывать время и цены клиентам.</p>
         <form className="form-stack onboarding-form" onSubmit={submit}>
@@ -73,9 +72,8 @@ export function CompanyOnboarding() {
           {error && <p className="form-error">{error}</p>}
           <button className="primary-button" disabled={mutation.isPending}>Продолжить <ArrowRight size={17} /></button>
         </form>
-        <div className="onboarding-note"><Clock3 size={17} /><span>{workingMode === 'SOLO' ? 'Ваш профиль мастера создастся автоматически. Дальше — услуги, ваше расписание, Telegram и тестовая запись. Команду можно добавить позже.' : 'После создания Slotty проведёт вас по услугам, команде, расписанию, Telegram и тестовой записи.'}</span></div>
+        <div className="onboarding-note"><span>{workingMode === 'SOLO' ? 'Профиль мастера создастся автоматически. Затем добавьте услуги, расписание и Telegram-бота.' : 'После создания добавьте услуги, специалистов, расписание и Telegram-бота.'}</span></div>
       </section>
-      <div className="onboarding-progress" aria-label="Дальнейшая настройка после создания"><span className="active"><Check size={13} /></span><i /><span>2</span><i /><span>3</span><i /><span>4</span><i /><span>5</span></div>
     </main>
   );
 }

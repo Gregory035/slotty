@@ -96,6 +96,9 @@ export function AppShell({
   const [pushPreparing, setPushPreparing] = useState(false);
   const [pushStep, setPushStep] = useState<PushConnectionStep | null>(null);
   const daysLeft = trialDays(activeCompany.trialEndsAt);
+  const isTrial = activeCompany.subscriptionPlan === 'TRIAL';
+  const planLabel = activeCompany.subscriptionPlan === 'PRO' ? 'Pro' : activeCompany.subscriptionPlan === 'STARTER' ? 'Starter' : 'Подписка';
+  const subscriptionLabel = activeCompany.subscriptionStatus === 'ACTIVE' ? 'Активна' : activeCompany.subscriptionStatus === 'PAST_DUE' ? 'Ожидает оплаты' : activeCompany.subscriptionStatus === 'EXPIRED' || activeCompany.subscriptionStatus === 'CANCELLED' ? 'Неактивна' : 'Не подключена';
   const [mobile, setMobile] = useState(() => window.matchMedia('(max-width: 820px)').matches);
   const sidebarRef = useRef<HTMLElement>(null);
   const menuRef = useRef<HTMLButtonElement>(null);
@@ -325,7 +328,7 @@ export function AppShell({
 
         <div className="sidebar-company" title={sidebarCollapsed ? activeCompany.name : undefined}>
           <span className="company-symbol" aria-hidden="true"><Building2 size={17} strokeWidth={1.8} /></span>
-          <div className="sidebar-company-copy"><small>Рабочее пространство</small><strong>{activeCompany.name}</strong></div>
+          <div className="sidebar-company-copy"><strong>{activeCompany.name}</strong></div>
           {companies.length > 1 && (
             <>
               <select aria-label="Выбрать компанию" value={activeCompany.id} onChange={(event) => selectCompany(event.target.value)}>
@@ -337,7 +340,6 @@ export function AppShell({
         </div>
 
         <nav className="sidebar-nav" aria-label="Основная навигация">
-          <p>Рабочее пространство</p>
           {visibleNavigation.map((item) => {
             const Icon = item.icon;
             const label = activeCompany.role === 'EMPLOYEE' && item.id === 'employees' ? 'Мои работы' : item.label;
@@ -352,15 +354,14 @@ export function AppShell({
               >
                 <Icon size={19} strokeWidth={1.8} />
                 <span>{label}</span>
-                {item.id === 'appointments' && <i>Live</i>}
               </button>
             );
           })}
         </nav>
 
         <div className="sidebar-trial">
-          <div><span>Пробный период</span><strong>{daysLeft} дн.</strong></div>
-          <div className="trial-track"><span style={{ width: `${Math.min(100, (daysLeft / 14) * 100)}%` }} /></div>
+          <div><span>{isTrial ? 'Пробный период' : planLabel}</span><strong>{isTrial ? `${daysLeft} дн.` : subscriptionLabel}</strong></div>
+          {isTrial && <div className="trial-track"><span style={{ width: `${Math.min(100, (daysLeft / 14) * 100)}%` }} /></div>}
         </div>
 
         <div className="sidebar-user" title={sidebarCollapsed ? `${session?.user.firstName ?? ''} ${session?.user.lastName ?? ''}`.trim() : undefined}>

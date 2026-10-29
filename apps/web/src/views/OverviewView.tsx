@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, ArrowRight, CalendarCheck2, Check, Clock3, Scissors, TrendingUp, UsersRound } from 'lucide-react';
+import { AlertTriangle, ArrowRight, CalendarCheck2, Clock3, Scissors, TrendingUp, UsersRound } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import telegramIconUrl from '../assets/icontg.png';
 import { getDashboard, updateAppointmentStatus } from '../api';
@@ -33,7 +33,7 @@ export function OverviewView({ company }: { company: Company }) {
       <SectionHeader
         eyebrow={new Intl.DateTimeFormat('ru-RU', { weekday: 'long', day: 'numeric', month: 'long', timeZone: company.timezone }).format(new Date())}
         title={solo ? 'Сегодня' : 'Добрый день'}
-        description="Главное о вашем бизнесе на сегодня — без лишних отчётов."
+        description={solo ? 'Записи на сегодня и свободное время.' : 'Записи, загрузка и состояние бизнеса.'}
         action={<button className="primary-button" onClick={() => open('appointments')}><CalendarCheck2 size={17} /> Открыть записи</button>}
       />
       <section className={`metrics-grid ${solo ? 'metrics-grid-solo' : ''}`}>
@@ -54,7 +54,7 @@ export function OverviewView({ company }: { company: Company }) {
           </div>
         </section>
       )}
-      {data.setupChecklist.some((item) => !item.done) && <section className="setup-checklist panel"><div><p className="eyebrow">Быстрый старт</p><h2>Подготовьте запись</h2></div><div>{data.setupChecklist.map((item) => <button key={item.id} className={item.done ? 'done' : ''} onClick={() => open(item.section)}><span>{item.done ? <Check size={14} /> : null}</span>{item.label}<ArrowRight size={14} /></button>)}</div></section>}
+      {data.setupChecklist.some((item) => !item.done) && <section className="setup-checklist panel"><div><p className="eyebrow">Настройка</p><h2>Осталось сделать</h2></div><div>{data.setupChecklist.filter((item) => !item.done).map((item) => <button key={item.id} onClick={() => open(item.section)}>{item.label}<ArrowRight size={14} /></button>)}</div></section>}
       {solo ? <SoloTodayAgenda company={company} /> : <>
       <section className="overview-grid">
         <article className="panel upcoming-panel">

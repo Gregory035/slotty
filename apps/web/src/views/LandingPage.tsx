@@ -1,7 +1,6 @@
-import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { useEffect, useState } from 'react';
 import {
-  ArrowRight, CalendarCheck2, Check, ChevronRight, CircleCheck,
-  MessageCircleMore, RotateCcw, Send,
+  ArrowRight, Check, ChevronRight, CircleCheck, RotateCcw, Send,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { SlottyMark } from '../components/Brand';
@@ -29,7 +28,6 @@ const faqItems = [
 ] as const;
 
 export function LandingPage() {
-  const heroRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     const nodes = [...document.querySelectorAll<HTMLElement>('[data-reveal]')];
@@ -49,23 +47,10 @@ export function LandingPage() {
     return () => observer.disconnect();
   }, []);
 
-  function moveHeroGlow(event: ReactPointerEvent<HTMLElement>) {
-    const rect = event.currentTarget.getBoundingClientRect();
-    const x = Math.max(0, Math.min(100, ((event.clientX - rect.left) / rect.width) * 100));
-    const y = Math.max(0, Math.min(100, ((event.clientY - rect.top) / rect.height) * 100));
-    event.currentTarget.style.setProperty('--hero-pointer-x', `${x}%`);
-    event.currentTarget.style.setProperty('--hero-pointer-y', `${y}%`);
-  }
-
-  function resetHeroGlow() {
-    heroRef.current?.style.setProperty('--hero-pointer-x', '50%');
-    heroRef.current?.style.setProperty('--hero-pointer-y', '48%');
-  }
-
   return (
     <MarketingLayout>
-      <section className="landing-hero" ref={heroRef} onPointerMove={moveHeroGlow} onPointerLeave={resetHeroGlow}>
-        <span className="landing-hero-cursor-glow" aria-hidden="true" />
+      <section className="landing-hero">
+        <div className="landing-hero-copy">
         <p className="eyebrow">Онлайн-запись для бизнеса услуг</p>
         <h1>Онлайн-запись<br />прямо в Telegram</h1>
         <p className="landing-hero-tagline">Клиенты выбирают время в мини-приложении.<br />Вы управляете записями в одной панели.</p>
@@ -75,18 +60,17 @@ export function LandingPage() {
           <a className="text-button" href="#demo" onClick={() => trackEvent('landing_view_demo')}>Попробовать демо <ChevronRight size={15} /></a>
         </div>
         <span className="landing-note">14 дней бесплатно · без карты</span>
+        </div>
+        <BookingDemo />
       </section>
-
-      <BookingDemo />
 
       <section className="landing-sides" id="features" aria-labelledby="features-title">
         <div className="landing-section-heading" data-reveal>
           <p className="eyebrow">Для клиента и команды</p>
-          <h2 id="features-title">Меньше переписок.<br />Больше порядка.</h2>
+          <h2 id="features-title">Клиент выбирает время.<br />Вы видите запись.</h2>
         </div>
         <div className="landing-side-grid">
           <article className="landing-side-card client-side-card" data-reveal="left">
-            <div className="side-card-icon"><MessageCircleMore size={22} /></div>
             <p className="eyebrow">Для клиента</p>
             <h3>Записаться без переписки</h3>
             <ul>
@@ -97,7 +81,6 @@ export function LandingPage() {
             <Link to="/zapis-cherez-telegram">Как работает запись <ArrowRight size={15} /></Link>
           </article>
           <article className="landing-side-card business-side-card" data-reveal="right">
-            <div className="side-card-icon"><CalendarCheck2 size={22} /></div>
             <p className="eyebrow">Для бизнеса</p>
             <h3>Держать расписание под контролем</h3>
             <ul>
@@ -124,13 +107,12 @@ export function LandingPage() {
       </section>
 
       <section className="landing-faq" aria-labelledby="home-faq-title">
-        <div className="landing-section-heading" data-reveal="left"><p className="eyebrow">Вопросы</p><h2 id="home-faq-title">Коротко о главном</h2></div>
+        <div className="landing-section-heading" data-reveal="left"><p className="eyebrow">Перед началом</p><h2 id="home-faq-title">Частые вопросы</h2></div>
         <LandingFaq />
       </section>
 
       <section className="landing-final-cta" aria-labelledby="final-cta-title" data-reveal>
-        <p className="eyebrow">Slotty для вашего бизнеса</p>
-        <h2 id="final-cta-title">Запустите запись в Telegram.</h2>
+        <h2 id="final-cta-title">Настройте свою онлайн-запись.</h2>
         <p>14 дней бесплатно, без банковской карты.</p>
         <Link className="primary-button lime-button" to="/app?mode=register" onClick={() => { trackEvent('landing_start_trial', { source: 'home_final' }); trackEvent('registration_start', { source: 'home_final' }); }}>Начать бесплатно <ArrowRight size={17} /></Link>
       </section>
@@ -157,9 +139,9 @@ function BookingDemo() {
   }
 
   return (
-    <section className="landing-demo" id="demo" aria-labelledby="demo-title">
+    <section className="landing-demo landing-demo-compact" id="demo" aria-labelledby="demo-title">
       <div className="landing-section-heading demo-heading" data-reveal>
-        <div><p className="eyebrow">Попробуйте сами</p><h2 id="demo-title">От выбора времени<br />до готовой записи.</h2></div>
+        <div><p className="eyebrow">Попробуйте сами</p><h2 id="demo-title">От клиента к вашему расписанию</h2></div>
         <p>Демо показывает процесс, не создавая настоящую запись.</p>
       </div>
       <div className="demo-stage" data-reveal>
@@ -205,7 +187,7 @@ function LandingFaq() {
         const open = openIndex === index;
         const answerId = `home-faq-answer-${index}`;
         return <div className={`faq-item ${open ? 'open' : ''}`} key={question}>
-          <button type="button" aria-expanded={open} aria-controls={answerId} onClick={() => setOpenIndex(open ? null : index)}><span aria-hidden="true">▶</span>{question}</button>
+          <button type="button" aria-expanded={open} aria-controls={answerId} onClick={() => setOpenIndex(open ? null : index)}><span aria-hidden="true"><ChevronRight size={16} /></span>{question}</button>
           <div className="faq-answer" aria-hidden={!open}><div><p id={answerId}>{answer}</p></div></div>
         </div>;
       })}
