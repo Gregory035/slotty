@@ -12,6 +12,7 @@ for (const route of routes) {
   const path = route === '/' ? resolve(dist, 'index.html') : resolve(dist, route.slice(1), 'index.html');
   const source = await readFile(path, 'utf8');
   assert.match(source, /<h1[> ]/i, `${route} must contain a prerendered h1`);
+  assert.doesNotMatch(source, /The server did not finish this Suspense boundary|Switched to client rendering/i, `${route} must not ship an unfinished prerender`);
   assert.doesNotMatch(source, /meta name="keywords"/i);
   const title = source.match(/<title>(.*?)<\/title>/)?.[1];
   const description = source.match(/<meta name="description" content="([^"]+)"/i)?.[1];
@@ -32,6 +33,14 @@ for (const route of routes) {
 
 assert.equal(new Set(documents.map((item) => item.title)).size, routes.length, 'public titles must be unique');
 assert.equal(new Set(documents.map((item) => item.description)).size, routes.length, 'public descriptions must be unique');
+// Secondary pages must remain separate from the landing entry and its preloads.
+const home = documents[0].source;
+const startupScripts = [...home.matchAll(/<(?:script|link)\b[^>]*(?:src|href)="(\/assets\/[^"]+\.js)"[^>]*>/g)];
+for (const [, asset] of startupScripts) {
+  assert.doesNotMatch(asset, /LegalPage|AudiencePages|OnlineBookingPage|TelegramBookingPage/, 'secondary pages must not be preloaded on home');
+  const script = await readFile(resolve(dist, asset.slice(1)), 'utf8');
+  assert.ok(!script.includes('Политика объясняет, какие данные обрабатывает Slotty'), 'legal document content must not be in the landing startup bundle');
+}
 for (const file of ['private.html', '404.html']) {
   const source = await readFile(resolve(dist, file), 'utf8');
   assert.match(source, /<meta name="robots" content="noindex,nofollow"/);

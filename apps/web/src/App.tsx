@@ -4,13 +4,25 @@ import { trackPageView } from './analytics';
 import { LoadingBlock } from './components/ui';
 import { isPublicPath, syncSeo } from './seo';
 import { LandingPage } from './views/LandingPage';
-import { OnlineBookingPage } from './views/OnlineBookingPage';
-import { TelegramBookingPage } from './views/TelegramBookingPage';
+import { OnlineBookingPage as StaticOnlineBookingPage } from './views/OnlineBookingPage';
+import { TelegramBookingPage as StaticTelegramBookingPage } from './views/TelegramBookingPage';
 import { NotFoundPage } from './views/NotFoundPage';
-import { LegalPage } from './views/LegalPage';
-import { MasterBookingPage, SalonBookingPage } from './views/AudiencePages';
+import { LegalPage as StaticLegalPage } from './views/LegalPage';
+import { MasterBookingPage as StaticMasterBookingPage, SalonBookingPage as StaticSalonBookingPage } from './views/AudiencePages';
+
+// Prerender stays synchronous; the browser only downloads the requested page.
+const OnlineBookingPage = import.meta.env.SSR ? StaticOnlineBookingPage : lazy(() => import('./views/OnlineBookingPage').then((module) => ({ default: module.OnlineBookingPage })));
+const TelegramBookingPage = import.meta.env.SSR ? StaticTelegramBookingPage : lazy(() => import('./views/TelegramBookingPage').then((module) => ({ default: module.TelegramBookingPage })));
+const MasterBookingPage = import.meta.env.SSR ? StaticMasterBookingPage : lazy(() => import('./views/AudiencePages').then((module) => ({ default: module.MasterBookingPage })));
+const SalonBookingPage = import.meta.env.SSR ? StaticSalonBookingPage : lazy(() => import('./views/AudiencePages').then((module) => ({ default: module.SalonBookingPage })));
 
 const WorkspaceApp = lazy(() => import('./WorkspaceApp').then((module) => ({ default: module.WorkspaceApp })));
+const DeferredLegalPage = import.meta.env.SSR ? StaticLegalPage : lazy(() => import('./views/LegalPage').then((module) => ({ default: module.LegalPage })));
+const LegalPage: typeof StaticLegalPage = (props) => (
+  <Suspense fallback={<div className="fullscreen-state"><LoadingBlock label="Открываем документ" /></div>}>
+    <DeferredLegalPage {...props} />
+  </Suspense>
+);
 const TelegramMiniAppPage = lazy(() => import('./views/TelegramMiniAppPage').then((module) => ({ default: module.TelegramMiniAppPage })));
 const PublicCompanyPage = lazy(() => import('./views/PublicCompanyPage').then((module) => ({ default: module.PublicCompanyPage })));
 
@@ -23,7 +35,7 @@ export function App() {
   }, [location.pathname]);
 
   return (
-    <Routes>
+    <Suspense fallback={<div className="fullscreen-state"><LoadingBlock label="Открываем страницу" /></div>}><Routes>
       <Route path="/" element={<LandingPage />} />
       <Route path="/online-zapis" element={<OnlineBookingPage />} />
       <Route path="/zapis-cherez-telegram" element={<TelegramBookingPage />} />
@@ -40,7 +52,7 @@ export function App() {
       <Route path="/app/*" element={<WorkspaceFallback><WorkspaceApp /></WorkspaceFallback>} />
       <Route path="/companies/:companyId/:section/*" element={<WorkspaceFallback><WorkspaceApp /></WorkspaceFallback>} />
       <Route path="*" element={<NotFoundPage />} />
-    </Routes>
+    </Routes></Suspense>
   );
 }
 
