@@ -1,3 +1,5 @@
+import { isPublicPath } from './seo';
+
 type AnalyticsEventParams = Record<string, string | number | boolean>;
 type YandexCommand = [counterId: number, action: string, ...args: unknown[]];
 type YandexTag = ((...args: YandexCommand) => void) & { a?: YandexCommand[]; l?: number };
@@ -61,9 +63,10 @@ export function initializeAnalytics() {
 }
 
 export function trackPageView(pathname: string) {
+  const pagePath = pathname.split(/[?#]/)[0] || '/';
+  if (!isPublicPath(pagePath)) return;
   if (analyticsConsent() !== 'granted' || navigator.doNotTrack === '1') return;
   initializeAnalytics();
-  const pagePath = pathname.split('?')[0] || '/';
   if (pagePath === lastPageView) return;
   lastPageView = pagePath;
   if (/^G-[A-Z0-9]+$/i.test(gaId)) window.gtag?.('event', 'page_view', { page_path: pagePath });

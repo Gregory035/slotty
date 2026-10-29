@@ -53,4 +53,13 @@ describe('analytics asynchronous initialization', () => {
     expect(append).not.toHaveBeenCalled();
     expect(window.ym).toBeUndefined();
   });
+
+  it('never sends private or unknown URLs, including after consent in the workspace', async () => {
+    const { trackPageView } = await import('./analytics');
+    for (const path of ['/companies/internal-id/dashboard', '/app?token=secret', '/miniapp/internal-id', '/company/private-slug', '/unknown']) trackPageView(path);
+    expect(append).not.toHaveBeenCalled();
+    expect(window.ym).toBeUndefined();
+    trackPageView('/?token=secret#private');
+    expect(window.ym?.a?.at(-1)).toEqual([112790410, 'hit', '/']);
+  });
 });

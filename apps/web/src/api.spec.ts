@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { getBot, savePushSubscription, writeSession } from './api';
+import { getBot, getMiniAppSession, savePushSubscription, writeSession } from './api';
 
 describe('API response parsing', () => {
   const storage = new Map<string, string>();
@@ -26,6 +26,13 @@ describe('API response parsing', () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+  });
+
+  it('bounds Mini App network requests and reports a connection failure', async () => {
+    const fetchMock = vi.fn().mockRejectedValue(new DOMException('Timed out', 'TimeoutError'));
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(getMiniAppSession('test-company', 'test-init')).rejects.toThrow('Проверьте интернет');
+    expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('/session'), expect.objectContaining({ signal: expect.any(AbortSignal) }));
   });
 
   it('treats an empty successful bot response as no connected bot', async () => {

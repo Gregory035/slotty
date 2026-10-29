@@ -40,6 +40,10 @@ jobs:
         env:
           WEB_URL: ${{ vars.WEB_URL }}
         run: node -e "const u=new URL(process.env.WEB_URL); if(u.protocol!=='https:' || u.origin!==process.env.WEB_URL || /(^|\.)localhost$|example\./.test(u.hostname)) process.exit(1)"
+      - name: Validate production analytics configuration
+        env:
+          VITE_YM_COUNTER_ID: ${{ vars.VITE_YM_COUNTER_ID }}
+        run: node -e "if (!/^[1-9][0-9]*$/.test(process.env.VITE_YM_COUNTER_ID || '')) { console.error('Set VITE_YM_COUNTER_ID to the existing Slotty counter before publishing'); process.exit(1); }"
       - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8
         with:
           context: .

@@ -120,9 +120,25 @@ test('Telegram Mini App books, lists, cancels and repeats a visit', async ({ pag
     await page.locator('input[type="date"]').fill(tomorrow);
     await page.locator('.miniapp-slots button').nth(2).click();
     await page.getByRole('button', { name: 'Добавить в визит' }).click();
+    // The server commits the visit, but its response never reaches the client.
+    if (testInfo.project.name === 'chromium-desktop') {
+    const visitEndpoint = `**/telegram/miniapp/${fixture.companyId}/book-visit`;
+    let interceptedVisit = false;
+    await page.route(visitEndpoint, async (route) => {
+      if (route.request().method() !== 'POST' || interceptedVisit) { await route.continue(); return; }
+      interceptedVisit = true;
+      const response = await route.fetch();
+      expect(response.ok()).toBeTruthy();
+      await route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ message: 'Соединение прервано после обработки запроса' }) });
+    });
+    await page.getByRole('button', { name: 'Подтвердить визит' }).click();
+    await expect(page.getByRole('alert')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Подтвердить визит' })).toBeEnabled();
+    }
     await page.getByRole('button', { name: 'Подтвердить визит' }).click();
     await expect(page.getByRole('heading', { name: 'До встречи!' })).toBeVisible();
     await expect(page.getByText('2 услуги в визите')).toBeVisible();
+    expect(await prisma.appointment.count({ where: { companyId: fixture.companyId } })).toBe(2);
     await page.getByRole('button', { name: 'Мои записи' }).click();
     await expect(page.getByRole('heading', { name: 'Мои записи' })).toBeVisible();
     await expect(page.getByText('Тестовая услуга')).toBeVisible();

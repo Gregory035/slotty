@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CalendarDays, Check, ChevronLeft, Clock3, ImagePlus, LoaderCircle, RotateCcw, Star, UserRound, X } from 'lucide-react';
 import { useParams } from 'react-router-dom';
 import { ApiError, cancelMiniAppAppointment, createMiniAppVisit, getMiniAppAppointments, getMiniAppAvailability, getMiniAppSession, getWorkExampleImageUrl, rescheduleMiniAppAppointment, submitMiniAppReview, trackMiniAppEvent, uploadMiniAppWorkPhoto } from '../api';
@@ -31,6 +31,7 @@ export function TelegramMiniAppPage() {
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null);
   const [busy, setBusy] = useState(false);
+  const submissionInFlight = useRef(false);
   const [appointments, setAppointments] = useState<MiniAppAppointments | null>(null);
   const [appointmentsLoading, setAppointmentsLoading] = useState(false);
   const [appointmentTab, setAppointmentTab] = useState<AppointmentTab>('upcoming');
@@ -111,9 +112,10 @@ export function TelegramMiniAppPage() {
   };
 
   const confirm = async () => {
-    if (!service || !selectedSlot || !date || !session) return;
+    if (submissionInFlight.current || !service || !selectedSlot || !date || !session) return;
     const selectedEmployee = employee ?? service.employees.find((item) => item.id === selectedSlot.employeeId);
     if (!selectedEmployee) return;
+    submissionInFlight.current = true;
     const time = timeInZone(selectedSlot.startsAt, session.company.timezone);
     setBusy(true); setError('');
     const wasRescheduling = Boolean(rescheduling);
@@ -129,18 +131,19 @@ export function TelegramMiniAppPage() {
     } catch (requestError) {
       setError(messageOf(requestError, 'Это время уже заняли. Выберите другой слот.')); setSelectedSlot(null);
       try { setSlots(await loadAvailability(date)); } catch { setSlots([]); }
-    } finally { setBusy(false); }
+    } finally { submissionInFlight.current = false; setBusy(false); }
   };
 
   const submitVisit = async () => {
-    if (!visitItems.length) return;
+    if (submissionInFlight.current || !visitItems.length || !legalAccepted) return;
+    submissionInFlight.current = true;
     setBusy(true); setError('');
     try {
       await createMiniAppVisit(companyId, { initData, requestId: visitRequestId, legalAccepted: true, legalVersion: LEGAL_DOCUMENT_VERSION, items: visitItems.map(({ serviceId, employeeId, date: itemDate, time }) => ({ serviceId, employeeId, date: itemDate, time })) });
       haptic('medium'); setStep('success'); setAppointments(null);
     } catch (requestError) {
       setError(messageOf(requestError, 'Не удалось создать визит. Проверьте выбранное время.'));
-    } finally { setBusy(false); }
+    } finally { submissionInFlight.current = false; setBusy(false); }
   };
 
   const addAnotherService = () => {
@@ -209,6 +212,7 @@ export function TelegramMiniAppPage() {
       {step === 'time' && <footer className="miniapp-bottom-action">{selectedSlot && <span>{formatLongDate(date)} · {timeInZone(selectedSlot.startsAt, session.company.timezone)}</span>}<button className="miniapp-primary" disabled={!selectedSlot || busy} onClick={() => void confirm()}>{busy ? <LoaderCircle className="miniapp-spin" size={19} /> : rescheduling ? 'Перенести запись' : 'Добавить в визит'}</button></footer>}
       {step === 'review' && <footer className="miniapp-bottom-action"><span>{visitItems.length ? `${visitItems.length} ${serviceWord(visitItems.length)}` : 'Добавьте хотя бы одну услугу'}</span><button className="miniapp-primary" disabled={!visitItems.length || !legalAccepted || busy} onClick={() => void submitVisit()}>{busy ? <LoaderCircle className="miniapp-spin" size={19} /> : 'Подтвердить визит'}</button></footer>}
     </>}
+    {mode === 'appointments' && !appointmentsLoading && !appointmentItems.length && <button className="miniapp-primary" onClick={() => { setMode('booking'); setStep('service'); setRescheduling(null); setVisitItems([]); setVisitRequestId(crypto.randomUUID()); setSelectedSlot(null); setError(''); }}>Выбрать услугу и записаться</button>}
     {feedbackAppointment && <FeedbackSheet appointment={feedbackAppointment} busy={busy} onClose={() => setFeedbackAppointment(null)} onSubmit={(value) => void submitFeedback(value)} />}
   </main>;
 }

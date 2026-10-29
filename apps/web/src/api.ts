@@ -101,6 +101,7 @@ async function miniAppRequest<T>(
   input: unknown,
 ): Promise<T> {
   const response = await fetchResponse(`${apiUrl}/telegram/miniapp/${companyId}/${path}`, {
+    signal: AbortSignal.timeout(20_000),
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(input),
