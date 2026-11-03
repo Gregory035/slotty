@@ -18,6 +18,16 @@ describe('shared visual foundations', () => {
     expect(theme).toContain('--danger-soft: var(--danger-surface)');
   });
 
+  it('uses the approved neutral light palette without changing dark surfaces', () => {
+    const [light, dark] = read('./theme.css').split("[data-theme='dark']");
+    expect(light).toContain('--page-bg: #f5f6f8');
+    expect(light).toContain('--surface: #ffffff');
+    expect(light).toContain('--text: #20242b');
+    expect(light).toContain('--border: #e0e4e9');
+    expect(dark).toContain('--page-bg: #10130f');
+    expect(dark).toContain('--surface: #181c16');
+  });
+
   it('does not leak old landing rules from the private app bundle', () => {
     expect(read('./styles.css')).not.toContain('.landing-');
   });
