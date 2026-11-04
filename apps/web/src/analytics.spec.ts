@@ -54,6 +54,39 @@ describe('analytics asynchronous initialization', () => {
     expect(window.ym).toBeUndefined();
   });
 
+  it('queues registration success without form fields or an extra private pageview', async () => {
+    const { trackEvent } = await import('./analytics');
+    expect(trackEvent('registration_success')).toBe(true);
+    expect(window.ym?.a).toEqual([
+      [112790410, 'init', expect.objectContaining({ defer: true })],
+      [112790410, 'reachGoal', 'registration_success', {}],
+    ]);
+  });
+
+  it('allows retrying a registration event after consent is granted', async () => {
+    let consent: string | null = null;
+    const dispatchEvent = vi.fn();
+    vi.stubGlobal('window', { dispatchEvent });
+    vi.stubGlobal('localStorage', {
+      getItem: () => consent,
+      setItem: (_key: string, value: string) => { consent = value; },
+    });
+    const { trackEvent, setAnalyticsConsent } = await import('./analytics');
+    expect(trackEvent('registration_start')).toBe(false);
+    expect(append).not.toHaveBeenCalled();
+    setAnalyticsConsent('granted');
+    expect(dispatchEvent).toHaveBeenCalledWith(expect.objectContaining({ type: 'slotty:analytics-consent' }));
+    expect(trackEvent('registration_start')).toBe(true);
+    expect(window.ym?.a?.at(-1)).toEqual([112790410, 'reachGoal', 'registration_start', {}]);
+  });
+
+  it('does not mark an event as queued when no counter is configured', async () => {
+    vi.stubEnv('VITE_YM_COUNTER_ID', '');
+    const { trackEvent } = await import('./analytics');
+    expect(trackEvent('registration_start')).toBe(false);
+    expect(append).not.toHaveBeenCalled();
+  });
+
   it('never sends private or unknown URLs, including after consent in the workspace', async () => {
     const { trackPageView } = await import('./analytics');
     for (const path of ['/companies/internal-id/dashboard', '/app?token=secret', '/miniapp/internal-id', '/company/private-slug', '/unknown']) trackPageView(path);

@@ -83,7 +83,7 @@ function Breadcrumb({ current }: { current: string }) {
 }
 
 function Actions({ source, secondaryHref, secondaryLabel }: { source: string; secondaryHref: string; secondaryLabel: string }) {
-  return <><div className="landing-actions"><Link className="primary-button lime-button" to="/app?mode=register" onClick={() => { trackEvent('landing_start_trial', { source }); trackEvent('registration_start', { source }); }}>Начать бесплатно <ArrowRight size={17} /></Link><Link className="text-button" to={secondaryHref}>{secondaryLabel}</Link></div><span className="landing-note">14 дней бесплатно · без карты</span></>;
+  return <><div className="landing-actions"><Link className="primary-button lime-button" to="/app?mode=register" onClick={() => trackEvent('landing_start_trial', { source })}>Начать бесплатно <ArrowRight size={17} /></Link><Link className="text-button" to={secondaryHref}>{secondaryLabel}</Link></div><span className="landing-note">14 дней бесплатно · без карты</span></>;
 }
 
 function AudienceFaq({ type }: { type: 'master' | 'salon' }) {

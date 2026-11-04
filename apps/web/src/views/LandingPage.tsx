@@ -56,7 +56,7 @@ export function LandingPage() {
         <p className="landing-hero-tagline">Клиенты выбирают время в мини-приложении.<br />Вы управляете записями в одной панели.</p>
         <p className="landing-hero-audience">Для частных мастеров, студий и команд</p>
         <div className="landing-actions">
-          <Link className="primary-button lime-button" to="/app?mode=register" onClick={() => { trackEvent('landing_start_trial'); trackEvent('registration_start', { source: 'home' }); }}>Начать бесплатно <ArrowRight size={17} /></Link>
+          <Link className="primary-button lime-button" to="/app?mode=register" onClick={() => trackEvent('landing_start_trial', { source: 'home' })}>Начать бесплатно <ArrowRight size={17} /></Link>
           <a className="text-button" href="#demo" onClick={() => trackEvent('landing_view_demo')}>Попробовать демо <ChevronRight size={15} /></a>
         </div>
         <span className="landing-note">14 дней бесплатно · без карты</span>
@@ -114,7 +114,7 @@ export function LandingPage() {
       <section className="landing-final-cta" aria-labelledby="final-cta-title" data-reveal>
         <h2 id="final-cta-title">Настройте свою онлайн-запись.</h2>
         <p>14 дней бесплатно, без банковской карты.</p>
-        <Link className="primary-button lime-button" to="/app?mode=register" onClick={() => { trackEvent('landing_start_trial', { source: 'home_final' }); trackEvent('registration_start', { source: 'home_final' }); }}>Начать бесплатно <ArrowRight size={17} /></Link>
+        <Link className="primary-button lime-button" to="/app?mode=register" onClick={() => trackEvent('landing_start_trial', { source: 'home_final' })}>Начать бесплатно <ArrowRight size={17} /></Link>
       </section>
     </MarketingLayout>
   );

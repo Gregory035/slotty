@@ -27,6 +27,7 @@ export function analyticsConsent(): 'granted' | 'denied' | null {
 
 export function setAnalyticsConsent(value: 'granted' | 'denied') {
   localStorage.setItem(consentKey, value);
+  window.dispatchEvent(new Event('slotty:analytics-consent'));
 }
 
 function appendScript(src: string) {
@@ -74,8 +75,9 @@ export function trackPageView(pathname: string) {
 }
 
 export function trackEvent(name: string, params: AnalyticsEventParams = {}) {
-  if (analyticsConsent() !== 'granted' || navigator.doNotTrack === '1') return;
+  if (!hasAnalyticsConfiguration || analyticsConsent() !== 'granted' || navigator.doNotTrack === '1') return false;
   initializeAnalytics();
   if (/^G-[A-Z0-9]+$/i.test(gaId)) window.gtag?.('event', name, params);
   if (Number.isInteger(ymId)) window.ym?.(ymId, 'reachGoal', name, params);
+  return true;
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { ArrowRight } from 'lucide-react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { trackEvent } from '../analytics';
@@ -27,6 +27,20 @@ export function AuthScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const registrationViewed = useRef(false);
+
+  useEffect(() => {
+    if (mode !== 'register') {
+      registrationViewed.current = false;
+      return;
+    }
+    function trackStart() {
+      if (!registrationViewed.current) registrationViewed.current = trackEvent('registration_start');
+    }
+    trackStart();
+    window.addEventListener('slotty:analytics-consent', trackStart);
+    return () => window.removeEventListener('slotty:analytics-consent', trackStart);
+  }, [mode]);
 
   useEffect(() => {
     if (!invitationToken) return;
@@ -47,7 +61,6 @@ export function AuthScreen() {
     setError(null);
     setNotice(null);
     void navigate(next === 'login' ? '/app' : next === 'register' ? '/app?mode=register' : '/app?mode=forgot-password', { replace: true });
-    if (next === 'register') trackEvent('registration_start');
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
