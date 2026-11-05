@@ -20,7 +20,7 @@ export default defineConfig({
   },
   webServer: [
     {
-      command: 'RATE_LIMIT_REGISTER_MAX=100 npm run start -w @slotty/api',
+      command: 'RATE_LIMIT_REGISTER_MAX=100 RATE_LIMIT_LOGIN_MAX=100 RATE_LIMIT_PASSWORD_RESET_MAX=100 npm run start -w @slotty/api',
       url: 'http://localhost:3000/api/health/ready',
       reuseExistingServer: true,
       timeout: 60_000,

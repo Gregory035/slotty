@@ -17,6 +17,7 @@ import {
   Prisma,
 } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
+import { appointmentCalendar } from './appointment-calendar';
 import type { DepositStatus } from '@prisma/client';
 import { InlineKeyboard } from 'grammy';
 import { CompanyMembershipContext } from '../companies/company-access.types';
@@ -444,38 +445,7 @@ export class AppointmentsService {
     });
     if (!appointment) throw new NotFoundException('Appointment not found');
     if (CANCELLED_STATUSES.includes(appointment.status)) throw new BadRequestException('Cancelled appointment cannot be added to calendar');
-    const formatUtc = (value: Date) => value.toISOString().replace(/[-:]/gu, '').replace(/\.\d{3}Z$/u, 'Z');
-    const escapeText = (value: string) => value.replaceAll('\\', '\\\\').replaceAll(';', '\\;').replaceAll(',', '\\,').replace(/\r?\n/gu, '\\n');
-    const lines = [
-      'BEGIN:VCALENDAR',
-      'VERSION:2.0',
-      'PRODID:-//Slotty//Booking Calendar//RU',
-      'CALSCALE:GREGORIAN',
-      'METHOD:PUBLISH',
-      'BEGIN:VEVENT',
-      `UID:${appointment.id}`,
-      `DTSTAMP:${formatUtc(new Date())}`,
-      `DTSTART:${formatUtc(appointment.startsAt)}`,
-      `DTEND:${formatUtc(appointment.endsAt)}`,
-      `SUMMARY:${escapeText(`${appointment.service.name} — ${appointment.company.name}`)}`,
-      `DESCRIPTION:${escapeText(`Специалист: ${[appointment.employee.firstName, appointment.employee.lastName].filter(Boolean).join(' ')}`)}`,
-      ...(appointment.company.address ? [`LOCATION:${escapeText(appointment.company.address)}`] : []),
-      'END:VEVENT',
-      'END:VCALENDAR',
-    ];
-    const fold = (line: string) => {
-      let current = '';
-      const result: string[] = [];
-      for (const character of line) {
-        if (Buffer.byteLength(current + character, 'utf8') > 73) {
-          result.push(current);
-          current = ` ${character}`;
-        } else current += character;
-      }
-      result.push(current);
-      return result.join('\r\n');
-    };
-    return `${lines.map(fold).join('\r\n')}\r\n`;
+    return appointmentCalendar(appointment);
   }
 
   async findAll(

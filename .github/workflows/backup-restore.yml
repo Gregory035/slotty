@@ -1,0 +1,38 @@
+name: Backup restore verification
+
+on:
+  schedule:
+    - cron: '20 3 * * 0'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production
+  cancel-in-progress: false
+
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Configure SSH
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s' "$VPS_KNOWN_HOSTS" > ~/.ssh/known_hosts
+      - name: Restore latest dump into isolated disposable PostgreSQL
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_APP_DIR: ${{ secrets.VPS_APP_DIR }}
+        run: |
+          scp scripts/check-backup-isolated.sh "$VPS_USER@$VPS_HOST:$VPS_APP_DIR/scripts/"
+          ssh "$VPS_USER@$VPS_HOST" "cd '$VPS_APP_DIR' && tag=\$(head -n 1 .last-successful-image) && file=\$(find \"\$PWD/backups\" -maxdepth 1 -name 'slotty-*.dump' -type f | sort | tail -n 1) && BACKUP_FILE=\"\$file\" BACKUP_IMAGE=ghcr.io/gregory035/slotty/backup:\$tag sh scripts/check-backup-isolated.sh"

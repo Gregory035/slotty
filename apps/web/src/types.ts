@@ -451,6 +451,8 @@ export interface CustomerDetails extends Customer {
 }
 
 export interface ReviewDashboard {
+  nextCursor: string | null;
+  hasMore: boolean;
   summary: { average: number; count: number };
   byEmployee: Array<{ id: string; name: string; average: number; count: number }>;
   byService: Array<{ id: string; name: string; average: number; count: number }>;

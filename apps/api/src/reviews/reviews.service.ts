@@ -1,47 +1,39 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
+import { decodeCursor, pageFromRows } from '../common/pagination';
+import { reviewRankings } from './review-rankings';
 
 @Injectable()
 export class ReviewsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async dashboard(companyId: string) {
+  async dashboard(companyId: string, cursor?: string) {
+    const after = decodeCursor(cursor);
+    const limit = 25;
+    const [summary, rankings] = await Promise.all([
+      this.prisma.review.aggregate({ where: { companyId }, _avg: { rating: true }, _count: true }),
+      reviewRankings(this.prisma, companyId),
+    ]);
     const reviews = await this.prisma.review.findMany({
-      where: { companyId },
+      where: { companyId, ...(after ? { OR: [
+        { createdAt: { lt: new Date(after.date) } },
+        { createdAt: new Date(after.date), id: { lt: after.id } },
+      ] } : {}) },
       include: {
         customer: true,
         appointment: { include: { employee: true, service: true } },
       },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-      take: 100,
+      take: limit + 1,
     });
-    const employeeGroups = new Map<string, { id: string; name: string; total: number; count: number }>();
-    const serviceGroups = new Map<string, { id: string; name: string; total: number; count: number }>();
-    for (const review of reviews) {
-      const employee = review.appointment.employee;
-      const employeeName = [employee.firstName, employee.lastName].filter(Boolean).join(' ');
-      const employeeGroup = employeeGroups.get(employee.id) ?? { id: employee.id, name: employeeName, total: 0, count: 0 };
-      employeeGroup.total += review.rating;
-      employeeGroup.count += 1;
-      employeeGroups.set(employee.id, employeeGroup);
-      const service = review.appointment.service;
-      const serviceGroup = serviceGroups.get(service.id) ?? { id: service.id, name: service.name, total: 0, count: 0 };
-      serviceGroup.total += review.rating;
-      serviceGroup.count += 1;
-      serviceGroups.set(service.id, serviceGroup);
-    }
-    const rank = (groups: Map<string, { id: string; name: string; total: number; count: number }>) =>
-      [...groups.values()]
-        .map(({ total, ...item }) => ({ ...item, average: Number((total / item.count).toFixed(1)) }))
-        .sort((left, right) => right.average - left.average || right.count - left.count);
-    const average = reviews.length
-      ? Number((reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length).toFixed(1))
-      : 0;
+    const page = pageFromRows(reviews, limit, (review) => ({ date: review.createdAt.toISOString(), id: review.id }));
     return {
-      summary: { average, count: reviews.length },
-      byEmployee: rank(employeeGroups),
-      byService: rank(serviceGroups),
-      items: reviews.map((review) => ({
+      summary: { average: Number((summary._avg.rating ?? 0).toFixed(1)), count: summary._count },
+      byEmployee: rankings.byEmployee,
+      byService: rankings.byService,
+      nextCursor: page.nextCursor,
+      hasMore: page.hasMore,
+      items: page.items.map((review) => ({
         id: review.id,
         rating: review.rating,
         comment: review.comment,

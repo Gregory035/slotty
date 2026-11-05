@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { PrismaClient } from '@prisma/client';
 import { createCipheriv, createHash, createHmac, randomBytes } from 'node:crypto';
+import sharp from 'sharp';
 
 const prisma = new PrismaClient();
 
@@ -52,6 +53,14 @@ test('public company page shows services and remains usable on mobile', async ({
 test('owner can register, create a company and refresh the private dashboard', async ({ page }, testInfo) => {
   const errors = collectPageErrors(page);
   const email = `playwright-${testInfo.project.name}-${Date.now()}@example.com`;
+  await page.route('https://mc.yandex.ru/**', (route) => route.fulfill({ status: 200, body: '' }));
+  await page.addInitScript(() => {
+    localStorage.setItem('slotty-analytics-consent', 'granted');
+    Object.defineProperty(navigator, 'doNotTrack', { configurable: true, value: '0' });
+    const target = window as unknown as { ym: (...args: unknown[]) => void; analyticsCalls: unknown[][] };
+    target.analyticsCalls = [];
+    target.ym = (...args) => { target.analyticsCalls.push(args); };
+  });
 
   try {
     await page.goto('/app?mode=register');
@@ -63,6 +72,9 @@ test('owner can register, create a company and refresh the private dashboard', a
     await page.getByRole('button', { name: 'Создать аккаунт' }).click();
 
     await expect(page.getByRole('heading', { name: 'Расскажите о вашем бизнесе' })).toBeVisible();
+    const goals = await page.evaluate(() => (window as unknown as { analyticsCalls: unknown[][] }).analyticsCalls.filter((call) => call[1] === 'reachGoal').map((call) => call[2]));
+    expect(goals.filter((goal) => goal === 'registration_start')).toHaveLength(1);
+    expect(goals.filter((goal) => goal === 'registration_success')).toHaveLength(1);
     await page.getByLabel('Название компании').fill('Playwright Studio');
     await page.getByRole('checkbox', { name: /поручение на обработку данных/ }).check();
     await page.getByRole('button', { name: /Продолжить/ }).click();
@@ -160,6 +172,32 @@ test('Telegram Mini App books, lists, cancels and repeats a visit', async ({ pag
   } finally {
     await prisma.company.deleteMany({ where: { id: fixture.companyId } });
   }
+});
+
+test('reviews and customer photos require a completed service', async ({ request }, testInfo) => {
+  const fixture = await createMiniAppFixture(testInfo.project.name);
+  const userId = 9_500_001;
+  const initData = signedTelegramInitData(fixture.botToken, userId);
+  const endpoint = `http://localhost:3000/api/telegram/miniapp/${fixture.companyId}/appointments`;
+  try {
+    const customer = await prisma.customer.create({ data: { companyId: fixture.companyId, firstName: 'Review', telegramId: BigInt(userId) } });
+    const appointment = await prisma.appointment.create({ data: {
+      companyId: fixture.companyId, customerId: customer.id, employeeId: fixture.employeeId,
+      serviceId: fixture.serviceId, startsAt: new Date('2035-01-01T09:00:00Z'), endsAt: new Date('2035-01-01T09:30:00Z'),
+      priceSnapshot: 1500, durationMinutesSnapshot: 30, source: 'TELEGRAM', status: 'CONFIRMED',
+    } });
+    const data = { initData, appointmentId: appointment.id, rating: 5, comment: 'Отлично' };
+    expect((await request.post(`${endpoint}/review`, { data })).status()).toBe(404);
+    const image = await sharp({ create: { width: 16, height: 16, channels: 3, background: '#ffffff' } }).png().toBuffer();
+    const multipart = { initData, appointmentId: appointment.id, publicationConsentConfirmed: 'true', consentVersion: '2026-10-21', photo: { name: 'work.png', mimeType: 'image/png', buffer: image } };
+    expect((await request.post(`${endpoint}/work-photo`, { multipart })).status()).toBe(404);
+    expect(await prisma.review.count({ where: { appointmentId: appointment.id } })).toBe(0);
+    await prisma.appointment.update({ where: { id: appointment.id }, data: { status: 'COMPLETED' } });
+    expect((await request.post(`${endpoint}/review`, { data })).ok()).toBeTruthy();
+    expect((await request.post(`${endpoint}/review`, { data })).status()).toBe(409);
+    expect((await request.post(`${endpoint}/work-photo`, { multipart })).ok()).toBeTruthy();
+    expect(await prisma.workExample.count({ where: { appointmentId: appointment.id } })).toBe(1);
+  } finally { await prisma.company.delete({ where: { id: fixture.companyId } }); }
 });
 
 function collectPageErrors(page: Page): string[] {

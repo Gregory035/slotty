@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { hasAnalyticsConfiguration, initializeAnalytics, setAnalyticsConsent, trackPageView } from '../analytics';
 import { initializeWebVitals } from '../web-vitals';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 
 export function AnalyticsConsent() {
+  const { pathname } = useLocation();
   const [visible, setVisible] = useState(false);
   useEffect(() => setVisible(hasAnalyticsConfiguration && localStorage.getItem('slotty-analytics-consent') === null), []);
-  if (!visible) return null;
+  if (!visible || pathname.startsWith('/miniapp/') || pathname.startsWith('/company/')) return null;
 
   function decide(value: 'granted' | 'denied') {
     setAnalyticsConsent(value);

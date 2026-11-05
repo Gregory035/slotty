@@ -13,6 +13,7 @@ if [ -f "$BACKUP_FILE.sha256" ]; then
   sha256sum -c "$BACKUP_FILE.sha256"
 fi
 
-pg_restore --clean --if-exists --no-owner --no-acl --dbname="$RESTORE_DATABASE_URL" "$BACKUP_FILE"
+pg_restore --exit-on-error --single-transaction --no-owner --no-acl --dbname="$RESTORE_DATABASE_URL" "$BACKUP_FILE"
 psql "$RESTORE_DATABASE_URL" -v ON_ERROR_STOP=1 -c 'SELECT COUNT(*) AS migrations FROM "_prisma_migrations";'
+psql "$RESTORE_DATABASE_URL" -v ON_ERROR_STOP=1 -c 'SELECT COUNT(*) AS companies FROM "Company";' -c 'SELECT COUNT(*) AS appointments FROM "Appointment";' -c 'SELECT COUNT(*) AS reviews FROM "Review";'
 echo "Restore verification passed"

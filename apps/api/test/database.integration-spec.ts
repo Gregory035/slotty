@@ -1,5 +1,7 @@
 import { AppointmentSource, AppointmentStatus, CompanyRole, Prisma, PrismaClient } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
+import { ReviewsService } from '../src/reviews/reviews.service';
+import type { PrismaService } from '../src/database/prisma.service';
 
 process.env.DATABASE_URL ??= 'postgresql://telegram_business:telegram_business@localhost:5432/telegram_business?schema=public';
 
@@ -43,6 +45,39 @@ describe('database tenant and booking constraints', () => {
     userIds.push(user.id);
     return { company, service, employee, customer };
   }
+
+  it('counts more than 100 reviews and paginates without duplicates or tenant leakage', async () => {
+    const { company, employee, customer, service } = await seedCompany('Review pagination');
+    const appointments = Array.from({ length: 105 }, (_, index) => ({
+      id: randomUUID(), companyId: company.id, employeeId: employee.id,
+      customerId: customer.id, serviceId: service.id,
+      startsAt: new Date(Date.UTC(2035, 0, index + 1, 9)),
+      endsAt: new Date(Date.UTC(2035, 0, index + 1, 10)),
+      status: AppointmentStatus.COMPLETED, source: AppointmentSource.DASHBOARD,
+      priceSnapshot: service.price, durationMinutesSnapshot: 60,
+    }));
+    await prisma.appointment.createMany({ data: appointments });
+    await prisma.review.createMany({ data: appointments.map((appointment) => ({
+      companyId: company.id, customerId: customer.id, appointmentId: appointment.id,
+      rating: 5, createdAt: new Date('2035-01-01T00:00:00Z'),
+    })) });
+    const reviews = new ReviewsService(prisma as PrismaService);
+    const ids: string[] = [];
+    let cursor: string | undefined;
+    do {
+      const page = await reviews.dashboard(company.id, cursor);
+      expect(page.summary).toEqual({ average: 5, count: 105 });
+      expect(page.byEmployee).toEqual([expect.objectContaining({ id: employee.id, count: 105, average: 5 })]);
+      expect(page.byService[0]?.count).toBe(105);
+      expect(page.items.length).toBeLessThanOrEqual(25);
+      ids.push(...page.items.map((review) => review.id));
+      cursor = page.nextCursor ?? undefined;
+    } while (cursor);
+    expect(new Set(ids).size).toBe(105);
+    expect(ids).toHaveLength(105);
+    const other = await seedCompany('No reviews');
+    expect((await reviews.dashboard(other.company.id)).summary.count).toBe(0);
+  });
 
   it('rejects a cross-tenant employee-service relation', async () => {
     const left = await seedCompany('Tenant left');

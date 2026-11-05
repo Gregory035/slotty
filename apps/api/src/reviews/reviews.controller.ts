@@ -1,4 +1,4 @@
-import { Controller, Get, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AccessTokenGuard } from '../auth/guards/access-token.guard';
 import { CompanyPermission } from '../companies/company-permission';
@@ -15,7 +15,7 @@ export class ReviewsController {
 
   @Get()
   @RequirePermissions(CompanyPermission.CUSTOMERS_READ)
-  dashboard(@Param('companyId') companyId: string) {
-    return this.reviews.dashboard(companyId);
+  dashboard(@Param('companyId') companyId: string, @Query('cursor') cursor?: string) {
+    return this.reviews.dashboard(companyId, cursor);
   }
 }

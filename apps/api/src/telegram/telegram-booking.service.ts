@@ -15,6 +15,7 @@ import {
   WorkExampleSource,
 } from '@prisma/client';
 import { InlineKeyboard } from 'grammy';
+import { telegramAppointmentStatus, parseCallbackDate, parseCallbackTime } from './telegram-callback-values';
 import type { Update, User } from 'grammy/types';
 import { timingSafeEqual } from 'node:crypto';
 import { AppointmentsService } from '../appointments/appointments.service';
@@ -26,7 +27,6 @@ import {
   isoWeekday,
   localDateTimeToUtc,
   parseDateOnly,
-  parseTimeToMinutes,
 } from '../scheduling/time-zone.util';
 import { decodeUuid, encodeUuid } from './callback-data.util';
 import { TelegramApiService } from './telegram-api.service';
@@ -1122,15 +1122,7 @@ export class TelegramBookingService {
   }
 
   private appointmentStatusLabel(status: AppointmentStatus): string {
-    const labels: Record<AppointmentStatus, string> = {
-      PENDING: 'Ожидает подтверждения',
-      CONFIRMED: 'Подтверждена',
-      COMPLETED: 'Завершена',
-      CANCELLED_BY_CUSTOMER: 'Отменена вами',
-      CANCELLED_BY_COMPANY: 'Отменена компанией',
-      NO_SHOW: 'Клиент не пришёл',
-    };
-    return labels[status];
+    return telegramAppointmentStatus(status);
   }
 
   private async requireAssignment(
@@ -1170,21 +1162,11 @@ export class TelegramBookingService {
   }
 
   private callbackDate(value: string): string {
-    if (!/^\d{8}$/.test(value)) {
-      throw new BadRequestException('Invalid callback date');
-    }
-    const date = `${value.slice(0, 4)}-${value.slice(4, 6)}-${value.slice(6)}`;
-    parseDateOnly(date);
-    return date;
+    return parseCallbackDate(value);
   }
 
   private callbackTime(value: string): string {
-    if (!/^\d{4}$/.test(value)) {
-      throw new BadRequestException('Invalid callback time');
-    }
-    const time = `${value.slice(0, 2)}:${value.slice(2)}`;
-    parseTimeToMinutes(time);
-    return time;
+    return parseCallbackTime(value);
   }
 
   private extractContext(update: Update): UpdateContext | null {

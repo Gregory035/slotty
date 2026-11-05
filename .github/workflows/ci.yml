@@ -44,6 +44,9 @@ jobs:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/telegram_business?schema=public
       REDIS_URL: redis://localhost:6379
       RATE_LIMIT_REGISTER_MAX: 100
+      RATE_LIMIT_LOGIN_MAX: 100
+      RATE_LIMIT_PASSWORD_RESET_MAX: 100
+      VITE_YM_COUNTER_ID: 112790410
       JWT_ACCESS_SECRET: ci-access-secret-at-least-32-characters
       JWT_REFRESH_SECRET: ci-refresh-secret-at-least-32-characters
       BOT_TOKEN_ENCRYPTION_KEY: ci-encryption-key-at-least-32-characters

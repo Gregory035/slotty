@@ -15,7 +15,7 @@ BACKUP_DIR=/secure/backups sh scripts/backup.sh
 BACKUP_FILE=/secure/backups/<file>.dump sh scripts/verify-backup.sh
 ```
 
-Запускайте backup ежедневно, шифруйте хранилище, держите минимум одну off-site копию. Restore drill — не реже раза в месяц в отдельную временную БД. Скрипт проверки не затрагивает production DB.
+Запускайте backup ежедневно, шифруйте хранилище, держите минимум одну off-site копию. Не передавайте production URL в `verify-backup.sh`: он записывает данные в указанную базу. Безопасная обёртка `check-backup-isolated.sh` создаёт отдельный PostgreSQL без сети, монтирует архив только для чтения и удаляет тестовый контейнер с его томом после проверки. Требуются абсолютный `BACKUP_FILE` и `BACKUP_IMAGE` опубликованного backup-образа. В workflow `Backup restore verification` подготовлена еженедельная проверка последнего архива; она заработает после публикации workflow и нового backup-образа. Ошибка видна в GitHub Actions, успешность local drill не доказывает восстановимость production-архива.
 
 На сервере установите `ops/systemd/slotty-backup.service` и `ops/systemd/slotty-backup.timer` в `/etc/systemd/system`, затем выполните `systemctl daemon-reload && systemctl enable --now slotty-backup.timer`. По умолчанию архивы лежат в `./backups`, хранятся 14 дней и создаются также перед каждым deploy. Production-образ backup уже содержит rclone. Для off-site копии передайте `BACKUP_REMOTE` и, если remote не задаётся переменными `RCLONE_CONFIG_*`, base64-содержимое `rclone.conf` в `RCLONE_CONFIG_BASE64`. После загрузки скрипт проверяет доступность удалённого объекта; без внешних реквизитов включить эту проверку невозможно.
 
