@@ -73,9 +73,10 @@ describe('AppointmentsService', () => {
     const result = await service.updateStatus(companyId, appointmentId, {
       status: AppointmentStatus.CANCELLED_BY_COMPANY,
       cancellationReason: 'Специалист заболел',
-    });
+    }, { id: 'member', companyId, userId: 'actor', role: CompanyRole.EMPLOYEE, employeeId: appointment.employeeId }, 'actor');
 
     expect(result.status).toBe(AppointmentStatus.CANCELLED_BY_COMPANY);
+    expect(result.customer).toMatchObject({ phone: null, username: null, telegramId: null });
     expect(prisma.outboxEvent.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ type: 'appointment.cancelled' }),
@@ -102,6 +103,25 @@ describe('AppointmentsService', () => {
       (service as unknown as { rethrowBookingConflict(error: unknown): never })
         .rethrowBookingConflict(databaseError),
     ).toThrow(ConflictException);
+  });
+
+  it('scopes employee deposit writes to their own appointments and hides contacts', async () => {
+    const prisma = {
+      appointment: { update: jest.fn().mockResolvedValue(appointment) },
+      auditLog: { create: jest.fn() },
+    };
+    const service = new AppointmentsService(prisma as never, {} as never, {} as never, {} as never, {} as never);
+    const member = { id: 'member', companyId, userId: 'actor', role: CompanyRole.EMPLOYEE, employeeId: appointment.employeeId };
+    const result = await service.updateDepositStatus(companyId, appointmentId, 'PAID', 'actor', member);
+    expect(prisma.appointment.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id_companyId: { id: appointmentId, companyId }, employeeId: appointment.employeeId },
+    }));
+    expect(result.customer).toMatchObject({ phone: null, username: null, telegramId: null });
+    prisma.appointment.update.mockRejectedValueOnce(new Error('No matching scoped appointment'));
+    await expect(service.updateDepositStatus(companyId, 'other-appointment', 'WAIVED', 'actor', member)).rejects.toThrow('Appointment not found');
+    expect(prisma.auditLog.create).toHaveBeenCalledTimes(1);
+    await expect(service.updateDepositStatus(companyId, appointmentId, 'PAID', 'actor', { ...member, employeeId: null })).rejects.toThrow('Company access denied');
+    expect(prisma.appointment.update).toHaveBeenCalledTimes(2);
   });
 
   it('rejects a multi-specialist visit before any write if its second slot is unavailable', async () => {

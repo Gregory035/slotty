@@ -263,7 +263,7 @@ export class BillingService {
   }
 
   private async applyProviderUpdate(
-    payment: { id: string; companyId: string; subscriptionId: string | null; planSnapshot: SubscriptionPlan },
+    payment: { id: string; companyId: string; subscriptionId: string | null; planSnapshot: SubscriptionPlan; renewalForPeriodEndAt?: Date | null },
     provider: YooKassaPayment,
     externalEventId: string,
     payloadHash: string,
@@ -322,16 +322,19 @@ export class BillingService {
                   : {}),
               },
             });
-          } else if (status === PaymentStatus.FAILED) {
+          } else if (status === PaymentStatus.FAILED && payment.renewalForPeriodEndAt) {
+            // Grace belongs to an existing paid period, never to a failed first purchase.
+            const graceEndsAt = new Date(payment.renewalForPeriodEndAt.getTime() + 7 * 86_400_000);
             await tx.subscription.updateMany({
               where: {
                 id: payment.subscriptionId,
                 companyId: payment.companyId,
-                OR: [{ currentPeriodEndsAt: null }, { currentPeriodEndsAt: { lte: new Date() } }],
+                currentPeriodEndsAt: payment.renewalForPeriodEndAt,
+                status: { in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.PAST_DUE] },
               },
               data: {
                 status: SubscriptionStatus.PAST_DUE,
-                graceEndsAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+                graceEndsAt,
               },
             });
           }

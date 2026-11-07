@@ -670,7 +670,10 @@ export class AppointmentsService {
     const now = new Date();
     const appointment = await this.prisma.$transaction(async (transaction) => {
       const updated = await transaction.appointment.updateMany({
-        where: { id: appointmentId, companyId, status: current.status },
+        where: {
+          id: appointmentId, companyId, status: current.status,
+          ...(membership?.role === CompanyRole.EMPLOYEE ? { employeeId: membership.employeeId! } : {}),
+        },
         data: {
           status: input.status,
           cancellationReason: isCancelled
@@ -754,7 +757,7 @@ export class AppointmentsService {
     ) {
       await this.notifyReviewRequest(appointment);
     }
-    return this.toResponse(appointment);
+    return this.toResponse(appointment, membership?.role === CompanyRole.EMPLOYEE);
   }
 
   async updateDepositStatus(
@@ -762,9 +765,18 @@ export class AppointmentsService {
     appointmentId: string,
     status: 'PAID' | 'WAIVED',
     actorId: string,
+    membership: CompanyMembershipContext,
   ): Promise<AppointmentResponseDto> {
+    if (membership.companyId !== companyId || membership.userId !== actorId ||
+      (membership.role === CompanyRole.EMPLOYEE && !membership.employeeId)) {
+      throw new ForbiddenException('Company access denied');
+    }
     const appointment = await this.prisma.appointment.update({
-      where: { id_companyId: { id: appointmentId, companyId } },
+      // Scope the write itself so a concurrent reassignment cannot bypass access control.
+      where: {
+        id_companyId: { id: appointmentId, companyId },
+        ...(membership.role === CompanyRole.EMPLOYEE ? { employeeId: membership.employeeId! } : {}),
+      },
       data: { depositStatus: status },
       include: appointmentInclude,
     }).catch(() => { throw new NotFoundException('Appointment not found'); });
@@ -778,7 +790,7 @@ export class AppointmentsService {
         metadata: { status },
       },
     });
-    return this.toResponse(appointment);
+    return this.toResponse(appointment, membership.role === CompanyRole.EMPLOYEE);
   }
 
   private async createBooking(input: CreateBookingInput): Promise<AppointmentWithRelations> {

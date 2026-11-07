@@ -64,6 +64,8 @@ services:
     environment:
       NODE_ENV: production
       API_PORT: 3000
+      # Neither API nor Nginx is publicly exposed; Caddy is the only public ingress.
+      API_TRUST_PROXY_HOPS: "2"
       API_PUBLIC_URL: ${API_PUBLIC_URL:?API_PUBLIC_URL is required}
       TELEGRAM_API_ROOT: ${TELEGRAM_API_ROOT:-}
       TELEGRAM_USE_ENV_PROXY: ${TELEGRAM_USE_ENV_PROXY:-false}

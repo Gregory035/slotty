@@ -17,6 +17,10 @@ try {
 }
 
 const blocked = [];
+if (report.error || !report.metadata?.vulnerabilities || !report.vulnerabilities || ![0, 1].includes(audit.status)) {
+  console.error('Dependency audit did not return a complete vulnerability report');
+  process.exit(1);
+}
 const allowed = [];
 for (const [name, finding] of Object.entries(report.vulnerabilities ?? {})) {
   if (!['high', 'critical'].includes(finding.severity)) continue;

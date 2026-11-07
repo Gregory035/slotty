@@ -20,7 +20,7 @@ describe('BillingService payment reconciliation', () => {
     amount: { value: '990.00', currency: 'RUB' },
   };
 
-  function setup() {
+  function setup(renewalForPeriodEndAt: Date | null = null) {
     const periodEnd = new Date(Date.now() + 5 * 86_400_000);
     const tx = {
       paymentEvent: { create: jest.fn().mockResolvedValue({}) },
@@ -37,7 +37,7 @@ describe('BillingService payment reconciliation', () => {
       $queryRaw: jest.fn().mockResolvedValue([{ id: payment.subscriptionId }]),
     };
     const prisma = {
-      payment: { findUnique: jest.fn().mockResolvedValue(payment) },
+      payment: { findUnique: jest.fn().mockResolvedValue({ ...payment, renewalForPeriodEndAt }) },
       $transaction: jest.fn(async (callback: (transaction: typeof tx) => unknown) => callback(tx)),
     };
     const config = { get: jest.fn((key: string) => ({
@@ -94,18 +94,13 @@ describe('BillingService payment reconciliation', () => {
 
     await service.syncPayment(companyId, payment.id);
 
-    expect(tx.subscription.updateMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({
-          OR: expect.arrayContaining([{ currentPeriodEndsAt: null }]),
-        }),
-      }),
-    );
+    expect(tx.subscription.updateMany).not.toHaveBeenCalled();
     expect(tx.subscription.update).not.toHaveBeenCalled();
   });
 
   it('starts a seven-day grace period when renewal fails after access expires', async () => {
-    const { service, tx } = setup();
+    const expiredPeriod = new Date(Date.now() - 2 * 86_400_000);
+    const { service, tx } = setup(expiredPeriod);
     jest.spyOn(global, 'fetch').mockResolvedValue({
       ok: true,
       json: async () => ({ ...provider, status: 'canceled' }),
@@ -117,7 +112,19 @@ describe('BillingService payment reconciliation', () => {
       data: { status: SubscriptionStatus; graceEndsAt: Date };
     };
     expect(change.data.status).toBe(SubscriptionStatus.PAST_DUE);
-    expect(change.data.graceEndsAt.getTime()).toBeGreaterThan(Date.now() + 6 * 86_400_000);
+    expect(change.data.graceEndsAt.getTime()).toBe(expiredPeriod.getTime() + 7 * 86_400_000);
+    expect(tx.subscription.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ currentPeriodEndsAt: expiredPeriod }),
+    }));
+  });
+
+  it('does not revive access for a late failed renewal', async () => {
+    const expiredPeriod = new Date(Date.now() - 30 * 86_400_000);
+    const { service, tx } = setup(expiredPeriod);
+    jest.spyOn(global, 'fetch').mockResolvedValue({ ok: true, json: async () => ({ ...provider, status: 'canceled' }) } as Response);
+    await service.syncPayment(companyId, payment.id);
+    const change = tx.subscription.updateMany.mock.calls[0]?.[0] as { data: { graceEndsAt: Date } };
+    expect(change.data.graceEndsAt.getTime()).toBeLessThan(Date.now());
   });
 
   it('disables renewal and schedules cancellation at the paid period end', async () => {

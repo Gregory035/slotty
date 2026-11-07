@@ -18,6 +18,7 @@ const optionalVatCode = z.preprocess(
 const environmentSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   API_PORT: z.coerce.number().int().positive().default(3000),
+  API_TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(2).default(0),
   API_PUBLIC_URL: optionalUrl,
   WEB_URL: z.string().url().default('http://localhost:5173'),
   SWAGGER_ENABLED: z

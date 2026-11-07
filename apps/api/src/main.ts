@@ -6,10 +6,12 @@ import { json, urlencoded } from 'express';
 import helmet from 'helmet';
 import * as Sentry from '@sentry/node';
 import { AppModule } from './app.module';
+import { configureProxy } from './config/proxy';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule, { bodyParser: false });
   const config = app.get(ConfigService);
+  configureProxy(app.getHttpAdapter().getInstance(), config.getOrThrow<number>('API_TRUST_PROXY_HOPS'));
   const sentryDsn = config.get<string>('SENTRY_DSN');
   if (sentryDsn) {
     Sentry.init({

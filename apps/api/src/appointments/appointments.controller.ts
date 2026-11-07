@@ -135,7 +135,8 @@ export class AppointmentsController {
     @Param('appointmentId', ParseUUIDPipe) appointmentId: string,
     @Body() input: UpdateDepositStatusDto,
     @CurrentUser() user: AuthenticatedUserDto,
+    @CurrentCompanyMember() membership: CompanyMembershipContext,
   ): Promise<AppointmentResponseDto> {
-    return this.appointments.updateDepositStatus(companyId, appointmentId, input.status, user.id);
+    return this.appointments.updateDepositStatus(companyId, appointmentId, input.status, user.id, membership);
   }
 }
