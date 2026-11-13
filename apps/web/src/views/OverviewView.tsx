@@ -7,6 +7,7 @@ import type { Company } from '../types';
 import { formatMoney, formatTime, statusLabel, statusTone } from '../utils';
 import { EmptyState, ErrorBlock, LoadingBlock, SectionHeader } from '../components/ui';
 import { SoloTodayAgenda } from './SoloTodayAgenda';
+import { BookingReadiness } from './BookingReadiness';
 
 export function OverviewView({ company }: { company: Company }) {
   const solo = company.workingMode === 'SOLO' && company.role === 'OWNER';
@@ -55,6 +56,7 @@ export function OverviewView({ company }: { company: Company }) {
         </section>
       )}
       {data.setupChecklist.some((item) => !item.done) && <section className="setup-checklist panel"><div><p className="eyebrow">Настройка</p><h2>Осталось сделать</h2></div><div>{data.setupChecklist.filter((item) => !item.done).map((item) => <button key={item.id} onClick={() => open(item.section)}>{item.label}<ArrowRight size={14} /></button>)}</div></section>}
+      {data.bookingPreview && data.bot?.status === 'ACTIVE' && /^[a-z0-9_]{5,32}$/i.test(data.bot.username) && <BookingReadiness companyId={company.id} timezone={company.timezone} preview={data.bookingPreview} username={data.bot.username} hasTelegramBooking={data.hasTelegramBooking} />}
       {solo ? <SoloTodayAgenda company={company} /> : <>
       <section className="overview-grid">
         <article className="panel upcoming-panel">

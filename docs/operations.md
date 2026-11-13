@@ -8,6 +8,15 @@
 
 Alert минимум: readiness 0, 5xx rate, p95 latency, `outboxPending`, `notificationsPending`, `telegramErrors`, `paymentErrors`, disk PostgreSQL.
 
+## Доступ оператора Slotty
+
+Закрытый экран: `/app?view=operator`. Авторизация обычной сессией Slotty,
+право просмотра проверяет API по UUID пользователя в `SLOTTY_OPERATOR_USER_IDS`.
+Укажите только подтверждённые UUID в окружении API (на production — в .env
+для Docker Compose). Пустой список отключает доступ. Роль компании не даёт
+глобального доступа. Экран не позволяет менять аккаунты и подписки.
+Воронка показывает текущее состояние, а не историю переходов.
+
 ## Backup
 
 ```bash

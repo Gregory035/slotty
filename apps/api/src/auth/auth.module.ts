@@ -7,10 +7,11 @@ import { PasswordService } from './password.service';
 import { TokenService } from './token.service';
 import { AuthCookieService } from './auth-cookie.service';
 import { PasswordResetMailerService } from './password-reset-mailer.service';
+import { OperatorController } from '../users/operator.controller';
 
 @Module({
   imports: [UsersModule],
-  controllers: [AuthController],
+  controllers: [AuthController, OperatorController],
   providers: [
     AuthService,
     AuthCookieService,

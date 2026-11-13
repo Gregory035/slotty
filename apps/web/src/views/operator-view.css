@@ -1,0 +1,18 @@
+.operator-view {
+  display: grid;
+  gap: 16px;
+  overflow-wrap: anywhere;
+}
+
+.operator-view .panel {
+  padding: 16px 20px;
+}
+
+.operator-view .panel h2 {
+  font-size: 18px;
+  margin: 0;
+}
+
+.operator-view form {
+  max-width: 440px;
+}

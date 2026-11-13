@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { AppointmentSource, AppointmentStatus, BotStatus, ScheduleExceptionType } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
+import { bookableAssignment } from './activation';
 import {
   addDays,
   dateInTimeZone,
@@ -66,6 +67,7 @@ export class DashboardService {
       failedNotifications,
       deadEvents,
       failedTelegramUpdates,
+      previewAssignment,
     ] = await Promise.all([
       this.prisma.appointment.count({
         where: { companyId, startsAt: { gte: todayStart, lt: todayEnd } },
@@ -139,7 +141,7 @@ export class DashboardService {
         },
       }),
       this.prisma.waitlistEntry.count({ where: { companyId, status: 'WAITING' } }),
-      this.prisma.appointment.count({ where: { companyId } }),
+      this.prisma.appointment.count({ where: { companyId, source: AppointmentSource.TELEGRAM } }),
       this.prisma.telegramUpdate.findMany({
         where: { companyId, createdAt: { gte: periodStart, lt: periodEnd } },
         select: { payload: true },
@@ -160,6 +162,11 @@ export class DashboardService {
       this.prisma.notification.count({ where: { companyId, status: 'FAILED' } }),
       this.prisma.outboxEvent.count({ where: { companyId, status: 'DEAD' } }),
       this.prisma.telegramUpdate.count({ where: { companyId, status: 'FAILED' } }),
+      this.prisma.employeeService.findFirst({
+        where: { companyId, ...bookableAssignment },
+        orderBy: [{ employeeId: 'asc' }, { serviceId: 'asc' }],
+        select: { employeeId: true, serviceId: true, service: { select: { name: true } }, employee: { select: { firstName: true, lastName: true } } },
+      }),
     ]);
     const periodCustomerIds = [...new Set(analyticsAppointments.map((item) => item.customerId))];
     const priorCompletedCustomers = periodCustomerIds.length
@@ -191,6 +198,8 @@ export class DashboardService {
         percent: capacityMinutes ? Math.min(100, Math.round((bookedMinutes / capacityMinutes) * 100)) : 0,
       },
       bot,
+      bookingPreview: previewAssignment,
+      hasTelegramBooking: hasAppointment > 0,
       upcomingAppointments: upcoming.map((appointment) => ({
         id: appointment.id,
         startsAt: appointment.startsAt,
@@ -202,9 +211,9 @@ export class DashboardService {
       setupChecklist: [
         { id: 'services', label: 'Добавить услуги', done: activeServices > 0, section: 'services' },
         { id: 'employees', label: company.workingMode === 'SOLO' ? 'Профиль мастера создан' : 'Добавить сотрудников', done: activeEmployees > 0, section: 'employees' },
-        { id: 'schedule', label: 'Настроить расписание', done: scheduleRules.length > 0, section: 'schedule' },
+        { id: 'schedule', label: 'Настроить часы специалиста', done: scheduleRules.length > 0, section: 'schedule' },
+        { id: 'assignment', label: 'Назначить услугу специалисту с рабочими часами', done: Boolean(previewAssignment), section: 'employees' },
         { id: 'bot', label: 'Подключить Telegram-бота', done: bot?.status === BotStatus.ACTIVE, section: 'bot' },
-        { id: 'test-booking', label: 'Сделать тестовую запись', done: hasAppointment > 0, section: 'appointments' },
       ],
       waitlistCount,
       healthIssues: [

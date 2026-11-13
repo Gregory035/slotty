@@ -4,6 +4,10 @@ import { CompanyRole, SubscriptionStatus } from '@prisma/client';
 import { PrismaService } from '../src/database/prisma.service';
 import { AppointmentsService } from '../src/appointments/appointments.service';
 import { BillingService } from '../src/billing/billing.service';
+import { OperatorController } from '../src/users/operator.controller';
+import { DashboardService } from '../src/dashboard/dashboard.service';
+import { SchedulingService } from '../src/scheduling/scheduling.service';
+import { dateInTimeZone } from '../src/scheduling/time-zone.util';
 
 const prisma = new PrismaService();
 const appointments = new AppointmentsService(prisma, {} as never, {} as never, {} as never, {} as never);
@@ -35,6 +39,32 @@ afterAll(async () => {
   await prisma.company.deleteMany({ where: { id: { in: companyIds } } });
   await prisma.user.deleteMany({ where: { id: { in: userIds } } });
   await prisma.$disconnect();
+});
+
+test('operator reporting selects real company readiness and denies unlisted users', async () => {
+  const { company, user, employee, membership, appointment } = await seed();
+  const stranger = await seed();
+  const controller = new OperatorController(new ConfigService({ SLOTTY_OPERATOR_USER_IDS: user.id }), prisma);
+  const initial = await controller.activation(user);
+  await expect(controller.users(stranger.user)).rejects.toThrow('Operator access required');
+  await prisma.companyMember.update({ where: { id: membership.id }, data: { role: 'OWNER' } });
+  await prisma.employeeService.create({ data: { companyId: company.id, employeeId: employee.id, serviceId: appointment.serviceId } });
+  await prisma.scheduleRule.create({ data: { companyId: company.id, employeeId: employee.id, weekday: 1, startTime: '09:00', endTime: '18:00' } });
+  await prisma.bot.create({ data: { companyId: company.id, telegramBotId: BigInt(Date.now()), username: 'test_slotty_bot', tokenEncrypted: 'test-only', webhookSecret: randomUUID() } });
+  await prisma.appointment.update({ where: { id: appointment.id }, data: { source: 'DASHBOARD' } });
+  const dashboard = await new DashboardService(prisma).get(company.id, {});
+  expect(dashboard.bookingPreview).toMatchObject({ employeeId: employee.id, serviceId: appointment.serviceId });
+  expect(dashboard.hasTelegramBooking).toBe(false);
+  const before = await prisma.appointment.count({ where: { companyId: company.id } });
+  await new SchedulingService(prisma).getAvailability(company.id, { employeeId: employee.id, serviceId: appointment.serviceId, date: dateInTimeZone(new Date(), company.timezone) });
+  expect(await prisma.appointment.count({ where: { companyId: company.id } })).toBe(before);
+  await prisma.appointment.update({ where: { id: appointment.id }, data: { source: 'TELEGRAM' } });
+  const result = await controller.users(user, user.email);
+  expect(result.users).toHaveLength(1);
+  expect(result.users[0]).not.toHaveProperty('passwordHash');
+  expect(result.users[0]?.companies[0]).toMatchObject({ scheduleReady: true, botReady: true, receivedBooking: true });
+  const stages = await controller.activation(user);
+  expect(stages.slice(1).map((stage, index) => stage.count - initial[index + 1]!.count)).toEqual([1, 1, 1, 1]);
 });
 
 test('employee cannot change another specialist deposit; own responses hide contacts', async () => {

@@ -55,6 +55,7 @@ const environmentSchema = z.object({
   YOOKASSA_SECRET_KEY: optionalString,
   YOOKASSA_VAT_CODE: optionalVatCode,
   PAYMENT_RETURN_URL: optionalUrl,
+  SLOTTY_OPERATOR_USER_IDS: z.string().default('').refine((value) => !value.trim() || value.split(',').every((id) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id.trim())), 'Expected comma-separated operator user UUIDs'),
   METRICS_TOKEN: z.preprocess(
     (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
     z.string().min(32).optional(),

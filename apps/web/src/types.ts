@@ -385,6 +385,8 @@ export interface Dashboard {
     serviceName: string;
   }>;
   setupChecklist: Array<{ id: string; label: string; done: boolean; section: Section }>;
+  bookingPreview?: { employeeId: string; serviceId: string; service: { name: string }; employee: { firstName: string; lastName: string | null } } | null;
+  hasTelegramBooking?: boolean;
   waitlistCount: number;
   healthIssues: Array<{ id: string; label: string; section: Section }>;
   analytics: {

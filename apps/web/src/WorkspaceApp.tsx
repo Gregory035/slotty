@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
-import { Navigate, useNavigate, useParams } from 'react-router-dom';
+import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { getCompanies, getEntitlements, restoreSession } from './api';
 import { AppShell } from './components/AppShell';
 import { AuthScreen } from './components/AuthScreen';
@@ -25,6 +25,7 @@ const BillingView = lazy(() => import('./views/BillingView').then((module) => ({
 const SettingsView = lazy(() => import('./views/SettingsView').then((module) => ({ default: module.SettingsView })));
 const AuditView = lazy(() => import('./views/AuditView').then((module) => ({ default: module.AuditView })));
 const SystemStatusView = lazy(() => import('./views/SystemStatusView').then((module) => ({ default: module.SystemStatusView })));
+const OperatorView = lazy(() => import('./views/OperatorView').then((module) => ({ default: module.OperatorView })));
 
 const sections: Section[] = ['dashboard', 'analytics', 'calendar', 'appointments', 'customers', 'reviews', 'services', 'employees', 'schedule', 'bot', 'members', 'billing', 'settings', 'audit', 'system'];
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 30_000 } } });
@@ -78,8 +79,10 @@ function WorkspaceRouter() {
 }
 
 function WorkspaceGate({ restoringSession, session, companies, companiesLoading, companiesError }: { restoringSession: boolean; session: ReturnType<typeof useAppStore.getState>['session']; companies: Company[] | undefined; companiesLoading: boolean; companiesError: boolean }) {
+  const [params] = useSearchParams();
   if (restoringSession) return <div className="fullscreen-state"><LoadingBlock label="Открываем Slotty" /></div>;
   if (!session) return <AuthScreen />;
+  if (params.get('view') === 'operator') return <Suspense fallback={<LoadingBlock />}><OperatorView key={session.user.id} userId={session.user.id} /></Suspense>;
   if (companiesLoading) return <div className="fullscreen-state"><LoadingBlock label="Открываем рабочее пространство" /></div>;
   if (companiesError) return <div className="fullscreen-state"><ErrorBlock message="Не удалось загрузить компании. Убедитесь, что API запущен." /></div>;
   if (!companies?.length) return <CompanyOnboarding />;
