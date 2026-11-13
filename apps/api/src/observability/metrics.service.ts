@@ -7,6 +7,8 @@ export class MetricsService {
   private errorCount = 0;
   private latencyTotalMs = 0;
   private bookingConflicts = 0;
+  private readonly latencyBounds = [5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, Infinity];
+  private readonly latencyBuckets = new Array<number>(11).fill(0);
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -21,7 +23,10 @@ export class MetricsService {
   }
 
   recordRequest(durationMs: number, status: number, path: string): void {
+    if (/^\/api\/health\/(live|ready)(?:\?|$)/.test(path)) return;
     this.requestCount += 1;
+    const bucket = this.latencyBounds.findIndex((bound) => durationMs <= bound);
+    if (bucket >= 0) this.latencyBuckets[bucket]! += 1;
     this.latencyTotalMs += durationMs;
     if (status >= 500) this.errorCount += 1;
     if (status === 409 && path.includes('/appointments')) this.bookingConflicts += 1;
@@ -40,7 +45,7 @@ export class MetricsService {
         where: { createdAt: { gte: since } },
         orderBy: { createdAt: 'desc' },
         take: 10_000,
-        select: { name: true, value: true },
+        select: { name: true, value: true, path: true },
       }),
     ]);
     const webVitals = Object.fromEntries(['CLS', 'INP', 'LCP'].map((name) => {
@@ -56,6 +61,8 @@ export class MetricsService {
       requests: this.requestCount,
       errors: this.errorCount,
       averageLatencyMs: this.requestCount ? Math.round(this.latencyTotalMs / this.requestCount) : 0,
+      latencyP95UpperBoundMs: this.latencyPercentile(0.95),
+      latencyP99UpperBoundMs: this.latencyPercentile(0.99),
       activeCompanies,
       appointments,
       bookingConflicts: this.bookingConflicts,
@@ -65,6 +72,25 @@ export class MetricsService {
       telegramErrors,
       paymentErrors,
       webVitals30Days: webVitals,
+      webVitalsByPath30Days: Object.fromEntries(['/', '/online-zapis', '/zapis-cherez-telegram', '/dlya-mastera', '/dlya-salona'].map((path) => [path,
+        Object.fromEntries(['CLS', 'INP', 'LCP'].map((name) => {
+          const values = webVitalRows.filter((row) => row.path === path && row.name === name).map((row) => row.value).sort((a, b) => a - b);
+          return [name, { samples: values.length, p75: values.length ? values[Math.ceil(values.length * 0.75) - 1] : null }];
+        })),
+      ])),
+      webVitalsSampleLimit: 10_000,
+      webVitalsSampleLimitReached: webVitalRows.length === 10_000,
     };
+  }
+
+  private latencyPercentile(percentile: number): number | null {
+    if (!this.requestCount) return null;
+    const target = Math.ceil(this.requestCount * percentile);
+    let count = 0;
+    for (const [index, amount] of this.latencyBuckets.entries()) {
+      count += amount;
+      if (count >= target) return Number.isFinite(this.latencyBounds[index]) ? this.latencyBounds[index]! : null;
+    }
+    return null;
   }
 }

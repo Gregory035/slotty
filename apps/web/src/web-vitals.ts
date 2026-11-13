@@ -15,6 +15,8 @@ export function initializeWebVitals(): void {
   const path = window.location.pathname;
   const endpoint = `${import.meta.env.VITE_API_URL ?? 'http://localhost:3000/api'}/telemetry/web-vitals`;
   const report = (metric: Metric) => {
+    // Consent may be withdrawn, or a public visit may continue into the cabinet.
+    if (analyticsConsent() !== 'granted' || navigator.doNotTrack === '1' || window.location.pathname !== path) return;
     const payload = JSON.stringify({
       name: metric.name,
       value: metric.value,
@@ -38,5 +40,5 @@ export function initializeWebVitals(): void {
     onCLS(report);
     onINP(report);
     onLCP(report);
-  });
+  }).catch(() => { initialized = false; });
 }
