@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { access, readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
 const dist = resolve(process.cwd(), 'dist');
@@ -19,6 +19,9 @@ for (const route of routes) {
   assert.ok(title && description, `${route} must contain title and description`);
   documents.push({ route, source, title, description });
   if (enabled) {
+    assert.match(source, /<meta name="robots" content="index,follow(?:,max-image-preview:large)?"/, `${route} must allow indexing`);
+    assert.equal([...source.matchAll(/<meta\b[^>]*\bname="robots"/gi)].length, 1, `${route} must have one robots directive`);
+    assert.equal([...source.matchAll(/<link\b[^>]*\brel="canonical"/gi)].length, 1, `${route} must have one canonical`);
     assert.match(source, new RegExp(`<link rel="canonical" href="${escapeRegExp(`${origin}${route}`)}"`));
     assert.match(source, /<meta property="og:image" content="https:\/\//);
     const jsonLd = [...source.matchAll(/<script type="application\/ld\+json"[^>]*>(.*?)<\/script>/gs)];
@@ -47,12 +50,19 @@ for (const file of ['private.html', '404.html']) {
   assert.doesNotMatch(source, /rel="canonical"|application\/ld\+json/);
 }
 
+const robots = await readFile(resolve(dist, 'robots.txt'), 'utf8');
+assert.match(robots, /^Allow: \/$/m);
+assert.doesNotMatch(robots, /^\s*Disallow:\s*\S/im, 'crawlers must be able to read noindex');
 if (enabled) {
+  assert.match(robots, new RegExp(`^Sitemap: ${escapeRegExp(origin)}/sitemap\\.xml$`, 'm'));
   const sitemap = await readFile(resolve(dist, 'sitemap.xml'), 'utf8');
   const locations = [...sitemap.matchAll(/<loc>(.*?)<\/loc>/g)].map((match) => match[1]);
   assert.deepEqual(locations, routes.map((route) => `${origin}${route}`));
   assert.doesNotMatch(sitemap, /localhost|example\.|\/app|\/companies|[?&](?:token|code)=/i);
   assert.doesNotMatch(sitemap, /<lastmod>/i);
+} else {
+  assert.doesNotMatch(robots, /^Sitemap:/im);
+  await assert.rejects(access(resolve(dist, 'sitemap.xml')), { code: 'ENOENT' });
 }
 
 function escapeRegExp(value) {
