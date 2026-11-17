@@ -1,15 +1,47 @@
-import { ArrowRight, BellRing, CalendarCheck, CalendarClock, ListRestart, MessageSquareText, Send, UserRoundCheck } from 'lucide-react';
+import { ArrowRight, CalendarCheck, Send } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { trackEvent } from '../analytics';
 import { MarketingLayout } from './MarketingLayout';
 
+const setupSteps = [
+  ['Создайте бота', 'Откройте @BotFather в Telegram, создайте бота и получите токен. Не отправляйте токен клиентам и не публикуйте его.'],
+  ['Подключите бота к Slotty', 'В рабочем пространстве откройте раздел «Telegram-бот» и вставьте токен. Убедитесь, что бот активен.'],
+  ['Настройте услуги и рабочие часы', 'Добавьте услуги с длительностью, назначьте их специалистам и задайте расписание. Если работаете один, используйте свой профиль мастера.'],
+  ['Проверьте свободное время', 'На экране обзора выберите дату и нажмите «Проверить запись». Проверка показывает доступное время, но не создаёт визит.'],
+  ['Отправьте ссылку клиентам', 'Скопируйте ссылку на бота из панели. Клиент открывает её в Telegram и нажимает «Записаться», чтобы перейти в Mini App.'],
+] as const;
+
 export function TelegramBookingPage() {
   return <MarketingLayout>
-    <section className="marketing-hero"><nav className="breadcrumbs" aria-label="Хлебные крошки"><Link to="/">Главная</Link><span aria-hidden="true">/</span><span>Запись через Telegram</span></nav><p className="eyebrow">Telegram Mini App для записи</p><h1>Онлайн-запись клиентов через Телеграм</h1><p>Клиент открывает Mini App из бота, выбирает одну или несколько услуг, специалистов и свободное время. Slotty сразу добавляет визит в расписание.</p><div className="landing-actions"><Link className="primary-button lime-button" to="/app?mode=register" onClick={() => { trackEvent('landing_start_trial', { source: 'telegram_booking' }); }}>Подключить Slotty <ArrowRight size={17} /></Link><Link className="text-button" to="/online-zapis">Возможности онлайн-записи</Link></div></section>
-    <section className="telegram-process" aria-labelledby="telegram-process-title"><div><Send size={30} aria-hidden="true" /><p className="eyebrow">Без переписки</p><h2 id="telegram-process-title">Один понятный сценарий для клиента</h2></div><ol><li><span>1</span><div><h3>Собрать визит</h3><p>Клиент может добавить несколько услуг и выбрать для каждой своего специалиста.</p></div></li><li><span>2</span><div><h3>Оценить специалистов</h3><p>В карточке мастера есть описание, отзывы и фото работ; занятые интервалы не предлагаются.</p></div></li><li><span>3</span><div><h3>Управлять визитом</h3><p>Подтверждение, перенос и отмена доступны в Telegram.</p></div></li></ol></section>
-    <section className="marketing-section" aria-labelledby="telegram-business-title"><p className="eyebrow">Для бизнеса услуг</p><h2 id="telegram-business-title">Бот для онлайн-записи клиентов в Telegram</h2><p className="marketing-section-copy">Slotty подходит компаниям и самостоятельным специалистам, которые работают по предварительной записи. Клиенту не нужно звонить, ждать ответа или устанавливать отдельное приложение: он открывает знакомый чат и проходит запись самостоятельно.</p><div className="capability-grid"><article><CalendarCheck size={21} aria-hidden="true" /><h3>Только доступное время</h3><p>Бот сверяет расписание сотрудника, длительность услуги и уже созданные визиты. Клиент видит только те интервалы, в которые услуга действительно помещается.</p></article><article><UserRoundCheck size={21} aria-hidden="true" /><h3>Услуга и специалист</h3><p>Перед выбором времени клиент указывает нужную услугу и исполнителя. Новая запись сохраняется с выбранными параметрами и появляется в рабочей панели.</p></article><article><BellRing size={21} aria-hidden="true" /><h3>Подтверждение в чате</h3><p>После оформления клиент получает понятное подтверждение. Администратор видит визит в общем расписании без переноса данных из переписки вручную.</p></article></div></section>
-    <section className="marketing-flow"><div><p className="eyebrow">Что происходит дальше</p><h2>Telegram для клиента, единая панель для команды</h2><p className="marketing-flow-copy">Клиент управляет своим визитом через бота, а владелец и сотрудники работают с теми же данными в Slotty.</p></div><ol><li><span>01</span><div><h3>Запись попадает в расписание</h3><p>В панели отображаются дата, время, услуга, сотрудник и статус визита.</p></div></li><li><span>02</span><div><h3>Свободные слоты пересчитываются</h3><p>Время, занятое услугой, перестаёт предлагаться следующим клиентам.</p></div></li><li><span>03</span><div><h3>Изменения синхронизируются</h3><p>При переносе или отмене расписание обновляется, а освободившийся интервал снова можно использовать.</p></div></li></ol></section>
-    <section className="marketing-section"><p className="eyebrow">После записи</p><h2>Коммуникация продолжается автоматически</h2><div className="capability-grid capability-grid-four"><article><BellRing size={21} aria-hidden="true" /><h3>Напоминания</h3><p>Сообщения перед визитом помогают клиенту подтвердить планы или вовремя изменить запись.</p></article><article><CalendarClock size={21} aria-hidden="true" /><h3>Перенос и отмена</h3><p>Изменения проходят через контролируемый сценарий и сразу отражаются в панели.</p></article><article><ListRestart size={21} aria-hidden="true" /><h3>Лист ожидания</h3><p>Освободившийся слот предлагается клиенту, который ожидает подходящее время.</p></article><article><MessageSquareText size={21} aria-hidden="true" /><h3>Отзывы</h3><p>После завершения услуги клиент может поставить оценку через Telegram.</p></article></div></section>
-    <section className="marketing-faq" aria-labelledby="telegram-faq"><p className="eyebrow">Вопросы</p><h2 id="telegram-faq">Об онлайн-записи через Telegram</h2><div><details><summary>Нужен ли отдельный бот?</summary><p>Да. Владелец создаёт бота через BotFather и подключает его токен в защищённом разделе Slotty. После подключения услуги и свободное время компании становятся доступны клиентам в этом боте.</p></details><details><summary>Нужно ли клиенту регистрироваться в Slotty?</summary><p>Нет. Клиент взаимодействует с подключённым Telegram-ботом и не создаёт отдельную учётную запись в панели компании.</p></details><details><summary>Может ли клиент занять уже забронированное время?</summary><p>Нет. Перед созданием записи Slotty повторно проверяет доступность полного интервала услуги. Если услуга длится час, занятый ею период не предлагается как свободный.</p></details><details><summary>Можно ли перенести или отменить запись в Telegram?</summary><p>Да. Клиент проходит предусмотренный сценарий в боте. При переносе выбирается новое доступное время, после чего расписание обновляется.</p></details><details><summary>Где администратор увидит новую запись?</summary><p>Новый визит появляется в панели Slotty вместе с услугой, сотрудником, временем и статусом. Там же команда работает с расписанием и изменениями.</p></details></div></section>
+    <section className="marketing-hero">
+      <nav className="breadcrumbs" aria-label="Хлебные крошки"><Link to="/">Главная</Link><span aria-hidden="true">/</span><span>Запись через Telegram</span></nav>
+      <p className="eyebrow">Telegram Mini App для записи</p>
+      <h1>Онлайн-запись клиентов через Телеграм</h1>
+      <p>Клиент выбирает услугу, специалиста и время прямо в Telegram. Вы получаете визит в расписании Slotty без ручного переноса из переписки.</p>
+      <div className="landing-actions">
+        <Link className="primary-button lime-button" to="/app?mode=register" onClick={() => { trackEvent('landing_start_trial', { source: 'telegram_booking' }); }}>Подключить Slotty <ArrowRight size={17} aria-hidden="true" /></Link>
+      </div>
+    </section>
+    <section className="marketing-flow" aria-labelledby="telegram-setup-title">
+      <div><p className="eyebrow">Настройка</p><h2 id="telegram-setup-title">Как запустить запись через Telegram</h2><p className="marketing-flow-copy">Пять шагов от своего бота до ссылки, по которой клиенты смогут записаться.</p></div>
+      <ol>{setupSteps.map(([title, description], index) => <li key={title}><span aria-hidden="true">{String(index + 1).padStart(2, '0')}</span><div><h3>{title}</h3><p>{description}</p></div></li>)}</ol>
+    </section>
+    <section className="marketing-section" aria-labelledby="telegram-booking-example">
+      <p className="eyebrow">Пример записи</p>
+      <h2 id="telegram-booking-example">Что увидит клиент, а что – владелец</h2>
+      <div className="capability-grid">
+        <article><Send size={21} aria-hidden="true" /><h3>В Mini App</h3><p>Например, клиент выбирает стрижку, смотрит фото работ мастера, если они опубликованы, и бронирует один из свободных интервалов. Для записи не нужен аккаунт Slotty.</p></article>
+        <article><CalendarCheck size={21} aria-hidden="true" /><h3>В панели Slotty</h3><p>В расписании появляются время, услуга, специалист и статус визита. Занятое время больше не предлагается клиентам. При переносе или отмене расписание обновляется.</p></article>
+      </div>
+      <div className="landing-actions"><Link className="text-button" to="/dlya-mastera">Сценарий для частного мастера</Link><Link className="text-button" to="/dlya-salona">Сценарий для салона и команды</Link><Link className="text-button" to="/online-zapis">Все возможности онлайн-записи</Link></div>
+    </section>
+    <section className="marketing-faq" aria-labelledby="telegram-faq">
+      <p className="eyebrow">Вопросы</p><h2 id="telegram-faq">Перед первой записью</h2>
+      <div>
+        <details><summary>Что делать, если Mini App не показывает свободное время?</summary><p>Проверьте, что услуга назначена активному специалисту, у него есть рабочие часы на выбранную дату, а свободный интервал не короче услуги.</p></details>
+        <details><summary>Можно ли записаться на несколько услуг за один визит?</summary><p>Да. В Mini App можно добавить несколько услуг. Если работаете командой, услуги могут выполнять разные специалисты. Время внутри одного визита должно идти по порядку.</p></details>
+        <details><summary>Можно ли перенести или отменить запись?</summary><p>Клиент может открыть свои записи в Telegram и перенести или отменить визит по правилам компании.</p></details>
+      </div>
+    </section>
   </MarketingLayout>;
 }
