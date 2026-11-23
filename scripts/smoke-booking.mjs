@@ -95,6 +95,8 @@ try {
     companyIds.push(company.id);
   }
   const [companyA, companyB] = companyIds;
+  // This fixture exercises access boundaries between two employees.
+  await prisma.subscription.updateMany({ where: { companyId: companyA }, data: { plan: 'TEAM' } });
   const service = await expectStatus(
     await request(`/companies/${companyA}/services`, {
       method: 'POST',
