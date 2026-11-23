@@ -71,6 +71,7 @@ test('only owner can change mode; foreign profiles and other active colleagues a
   await expect(companies.changeWorkingMode(company.id, foreign.user.id, { workingMode: 'SOLO' })).rejects.toThrow('Только владелец');
   await expect(companies.changeWorkingMode(company.id, user.id, { workingMode: 'SOLO', employeeId: foreign.company.employeeId! })).rejects.toThrow('в этой компании');
   const first = await employees.create(company.id, { firstName: 'Анна' });
+  await prisma.subscription.updateMany({ where: { companyId: company.id }, data: { plan: 'TEAM' } });
   await employees.create(company.id, { firstName: 'Коллега' });
   await expect(companies.changeWorkingMode(company.id, user.id, { workingMode: 'SOLO', employeeId: first.id })).rejects.toThrow('другие активные');
   const admin = await prisma.user.create({ data: { email: `${randomUUID()}@solo.test`, firstName: 'Admin', passwordHash: 'test-only' } });
@@ -81,6 +82,8 @@ test('only owner can change mode; foreign profiles and other active colleagues a
 
 test('adding a colleague expands the workspace without changing the owner profile', async () => {
   const { user, company } = await create('SOLO');
+  await expect(employees.create(company.id, { firstName: 'Коллега' }, user.id)).rejects.toMatchObject({ status: 402 });
+  await prisma.subscription.updateMany({ where: { companyId: company.id }, data: { plan: 'TEAM' } });
   await employees.create(company.id, { firstName: 'Коллега' }, user.id);
   const changed = (await companies.findAllForUser(user.id))[0];
   expect(changed?.workingMode).toBe('TEAM');
