@@ -1,3 +1,4 @@
+import { catalog } from '../../../api/src/billing/catalog';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Check, ExternalLink } from 'lucide-react';
@@ -16,7 +17,7 @@ export function BillingView({ company }: { company: Company }) {
   const billing = useQuery({ queryKey: ['billing', company.id], queryFn: () => getEntitlements(company.id) });
   const payments = useQuery({ queryKey: ['payments', company.id], queryFn: () => getPayments(company.id) });
   const checkout = useMutation({
-    mutationFn: (plan: 'STARTER' | 'PRO') => createCheckout(company.id, plan, renewAfterCheckout, true, LEGAL_DOCUMENT_VERSION),
+    mutationFn: (plan: 'SOLO' | 'TEAM' | 'BUSINESS') => createCheckout(company.id, plan, renewAfterCheckout, true, LEGAL_DOCUMENT_VERSION),
     onSuccess: ({ confirmationUrl }) => { window.location.assign(confirmationUrl); },
     onError: (caught) => notify(errorMessage(caught), 'error'),
   });
@@ -55,8 +56,8 @@ export function BillingView({ company }: { company: Company }) {
         description={`${planLabel[billing.data.plan]} · ${subscriptionStatusLabel[billing.data.status]}${periodEnd ? ` до ${formatDate(periodEnd)}` : ''}.`}
       />
       <div className="plan-grid">
-        <Plan name="Starter" price="990 ₽" features={['До 10 сотрудников', 'До 1000 записей в месяц', 'Стандартные уведомления']} active={billing.data.plan === 'STARTER'} pending={checkout.isPending || !offerAccepted} action={() => checkout.mutate('STARTER')} />
-        <Plan name="Pro" price="2490 ₽" features={['До 100 сотрудников', 'Расширенная аналитика', 'Кастомные уведомления']} active={billing.data.plan === 'PRO'} pending={checkout.isPending || !offerAccepted} action={() => checkout.mutate('PRO')} />
+        <article className="panel plan-card"><h2>FREE</h2><strong>0 ₽/мес.</strong><p>1 сотрудник, 30 записей в месяц. Бесплатно навсегда.</p></article>
+        {(['SOLO','TEAM','BUSINESS'] as const).map(plan=><Plan key={plan} name={plan} price={catalog[plan].price+' ₽'} features={['До '+catalog[plan].staff+' сотрудников','Без лимита записей']} active={billing.data?.plan===plan} pending={checkout.isPending||!offerAccepted} action={()=>checkout.mutate(plan)} />)}
       </div>
       <label className="checkout-renewal-option"><input type="checkbox" checked={renewAfterCheckout} onChange={(event) => setRenewAfterCheckout(event.target.checked)} /><span><strong>Автопродление после оплаты</strong><small>Можно отключить в любой момент. Доступ сохранится до конца оплаченного периода.</small></span></label>
       <label className="checkout-renewal-option"><input type="checkbox" checked={offerAccepted} onChange={(event) => setOfferAccepted(event.target.checked)} /><span><strong>Принимаю условия оплаты</strong><small>Я принимаю <Link to="/offer" target="_blank">публичную оферту</Link>, включая порядок списаний, отмены автопродления и возвратов.</small></span></label>
@@ -64,17 +65,17 @@ export function BillingView({ company }: { company: Company }) {
         <div><h2>Продление подписки</h2><p className="muted-text">{billing.data.cancelAtPeriodEnd ? `Отключится ${billing.data.currentPeriodEndsAt ? formatDate(billing.data.currentPeriodEndsAt) : 'в конце периода'}` : billing.data.autoRenewEnabled ? 'Следующий платёж пройдёт автоматически.' : 'Автоматическое продление выключено.'}</p></div>
         <div className="subscription-control-actions">
           <button className="secondary-button" disabled={!billing.data.paymentMethodSaved || renewal.isPending || cancel.isPending} onClick={() => renewal.mutate(!billing.data.autoRenewEnabled)}>{billing.data.autoRenewEnabled ? 'Выключить автопродление' : 'Включить автопродление'}</button>
-          {billing.data.active && !billing.data.cancelAtPeriodEnd && <button className="danger-text-button" disabled={cancel.isPending || renewal.isPending} onClick={() => cancel.mutate()}>Отменить в конце периода</button>}
+          {billing.data.plan !== 'FREE' && billing.data.active && !billing.data.cancelAtPeriodEnd && <button className="danger-text-button" disabled={cancel.isPending || renewal.isPending} onClick={() => cancel.mutate()}>Отменить в конце периода</button>}
         </div>
       </article>
-      <article className="panel usage-panel"><h2>Использование лимитов</h2>{Object.entries(billing.data.usage).map(([key, value]) => { const limit = billing.data.limits[key as keyof typeof billing.data.usage] as number; return <div className="usage-row" key={key}><span>{usageLabel[key] ?? key}</span><strong>{value} / {limit}</strong><div><i style={{ width: `${Math.min(100, value / limit * 100)}%` }} /></div></div>; })}</article>
+      <article className="panel usage-panel"><h2>Использование лимитов</h2>{Object.entries(billing.data.usage).map(([key, value]) => { const limit = billing.data.limits[key as keyof typeof billing.data.usage] as number; return <div className="usage-row" key={key}><span>{usageLabel[key] ?? key}</span><strong>{value} / {limit === Number.MAX_SAFE_INTEGER ? '∞' : limit}</strong><div><i style={{ width: `${Math.min(100, value / limit * 100)}%` }} /></div></div>; })}</article>
       <article className="panel payments-panel"><h2>История платежей</h2>{payments.data?.items.length ? payments.data.items.map((payment) => <div className="data-row" key={payment.id}><div><strong>{planLabel[payment.planSnapshot]}</strong><span>{formatDate(payment.createdAt)}</span></div><strong>{formatMoney(payment.amount, payment.currency)}</strong><span className={`status-badge ${payment.status === 'SUCCEEDED' ? 'badge-green' : 'badge-muted'}`}>{paymentStatusLabel[payment.status]}</span>{payment.status === 'PENDING' && <button className="secondary-button compact" disabled={sync.isPending} onClick={() => sync.mutate(payment.id)}>Проверить оплату</button>}</div>) : <p className="muted-text">Платежей пока нет.</p>}</article>
     </>
   );
 }
 
 const usageLabel: Record<string, string> = { employees: 'Сотрудники', services: 'Услуги', monthlyAppointments: 'Записи за месяц', bots: 'Telegram-боты' };
-const planLabel = { TRIAL: 'Пробный период', STARTER: 'Starter', PRO: 'Pro' } as const;
+const planLabel = { FREE: 'FREE', SOLO: 'SOLO', TEAM: 'TEAM', BUSINESS: 'BUSINESS' } as const;
 const subscriptionStatusLabel: Record<Company['subscriptionStatus'] & string, string> = {
   TRIALING: 'пробный период', ACTIVE: 'активен', PAST_DUE: 'льготный период — требуется оплата', CANCELLED: 'отменён', EXPIRED: 'истёк',
 };

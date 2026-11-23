@@ -1,3 +1,4 @@
+import { catalog } from './catalog';
 import {
   BadRequestException,
   BadGatewayException,
@@ -18,9 +19,10 @@ import { createHash, randomUUID } from 'node:crypto';
 import { CursorPage, decodeCursor, pageFromRows } from '../common/pagination';
 import { PrismaService } from '../database/prisma.service';
 
-const PRICE: Record<Exclude<SubscriptionPlan, 'TRIAL'>, string> = {
-  STARTER: '990.00',
-  PRO: '2490.00',
+const PRICE: Record<Exclude<SubscriptionPlan, 'FREE'>, string> = {
+  SOLO: catalog.SOLO.price.toFixed(2),
+  TEAM: catalog.TEAM.price.toFixed(2),
+  BUSINESS: catalog.BUSINESS.price.toFixed(2),
 };
 
 interface YooKassaPayment {
@@ -41,7 +43,7 @@ export class BillingService {
 
   async createCheckout(
     companyId: string,
-    plan: Exclude<SubscriptionPlan, 'TRIAL'>,
+    plan: Exclude<SubscriptionPlan, 'FREE'>,
     autoRenew: boolean,
     legalVersion: string,
     userId: string,
@@ -141,7 +143,7 @@ export class BillingService {
     });
     let processed = 0;
     for (const subscription of subscriptions) {
-      if (!subscription.currentPeriodEndsAt || !subscription.providerPaymentMethodId || subscription.plan === SubscriptionPlan.TRIAL) continue;
+      if (!subscription.currentPeriodEndsAt || !subscription.providerPaymentMethodId || subscription.plan === SubscriptionPlan.FREE) continue;
       try {
         const existing = await this.prisma.payment.findUnique({
           where: {
@@ -395,7 +397,7 @@ export class BillingService {
 
   private async createProviderPayment(input: {
     companyId: string;
-    plan: Exclude<SubscriptionPlan, 'TRIAL'>;
+    plan: Exclude<SubscriptionPlan, 'FREE'>;
     idempotencyKey: string;
     returnUrl?: string;
     savePaymentMethod?: boolean;

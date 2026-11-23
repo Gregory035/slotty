@@ -7,10 +7,10 @@ describe('Landing page', () => {
   it('renders the value proposition, trial terms and pricing without JavaScript', () => {
     const html = renderToStaticMarkup(<MemoryRouter><LandingPage /></MemoryRouter>);
     expect(html).toContain('Онлайн-запись<br/>прямо в Telegram');
-    expect(html).toContain('990 ₽');
-    expect(html).toContain('2 490 ₽');
-    expect(html).toContain('/ 30 дней');
-    expect(html).toContain('до 3 специалистов, 10 услуг и 100 записей');
+    expect(html).toContain('FREE');
+    expect(html).toContain('BUSINESS');
+    expect(html).toContain('Сравнить все возможности');
+    expect(html).toContain('30 записей в месяц');
     expect(html.match(/<h1>/g)).toHaveLength(1);
     expect(html.match(/Начать бесплатно/g)).toHaveLength(2);
     expect(html).not.toContain('Создать рабочее пространство');

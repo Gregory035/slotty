@@ -112,7 +112,7 @@ test('reassignment between status read and write does not bypass employee scope'
 async function failedPayment(companyId: string, subscriptionId: string, renewalForPeriodEndAt: Date | null = null) {
   const payment = await prisma.payment.create({ data: {
     companyId, subscriptionId, provider: 'yookassa', externalPaymentId: randomUUID(), amount: 990,
-    currency: 'RUB', planSnapshot: 'STARTER', renewalForPeriodEndAt,
+    currency: 'RUB', planSnapshot: 'TEAM', renewalForPeriodEndAt,
   } });
   jest.spyOn(global, 'fetch').mockResolvedValue({ ok: true, json: async () => ({
     id: payment.externalPaymentId, status: 'canceled', amount: { value: '990.00', currency: 'RUB' },
@@ -123,7 +123,7 @@ async function failedPayment(companyId: string, subscriptionId: string, renewalF
 
 test('repeated failed purchases do not reopen an expired trial', async () => {
   const { company } = await seed();
-  const subscription = await prisma.subscription.create({ data: { companyId: company.id, trialEndsAt: new Date(Date.now() - day) } });
+  const subscription = await prisma.subscription.create({ data: { companyId: company.id, status: 'TRIALING', trialEndsAt: new Date(Date.now() - day) } });
   await failedPayment(company.id, subscription.id);
   await failedPayment(company.id, subscription.id);
   const actual = await prisma.subscription.findUniqueOrThrow({ where: { id: subscription.id } });
@@ -135,7 +135,7 @@ test('repeated failed purchases do not reopen an expired trial', async () => {
 test('renewal grace is anchored to paid period and duplicate events cannot extend it', async () => {
   const { company } = await seed();
   const periodEnd = new Date(Date.now() - 2 * day);
-  const subscription = await prisma.subscription.create({ data: { companyId: company.id, plan: 'STARTER', status: 'ACTIVE', currentPeriodEndsAt: periodEnd } });
+  const subscription = await prisma.subscription.create({ data: { companyId: company.id, plan: 'TEAM', status: 'ACTIVE', currentPeriodEndsAt: periodEnd } });
   const payment = await failedPayment(company.id, subscription.id, periodEnd);
   await billing.syncPayment(company.id, payment.id);
   const actual = await prisma.subscription.findUniqueOrThrow({ where: { id: subscription.id } });
@@ -147,7 +147,7 @@ test('renewal grace is anchored to paid period and duplicate events cannot exten
 test.each([SubscriptionStatus.ACTIVE, SubscriptionStatus.CANCELLED])('a late renewal failure cannot modify a newer or canceled %s subscription', async (status) => {
   const { company } = await seed();
   const currentPeriodEndsAt = new Date(Date.now() + 10 * day);
-  const subscription = await prisma.subscription.create({ data: { companyId: company.id, plan: 'STARTER', status, currentPeriodEndsAt } });
+  const subscription = await prisma.subscription.create({ data: { companyId: company.id, plan: 'TEAM', status, currentPeriodEndsAt } });
   await failedPayment(company.id, subscription.id, status === 'ACTIVE' ? new Date(Date.now() - day) : currentPeriodEndsAt);
   const actual = await prisma.subscription.findUniqueOrThrow({ where: { id: subscription.id } });
   expect(actual.status).toBe(status);

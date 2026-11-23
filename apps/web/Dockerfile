@@ -7,6 +7,7 @@ COPY apps/web/package.json apps/web/package.json
 RUN npm ci
 COPY tsconfig.base.json ./
 COPY apps/web ./apps/web
+COPY apps/api/src/billing/catalog.ts ./apps/api/src/billing/catalog.ts
 ARG VITE_API_URL=/api
 ARG VITE_SITE_URL
 ARG VITE_GA_MEASUREMENT_ID

@@ -24,8 +24,8 @@ describe('shared visual foundations', () => {
     expect(light).toContain('--surface: #ffffff');
     expect(light).toContain('--text: #202020');
     expect(light).toContain('--border: #e0e0e0');
-    expect(dark).toContain('--page-bg: #121212');
-    expect(dark).toContain('--surface: #1b1b1b');
+    expect(dark).toContain('--page-bg: #111111');
+    expect(dark).toContain('--surface: #1c1c1c');
   });
 
   it('does not leak old landing rules from the private app bundle', () => {

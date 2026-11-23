@@ -457,8 +457,8 @@ model WaitlistEntry {
 model Subscription {
   id                     String             @id @default(uuid()) @db.Uuid
   companyId              String             @db.Uuid
-  plan                   SubscriptionPlan   @default(TRIAL)
-  status                 SubscriptionStatus @default(TRIALING)
+  plan                   SubscriptionPlan   @default(FREE)
+  status                 SubscriptionStatus @default(ACTIVE)
   trialEndsAt            DateTime?
   currentPeriodStartsAt  DateTime?
   currentPeriodEndsAt    DateTime?
@@ -732,9 +732,10 @@ enum NotificationStatus {
 }
 
 enum SubscriptionPlan {
-  TRIAL
-  STARTER
-  PRO
+  FREE @map("TRIAL")
+  SOLO
+  TEAM @map("STARTER")
+  BUSINESS @map("PRO")
 }
 
 enum SubscriptionStatus {

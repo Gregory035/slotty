@@ -573,7 +573,7 @@ export const getPayments = (companyId: string, cursor?: string) => {
   return request<CursorPage<Payment>>(`/companies/${companyId}/billing/payments?${params}`);
 };
 
-export const createCheckout = (companyId: string, plan: 'STARTER' | 'PRO', autoRenew: boolean, offerAccepted: true, legalVersion: string) =>
+export const createCheckout = (companyId: string, plan: 'SOLO' | 'TEAM' | 'BUSINESS', autoRenew: boolean, offerAccepted: true, legalVersion: string) =>
   request<{ confirmationUrl: string }>(`/companies/${companyId}/billing/checkout`, {
     method: 'POST',
     headers: { 'idempotency-key': crypto.randomUUID() },

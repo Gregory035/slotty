@@ -7,7 +7,7 @@
   --surface: #ffffff;
   --raised: #f2f2f2;
   --hover: #ececec;
-  --selected: #e6e6e6;
+  --selected: #e8e8e8;
   --text: #202020;
   --muted: #595959;
   --faint: #696969;
@@ -35,12 +35,12 @@
 
 [data-theme='dark'] {
   color-scheme: dark;
-  --page-bg: #121212;
-  --surface: #1b1b1b;
+  --page-bg: #111111;
+  --surface: #1c1c1c;
   --raised: #242424;
   --hover: #303030;
   --selected: #303030;
-  --text: #f1f1f1;
+  --text: #f2f2f2;
   --muted: #b7b7b7;
   --faint: #a2a2a2;
   --border: #383838;

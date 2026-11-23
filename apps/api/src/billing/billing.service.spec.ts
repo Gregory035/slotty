@@ -11,7 +11,7 @@ describe('BillingService payment reconciliation', () => {
     externalPaymentId: 'provider-payment',
     amount: new Prisma.Decimal('990.00'),
     currency: 'RUB',
-    planSnapshot: SubscriptionPlan.STARTER,
+    planSnapshot: SubscriptionPlan.TEAM,
     status: PaymentStatus.PENDING,
   };
   const provider = {
@@ -150,7 +150,7 @@ describe('BillingService payment reconciliation', () => {
     const subscription = {
       id: payment.subscriptionId,
       companyId,
-      plan: SubscriptionPlan.STARTER,
+      plan: SubscriptionPlan.TEAM,
       status: SubscriptionStatus.ACTIVE,
       currentPeriodEndsAt: periodEnd,
       providerPaymentMethodId: 'saved-method',

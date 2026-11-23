@@ -34,7 +34,7 @@ export interface Company {
   cancellationNoticeMinutes: number;
   allowAnyEmployee: boolean;
   rebookingDelayDays: number;
-  subscriptionPlan: 'TRIAL' | 'STARTER' | 'PRO' | null;
+  subscriptionPlan: 'FREE' | 'SOLO' | 'TEAM' | 'BUSINESS' | null;
   subscriptionStatus:
     | 'TRIALING'
     | 'ACTIVE'
@@ -483,7 +483,7 @@ export interface CompanyMember {
 }
 
 export interface Entitlements {
-  plan: 'TRIAL' | 'STARTER' | 'PRO';
+  plan: 'FREE' | 'SOLO' | 'TEAM' | 'BUSINESS';
   status: NonNullable<Company['subscriptionStatus']>;
   active: boolean;
   trialEndsAt: string | null;
@@ -508,7 +508,7 @@ export interface Payment {
   amount: string;
   currency: string;
   status: 'PENDING' | 'SUCCEEDED' | 'FAILED' | 'REFUNDED';
-  planSnapshot: 'TRIAL' | 'STARTER' | 'PRO';
+  planSnapshot: 'FREE' | 'SOLO' | 'TEAM' | 'BUSINESS';
   createdAt: string;
 }
 

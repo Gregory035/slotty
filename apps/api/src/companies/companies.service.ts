@@ -12,7 +12,6 @@ import { CreateCompanyDto } from './dto/create-company.dto';
 import { UpdateCompanyDto } from './dto/update-company.dto';
 import { WorkingModeDto } from './dto/working-mode.dto';
 
-const TRIAL_LENGTH_MS = 14 * 24 * 60 * 60 * 1000;
 
 @Injectable()
 export class CompaniesService {
@@ -65,9 +64,8 @@ export class CompaniesService {
       const subscription = await transaction.subscription.create({
         data: {
           companyId: company.id,
-          plan: SubscriptionPlan.TRIAL,
-          status: SubscriptionStatus.TRIALING,
-          trialEndsAt: new Date(Date.now() + TRIAL_LENGTH_MS),
+          plan: SubscriptionPlan.FREE,
+          status: SubscriptionStatus.ACTIVE,
         },
       });
       await transaction.auditLog.create({

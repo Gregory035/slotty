@@ -7,7 +7,7 @@ describe('EntitlementsService', () => {
     const prisma = {
       subscription: {
         findFirst: jest.fn().mockResolvedValue({
-          plan: SubscriptionPlan.TRIAL,
+          plan: SubscriptionPlan.FREE,
           status: SubscriptionStatus.TRIALING,
           trialEndsAt: new Date(Date.now() + 86_400_000),
           currentPeriodEndsAt: null,
@@ -27,13 +27,13 @@ describe('EntitlementsService', () => {
   });
 
   it('allows usage below the plan limit', async () => {
-    await expect(serviceWith({ employees: 2 }).assertCanCreateEmployee('company')).resolves.toBeUndefined();
+    await expect(serviceWith({ employees: 0 }).assertCanCreateEmployee('company')).resolves.toBeUndefined();
   });
 
   it('rejects writes after the trial expires', async () => {
     const service = serviceWith({});
     (service as any).prisma.subscription.findFirst.mockResolvedValue({
-      plan: SubscriptionPlan.TRIAL,
+      plan: SubscriptionPlan.FREE,
       status: SubscriptionStatus.TRIALING,
       trialEndsAt: new Date(Date.now() - 1),
       currentPeriodEndsAt: null,

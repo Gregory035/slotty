@@ -6,6 +6,7 @@ import { Link } from 'react-router-dom';
 import { SlottyMark } from '../components/Brand';
 import { trackEvent } from '../analytics';
 import { MarketingLayout } from './MarketingLayout';
+import { PricingSection } from './PricingSection';
 
 const services = [
   { id: 'haircut', name: 'Стрижка', duration: 60, employee: 'Елена', price: '2 500 ₽' },
@@ -23,8 +24,7 @@ const setupSteps = [
 const faqItems = [
   ['Как клиент записывается?', 'Открывает Mini App из Telegram-бота, выбирает услугу, специалиста и время.'],
   ['Нужна ли клиенту регистрация?', 'Нет. Отдельная учётная запись в Slotty ему не нужна.'],
-  ['Что входит в пробный период?', '14 дней после создания компании: до 3 специалистов, 10 услуг и 100 записей. Банковская карта не нужна.'],
-  ['Что будет через 14 дней?', 'Для новых записей и продолжения работы потребуется платный тариф. Выбрать его можно в разделе «Подписка» в панели Slotty.'],
+  ['Сколько можно пользоваться FREE?', 'Бесплатно без ограничения по времени: один специалист и до 30 записей в месяц.'],
 ] as const;
 
 export function LandingPage() {
@@ -59,7 +59,7 @@ export function LandingPage() {
           <Link className="primary-button lime-button" to="/app?mode=register" onClick={() => trackEvent('landing_start_trial', { source: 'home' })}>Начать бесплатно <ArrowRight size={17} /></Link>
           <a className="text-button" href="#demo" onClick={() => trackEvent('landing_view_demo')}>Попробовать демо <ChevronRight size={15} /></a>
         </div>
-        <span className="landing-note">14 дней бесплатно · без карты</span>
+        <span className="landing-note">FREE без ограничения по времени · без карты</span>
         </div>
         <BookingDemo />
       </section>
@@ -98,13 +98,7 @@ export function LandingPage() {
         <div className="landing-steps" data-reveal="right">{setupSteps.map(([number, title, description]) => <article key={number}><span>{number}</span><h3>{title}</h3><p>{description}</p></article>)}</div>
       </section>
 
-      <section className="landing-pricing" id="pricing" aria-labelledby="pricing-title" data-reveal>
-        <div><p className="eyebrow">Прозрачные условия</p><h2 id="pricing-title">Сначала попробуйте.<br />Потом выберите тариф.</h2><p>14 дней бесплатно, без банковской карты.</p></div>
-        <div className="landing-price-options">
-          <article><h3>Starter</h3><p className="landing-price">990 ₽ <span>/ 30 дней</span></p><p>До 10 специалистов и 1 000 записей в месяц.</p></article>
-          <article><h3>Pro</h3><p className="landing-price">2 490 ₽ <span>/ 30 дней</span></p><p>До 100 специалистов и 10 000 записей в месяц.</p></article>
-        </div>
-      </section>
+      <PricingSection />
 
       <section className="landing-faq" aria-labelledby="home-faq-title">
         <div className="landing-section-heading" data-reveal="left"><p className="eyebrow">Перед началом</p><h2 id="home-faq-title">Частые вопросы</h2></div>
@@ -113,7 +107,7 @@ export function LandingPage() {
 
       <section className="landing-final-cta" aria-labelledby="final-cta-title" data-reveal>
         <h2 id="final-cta-title">Настройте свою онлайн-запись.</h2>
-        <p>14 дней бесплатно, без банковской карты.</p>
+        <p>FREE без ограничения по времени, без банковской карты.</p>
         <Link className="primary-button lime-button" to="/app?mode=register" onClick={() => trackEvent('landing_start_trial', { source: 'home_final' })}>Начать бесплатно <ArrowRight size={17} /></Link>
       </section>
     </MarketingLayout>

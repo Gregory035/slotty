@@ -1,3 +1,4 @@
+import { catalog } from './catalog';
 import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import { SubscriptionPlan, SubscriptionStatus } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
@@ -12,30 +13,31 @@ export interface PlanLimits {
 }
 
 export const PLAN_LIMITS: Record<SubscriptionPlan, PlanLimits> = {
-  TRIAL: {
-    employees: 3,
+  FREE: {
+    employees: catalog.FREE.staff,
     services: 10,
-    monthlyAppointments: 100,
+    monthlyAppointments: catalog.FREE.limit ?? Number.MAX_SAFE_INTEGER,
     bots: 1,
     analytics: false,
     customNotifications: false,
   },
-  STARTER: {
-    employees: 10,
+  TEAM: {
+    employees: catalog.TEAM.staff,
     services: 50,
-    monthlyAppointments: 1000,
+    monthlyAppointments: catalog.TEAM.limit ?? Number.MAX_SAFE_INTEGER,
     bots: 1,
-    analytics: false,
+    analytics: true,
     customNotifications: false,
   },
-  PRO: {
-    employees: 100,
+  BUSINESS: {
+    employees: catalog.BUSINESS.staff,
     services: 500,
-    monthlyAppointments: 10000,
+    monthlyAppointments: catalog.BUSINESS.limit ?? Number.MAX_SAFE_INTEGER,
     bots: 5,
     analytics: true,
     customNotifications: true,
   },
+  SOLO: { employees: catalog.SOLO.staff, services: 50, monthlyAppointments: catalog.SOLO.limit ?? Number.MAX_SAFE_INTEGER, bots: 1, analytics: false, customNotifications: true },
 };
 
 @Injectable()

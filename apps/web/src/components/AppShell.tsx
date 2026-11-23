@@ -96,8 +96,8 @@ export function AppShell({
   const [pushPreparing, setPushPreparing] = useState(false);
   const [pushStep, setPushStep] = useState<PushConnectionStep | null>(null);
   const daysLeft = trialDays(activeCompany.trialEndsAt);
-  const isTrial = activeCompany.subscriptionPlan === 'TRIAL';
-  const planLabel = activeCompany.subscriptionPlan === 'PRO' ? 'Pro' : activeCompany.subscriptionPlan === 'STARTER' ? 'Starter' : 'Подписка';
+  const isTrial = activeCompany.subscriptionStatus === 'TRIALING';
+  const planLabel = activeCompany.subscriptionPlan ?? 'Подписка';
   const subscriptionLabel = activeCompany.subscriptionStatus === 'ACTIVE' ? 'Активна' : activeCompany.subscriptionStatus === 'PAST_DUE' ? 'Ожидает оплаты' : activeCompany.subscriptionStatus === 'EXPIRED' || activeCompany.subscriptionStatus === 'CANCELLED' ? 'Неактивна' : 'Не подключена';
   const [mobile, setMobile] = useState(() => window.matchMedia('(max-width: 820px)').matches);
   const sidebarRef = useRef<HTMLElement>(null);

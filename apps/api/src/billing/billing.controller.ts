@@ -14,8 +14,8 @@ import { BillingService } from './billing.service';
 import { EntitlementsService } from './entitlements.service';
 
 class CheckoutDto {
-  @IsIn([SubscriptionPlan.STARTER, SubscriptionPlan.PRO])
-  plan: Exclude<SubscriptionPlan, 'TRIAL'>;
+  @IsIn([SubscriptionPlan.SOLO, SubscriptionPlan.TEAM, SubscriptionPlan.BUSINESS])
+  plan: Exclude<SubscriptionPlan, 'FREE'>;
 
   @IsOptional()
   @IsBoolean()
