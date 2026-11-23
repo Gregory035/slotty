@@ -235,7 +235,7 @@ async function createMiniAppFixture(suffix: string) {
   const company = await prisma.company.create({
     data: {
       name: 'Mini App Test', timezone: 'Europe/Moscow', maxBookingHorizonDays: 14,
-      subscriptions: { create: { plan: 'PRO', status: 'ACTIVE', currentPeriodEndsAt: new Date(Date.now() + 86_400_000) } },
+      subscriptions: { create: { plan: 'BUSINESS', status: 'ACTIVE', currentPeriodEndsAt: new Date(Date.now() + 86_400_000) } },
       employees: { create: { firstName: 'Елена', color: '#4F46E5' } },
       services: { create: { name: 'Тестовая услуга', durationMinutes: 30, price: 1500 } },
     },
