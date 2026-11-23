@@ -6,6 +6,7 @@ import type { MiniAppAppointment, MiniAppAppointments, MiniAppEmployee, MiniAppS
 import { SlottyMark } from '../components/Brand';
 import { DialogLayer } from '../components/DialogLayer';
 import './telegram-miniapp.css';
+import './telegram-miniapp-theme.css';
 import { LEGAL_DOCUMENT_VERSION } from '../legal';
 
 declare global { interface Window { Telegram?: { WebApp?: { initData: string; ready(): void; expand(): void; close(): void; HapticFeedback?: { selectionChanged(): void; impactOccurred(style: 'light' | 'medium'): void } } } } }
@@ -230,7 +231,7 @@ return <DialogLayer portal={false} className="miniapp-sheet-backdrop" onClose={o
 }
 
 function MiniAppState({ label, retry, compact = false }: { label: string; retry?: () => void; compact?: boolean }) { return <main className={`miniapp-state${compact ? ' compact' : ''}`}><LoaderCircle className="miniapp-spin" size={22} /><p>{label}</p>{retry && <button className="miniapp-primary" onClick={retry}>Попробовать снова</button>}</main>; }
-function Avatar({ employee }: { employee: MiniAppEmployee }) { return <span className="miniapp-avatar" style={{ background: employee.color }}>{employee.photoUrl ? <img src={employee.photoUrl} alt="" /> : <UserRound size={20} />}</span>; }
+function Avatar({ employee }: { employee: MiniAppEmployee }) { return <span className="miniapp-avatar">{employee.photoUrl ? <img src={employee.photoUrl} alt="" /> : <UserRound size={20} />}</span>; }
 function messageOf(error: unknown, fallback: string) { return error instanceof ApiError ? error.message : fallback; }
 function haptic(style: 'light' | 'medium') { window.Telegram?.WebApp?.HapticFeedback?.impactOccurred(style); }
 function todayInZone(timezone: string) { return new Intl.DateTimeFormat('en-CA', { timeZone: timezone }).format(new Date()); }

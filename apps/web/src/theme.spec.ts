@@ -18,14 +18,14 @@ describe('shared visual foundations', () => {
     expect(theme).toContain('--danger-soft: var(--danger-surface)');
   });
 
-  it('uses the approved neutral light palette without changing dark surfaces', () => {
+  it('uses neutral surfaces in both themes', () => {
     const [light, dark] = read('./theme.css').split("[data-theme='dark']");
-    expect(light).toContain('--page-bg: #f5f6f8');
+    expect(light).toContain('--page-bg: #f6f6f6');
     expect(light).toContain('--surface: #ffffff');
-    expect(light).toContain('--text: #20242b');
-    expect(light).toContain('--border: #e0e4e9');
-    expect(dark).toContain('--page-bg: #10130f');
-    expect(dark).toContain('--surface: #181c16');
+    expect(light).toContain('--text: #202020');
+    expect(light).toContain('--border: #e0e0e0');
+    expect(dark).toContain('--page-bg: #121212');
+    expect(dark).toContain('--surface: #1b1b1b');
   });
 
   it('does not leak old landing rules from the private app bundle', () => {

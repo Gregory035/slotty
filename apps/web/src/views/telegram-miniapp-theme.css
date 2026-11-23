@@ -1,0 +1,35 @@
+:is(.miniapp-page,.miniapp-state) {
+  --mini-bg: var(--tg-theme-bg-color, light-dark(#f6f7f3, #121310));
+  --mini-surface: var(--tg-theme-secondary-bg-color, light-dark(#fff, #20211e));
+  --mini-text: var(--tg-theme-text-color, light-dark(#171815, #f5f5f1));
+  --mini-muted: color-mix(in srgb, var(--mini-text) 65%, var(--mini-bg));
+  --mini-line: color-mix(in srgb, var(--mini-text) 15%, var(--mini-surface));
+  --mini-selected: color-mix(in srgb, var(--mini-text) 12%, var(--mini-surface));
+  color-scheme: var(--tg-color-scheme, light dark);
+  background: var(--mini-bg);
+  color: var(--mini-text);
+}
+.miniapp-state.compact { background: transparent; }
+.miniapp-service-icon,.miniapp-avatar {
+  background: var(--mini-selected);
+  color: var(--mini-muted);
+}
+.miniapp-page :is(.miniapp-nav,.miniapp-appointment-tabs,.miniapp-dates,.miniapp-slots) button.selected {
+  border-color: var(--mini-muted);
+  background: var(--mini-selected);
+  color: var(--mini-text);
+}
+.miniapp-page .miniapp-slots button.selected small { color: var(--mini-muted); }
+.miniapp-page :is(.miniapp-profile-head span,.miniapp-review-card span,.miniapp-saved-review,.miniapp-rating button.selected) {
+  color: var(--mini-text);
+}
+.miniapp-page .miniapp-rating button { color: var(--mini-muted); }
+.miniapp-page :is(.miniapp-success-icon,.miniapp-visit-list article>span) {
+  background: var(--mini-selected);
+  color: var(--mini-text);
+}
+.miniapp-page .miniapp-error {
+  background: var(--mini-surface);
+  color: var(--mini-text);
+  border-color: var(--mini-muted);
+}
