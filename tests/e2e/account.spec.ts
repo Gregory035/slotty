@@ -43,7 +43,7 @@ for (const role of [CompanyRole.OWNER, CompanyRole.ADMIN, CompanyRole.EMPLOYEE])
     } });
     const company = await prisma.company.create({ data: { name: `Role ${role}` } });
     try {
-      await prisma.subscription.create({ data: { companyId: company.id, plan: 'TRIAL', status: 'TRIALING', trialEndsAt: new Date(Date.now() + 86400000) } });
+      await prisma.subscription.create({ data: { companyId: company.id, plan: 'FREE', status: 'ACTIVE' } });
       const employee = await prisma.employee.create({ data: { companyId: company.id, firstName: role } });
       await prisma.companyMember.create({ data: { userId: user.id, companyId: company.id, role, employeeId: role === CompanyRole.EMPLOYEE ? employee.id : null } });
       const login = await request.post(`${api}/auth/login`, { data: { email: user.email, password } });

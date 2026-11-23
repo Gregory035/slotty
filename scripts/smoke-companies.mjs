@@ -61,9 +61,8 @@ try {
   }
   companyId = created.body.id;
 
-  const trialLength = new Date(created.body.trialEndsAt).getTime() - Date.now();
-  if (trialLength < 13.9 * 24 * 60 * 60 * 1000) {
-    throw new Error('Trial period is shorter than expected');
+  if (created.body.subscriptionPlan !== 'FREE' || created.body.subscriptionStatus !== 'ACTIVE' || created.body.trialEndsAt !== null) {
+    throw new Error('New company must have an active FREE subscription without expiration');
   }
 
   const ownerCompanies = await request('/companies', {
